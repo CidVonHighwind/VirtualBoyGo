@@ -10,63 +10,65 @@ using namespace OVR;
 
 namespace VBEmulator {
 
-struct Rom {
-  bool isGbc;
-  std::string RomName;
-  std::string FullPath;
-  std::string FullPathNorm;
-  std::string SavePath;
-};
+    struct Rom {
+        bool isGbc;
+        std::string RomName;
+        std::string FullPath;
+        std::string FullPathNorm;
+        std::string SavePath;
+    };
 
-struct SaveState {
-  bool hasImage;
-  bool hasState;
-  uint8_t *saveImage;
-};
+    struct SaveState {
+        bool hasImage;
+        bool hasState;
+        uint8_t *saveImage;
+    };
 
-struct LoadedGame {
-  SaveState saveStates[10];
-};
+    struct LoadedGame {
+        SaveState saveStates[10];
+    };
 
-const static int buttonCount = 14;
-extern GLuint *button_icons[];
-extern uint button_mapping_index[];
+    const static int buttonCount = 14;
+    extern GLuint *button_icons[];
+    extern uint button_mapping_index[];
 
-extern const std::string romFolderPath;
+    extern const std::string romFolderPath;
 
-extern const std::vector<std::string> supportedFileNames;
+    extern const std::vector<std::string> supportedFileNames;
 
-void Init(std::string stateFolder);
+    void Init(std::string stateFolder);
 
-void InitSettingsMenu(int &posX, int &posY, Menu &settingsMenu);
+    void InitSettingsMenu(int &posX, int &posY, Menu &settingsMenu);
 
-void InitRomSelectionMenu(int posX, int posY, Menu &romSelectionMenu);
+    void InitRomSelectionMenu(int posX, int posY, Menu &romSelectionMenu);
 
-void InitMainMenu(int posX, int posY, Menu &mainMenu);
+    void InitMainMenu(int posX, int posY, Menu &mainMenu);
 
-void SaveEmulatorSettings(std::ofstream *outfile);
+    void SaveEmulatorSettings(std::ofstream *outfile);
 
-void LoadEmulatorSettings(std::ifstream *file);
+    void LoadEmulatorSettings(std::ifstream *file);
 
-void AddRom(std::string strFullPath, std::string strFilename);
+    void AddRom(std::string strFullPath, std::string strFilename);
 
-void ResetGame();
+    void ResetGame();
 
-void SaveState(int slot);
+    void SaveState(int slot);
 
-void LoadState(int slot);
+    void LoadState(int slot);
 
-void UpdateStateImage(int saveSlot);
+    void UpdateStateImage(int saveSlot);
 
-void ChangeButtonMapping(int buttonIndex, int dir);
+    void ChangeButtonMapping(int buttonIndex, int dir);
 
-void UpdateButtonMapping();
+    void UpdateButtonMapping();
 
-void SaveRam();
+    void RestButtonMapping();
 
-void Update(const ovrFrameInput &vrFrame, unsigned int lastButtonState);
+    void SaveRam();
 
-void DrawScreenLayer(ovrFrameResult &res, const ovrFrameInput &vrFrame);
+    void Update(const ovrFrameInput &vrFrame, unsigned int lastButtonState);
+
+    void DrawScreenLayer(ovrFrameResult &res, const ovrFrameInput &vrFrame);
 
 }  // namespace Emulator
 
