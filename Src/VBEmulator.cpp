@@ -338,7 +338,7 @@ namespace VBEmulator {
 
     Rom *CurrentRom;
     GLuint screenFramebuffer[2];
-    int romSelection;
+    int romSelection = 0;
 
     MenuButton *rButton, *gButton, *bButton;
 
@@ -826,6 +826,10 @@ namespace VBEmulator {
         romList = new MenuList<Rom>(&fontList, OnClickRom, romFileList, 10, HEADER_HEIGHT + 10,
                                     MENU_WIDTH - 20,
                                     (MENU_HEIGHT - HEADER_HEIGHT - BOTTOM_HEIGHT - 20));
+
+        if(romSelection < 0 || romSelection >= romList->ItemList->size())
+            romSelection = 0;
+
         romList->CurrentSelection = romSelection;
         romSelectionMenu.MenuItems.push_back(romList);
     }
