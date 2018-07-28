@@ -549,6 +549,9 @@ namespace VBEmulator {
     void Init(std::string appFolderPath) {
         stateFolderPath = appFolderPath + "/Roms/VB/States/";
 
+        // set the button mapping
+        UpdateButtonMapping();
+
         LOG("VRVB INIT w %i, %i, %i, %i", CylinderWidth, CylinderHeight, VIDEO_WIDTH, VIDEO_HEIGHT);
         // emu screen layer
         // left layer
@@ -859,7 +862,6 @@ namespace VBEmulator {
         // load button mapping
         for (int i = 0; i < buttonCount; ++i) {
             readFile->read((char *) &button_mapping_index[i], sizeof(int));
-            button_mapping[i] = 1u << button_mapping_index[i];
         }
     }
 
@@ -983,13 +985,14 @@ namespace VBEmulator {
     void RestButtonMapping() {
         for (int i = 0; i < buttonCount; ++i) {
             button_mapping_index[i] = button_mapping_index_reset[i];
-            button_mapping[i] = 1u << button_mapping_index[i];
         }
+
+        UpdateButtonMapping();
     }
 
     void UpdateInput() {}
 
-    void Update(const ovrFrameInput &vrFrame, unsigned int lastButtonState) {
+    void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState) {
         // methode will only get called "emulationSpeed" times a second
         frameCounter += vrFrame.DeltaSeconds;
         if (frameCounter < 1 / emulationSpeed) {
@@ -998,20 +1001,20 @@ namespace VBEmulator {
         frameCounter -= 1 / emulationSpeed;
 
         VRVB::input_buf[0] = 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[0]) ? 1 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[1]) ? 2 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[2]) ? 4 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[3]) ? 8 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[4]) ? 16 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[5]) ? 32 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[6]) ? 64 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[7]) ? 128 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[8]) ? 256 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[9]) ? 512 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[10]) ? 1024 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[11]) ? 2048 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[12]) ? 4096 : 0;
-        VRVB::input_buf[0] |= (vrFrame.Input.buttonState & button_mapping[13]) ? 8192 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[0]) ? 1 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[1]) ? 2 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[2]) ? 4 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[3]) ? 8 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[4]) ? 16 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[5]) ? 32 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[6]) ? 64 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[7]) ? 128 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[8]) ? 256 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[9]) ? 512 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[10]) ? 1024 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[11]) ? 2048 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[12]) ? 4096 : 0;
+        VRVB::input_buf[0] |= (buttonState & button_mapping[13]) ? 8192 : 0;
 
         VRVB::Run();
     }

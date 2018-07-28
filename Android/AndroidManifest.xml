@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 		package="com.nintendont.virtualboygo"
 		android:versionCode="1" 
-		android:versionName="1.0" 
+		android:versionName="1.1"
         android:installLocation="auto" >
 	<uses-sdk android:minSdkVersion="21" android:targetSdkVersion="21" />
 	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

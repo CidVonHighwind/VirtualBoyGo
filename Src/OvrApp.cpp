@@ -31,7 +31,7 @@ using namespace OVR;
 
 // global
 const std::string STR_HEADER = "VirtualBoyGo";
-const std::string STR_VERSION = "ver.1.0";
+const std::string STR_VERSION = "ver.1.1";
 
 const int MENU_WIDTH = 640;
 const int MENU_HEIGHT = 576;
@@ -852,7 +852,7 @@ ovrFrameResult OvrApp::Frame(const ovrFrameInput &vrFrame) {
         if (transitionPercentage < 0) transitionPercentage = 0;
 
         //VBEmulator::Update(vrFrame, lastButtonState);
-        EMULATOR::Update(vrFrame, lastButtonState);
+        EMULATOR::Update(vrFrame, buttonState, lastButtonState);
     } else {
         if (transitionPercentage < 1) transitionPercentage += OPEN_MENU_SPEED;
         if (transitionPercentage > 1) transitionPercentage = 1;

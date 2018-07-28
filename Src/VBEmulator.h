@@ -66,7 +66,7 @@ namespace VBEmulator {
 
     void SaveRam();
 
-    void Update(const ovrFrameInput &vrFrame, unsigned int lastButtonState);
+    void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState);
 
     void DrawScreenLayer(ovrFrameResult &res, const ovrFrameInput &vrFrame);
 
