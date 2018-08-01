@@ -50,6 +50,8 @@ namespace VBEmulator {
 
     void AddRom(std::string strFullPath, std::string strFilename);
 
+    void SortRomList();
+
     void ResetGame();
 
     void SaveState(int slot);

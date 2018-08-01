@@ -369,31 +369,9 @@ void OvrApp::EnteredVrMode(const ovrIntentType intentType, const char *intentFro
         GetLocale().GetString("@string/font_name", "efigs.fnt", fontName);
         GuiSys->Init(this->app, *SoundEffectPlayer, fontName.ToCStr(), &app->GetDebugLines());
 
-
     } else if (intentType == INTENT_NEW) {
     }
 }
-
-/*
-void OvrApp::EnteredVrMode(const ovrIntentType intentType, const char *intentFromPackage,
-                           const char *intentJSON, const char *intentURI) {
-  OVR_UNUSED(intentFromPackage);
-  OVR_UNUSED(intentJSON);
-  OVR_UNUSED(intentURI);
-
-  if (intentType == INTENT_LAUNCH) {
-
-
-
-
-
-
-
-
-  } else if (intentType == INTENT_NEW) {
-  }
-}
-*/
 
 int UpdateBatteryLevel() {
     jint bLevel = java->Env->CallIntMethod(java->ActivityObject, getVal);
@@ -520,10 +498,7 @@ void ScanDirectory() {
         }
         closedir(dir);
 
-        //LOG("sort list");
-        //std::sort(romFileList->begin(), romFileList->end(), EMULATOR::SortByRomName);
-        //LOG("finished sorting list");
-
+        EMULATOR::SortRomList();
     } else {
         LOG("could not open folder");
     }

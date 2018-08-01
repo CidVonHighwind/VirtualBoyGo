@@ -5,6 +5,7 @@
 #include <vrvb.h>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 #include "Audio/OpenSLWrap.h"
 #include "DrawHelper.h"
 #include "FontMaster.h"
@@ -881,6 +882,17 @@ namespace VBEmulator {
 
         LOG("found rom: %s %s %s", newRom.RomName.c_str(), newRom.FullPath.c_str(),
             newRom.SavePath.c_str());
+    }
+
+    // sort the roms by name
+    bool SortByRomName(const Rom &first, const Rom &second) {
+        return (first.isGbc == second.isGbc) ? first.RomName < second.RomName : first.isGbc;
+    }
+
+    void SortRomList(){
+        LOG("sort list");
+        std::sort(romFileList->begin(), romFileList->end(), SortByRomName);
+        LOG("finished sorting list");
     }
 
     void ResetGame() {
