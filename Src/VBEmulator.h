@@ -32,6 +32,9 @@ namespace VBEmulator {
     extern GLuint *button_icons[];
     extern uint button_mapping_index[];
 
+    extern const std::string STR_HEADER;
+    extern const std::string STR_VERSION;
+
     extern const std::string romFolderPath;
 
     extern const std::vector<std::string> supportedFileNames;

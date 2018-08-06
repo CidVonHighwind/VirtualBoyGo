@@ -29,10 +29,6 @@ using namespace OVR;
 
 #define GL(func) func;
 
-// global
-const std::string STR_HEADER = "VirtualBoyGo";
-const std::string STR_VERSION = "ver.1.1";
-
 const int MENU_WIDTH = 640;
 const int MENU_HEIGHT = 576;
 const int HEADER_HEIGHT = 75;
@@ -206,13 +202,14 @@ OvrApp::OvrApp()
 }
 
 OvrApp::~OvrApp() {
-    delete SoundEffectPlayer;
-    SoundEffectPlayer = NULL;
+    //delete SoundEffectPlayer;
+    //SoundEffectPlayer = NULL;
 
-    delete SoundEffectContext;
-    SoundEffectContext = NULL;
+    //delete SoundEffectContext;
+    //SoundEffectContext = NULL;
 
-    OvrGuiSys::Destroy(GuiSys);
+    //OvrGuiSys::Destroy(GuiSys);
+
     //if (SceneModel != NULL) {
     //  delete SceneModel;
     //}
@@ -374,8 +371,8 @@ void OvrApp::EnteredVrMode(const ovrIntentType intentType, const char *intentFro
 }
 
 int UpdateBatteryLevel() {
-    jint bLevel = java->Env->CallIntMethod(java->ActivityObject, getVal);
-    int returnValue = (int) bLevel;
+    //jint bLevel = java->Env->CallIntMethod(java->ActivityObject, getVal);
+    int returnValue = 9;// (int) bLevel;
     return returnValue;
 }
 
@@ -636,7 +633,7 @@ void DrawGUI() {
 
     FontManager::Begin();
     FontManager::RenderText(fontHeader,
-                            STR_HEADER,
+                            EMULATOR::STR_HEADER,
                             15,
                             HEADER_HEIGHT / 2 - fontHeader.PHeight / 2 - fontHeader.PStart,
                             1.0f,
@@ -795,15 +792,6 @@ ovrFrameResult OvrApp::Frame(const ovrFrameInput &vrFrame) {
 
 
 ovrFrameResult OvrApp::Frame(const ovrFrameInput &vrFrame) {
-    if (showExitDialog) {
-        OvrApp::app->ShowSystemUI(VRAPI_SYS_UI_CONFIRM_QUIT_MENU);
-        showExitDialog = false;
-    }
-    if (resetView) {
-        OvrApp::app->RecenterYaw(false);
-        resetView = false;
-    }
-
     // time:
     // vrFrame.PredictedDisplayTimeInSeconds
 
@@ -898,6 +886,15 @@ ovrFrameResult OvrApp::Frame(const ovrFrameInput &vrFrame) {
                 VRAPI_FRAME_LAYER_BLEND_ONE_MINUS_SRC_ALPHA;
 
         res.LayerCount++;
+    }
+
+    if (showExitDialog) {
+        OvrApp::app->ShowSystemUI(VRAPI_SYS_UI_CONFIRM_QUIT_MENU);
+        showExitDialog = false;
+    }
+    if (resetView) {
+        OvrApp::app->RecenterYaw(false);
+        resetView = false;
     }
 
     return res;
@@ -1244,7 +1241,7 @@ void OvrApp::SetUpMenu() {
     int smallGap = 5;
 
     menuItemSize = (fontMenu.FontSize + 4);
-    strVersionWidth = GetWidth(fontVersion, STR_VERSION);
+    strVersionWidth = GetWidth(fontVersion, EMULATOR::STR_VERSION);
 
     {
         LOG("Set up Rom Selection Menu");
@@ -1420,7 +1417,7 @@ void OvrApp::SetUpMenu() {
                                                         nullptr));
 
         settingsMenu.MenuItems.push_back(new MenuLabel(&fontVersion,
-                                                       STR_VERSION,
+                                                       EMULATOR::STR_VERSION,
                                                        MENU_WIDTH - 70,
                                                        MENU_HEIGHT - BOTTOM_HEIGHT - 50 + 10, 70,
                                                        50,

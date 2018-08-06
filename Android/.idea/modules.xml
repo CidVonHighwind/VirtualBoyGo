@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../../../VirtualBoyGo.iml" filepath="$PROJECT_DIR$/../../../VirtualBoyGo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/VirtualBoyGo-Android.iml" filepath="$PROJECT_DIR$/VirtualBoyGo-Android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppFramework/VrAppFramework.iml" filepath="$PROJECT_DIR$/../../../VrAppFramework/VrAppFramework.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppFramework/Projects/VrAppFramework-Projects.iml" filepath="$PROJECT_DIR$/../../../VrAppFramework/Projects/VrAppFramework-Projects.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppFramework/Projects/Android/VrAppFramework-Projects-Android.iml" filepath="$PROJECT_DIR$/../../../VrAppFramework/Projects/Android/VrAppFramework-Projects-Android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrAppSupport.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrAppSupport.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrGUI/VrGUI.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrGUI/VrGUI.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrGUI/Projects/VrGUI-Projects.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrGUI/Projects/VrGUI-Projects.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrGUI/Projects/Android/VrGUI-Projects-Android.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrGUI/Projects/Android/VrGUI-Projects-Android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrLocale/VrLocale.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrLocale/VrLocale.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrLocale/Projects/VrLocale-Projects.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrLocale/Projects/VrLocale-Projects.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrLocale/Projects/Android/VrLocale-Projects-Android.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrLocale/Projects/Android/VrLocale-Projects-Android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../VrSamples.iml" filepath="$PROJECT_DIR$/../../VrSamples.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../VrSamples-VirtualBoyGo.iml" filepath="$PROJECT_DIR$/../VrSamples-VirtualBoyGo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrSound/VrSound.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrSound/VrSound.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrSound/Projects/VrSound-Projects.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrSound/Projects/VrSound-Projects.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../../VrAppSupport/VrSound/Projects/Android/VrSound-Projects-Android.iml" filepath="$PROJECT_DIR$/../../../VrAppSupport/VrSound/Projects/Android/VrSound-Projects-Android.iml" />
+    </modules>
+  </component>
+</project>

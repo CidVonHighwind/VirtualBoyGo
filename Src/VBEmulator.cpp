@@ -343,6 +343,10 @@ namespace VBEmulator {
 
     MenuButton *rButton, *gButton, *bButton;
 
+    // global
+    const std::string STR_HEADER = "VirtualBoyGo";
+    const std::string STR_VERSION = "ver.1.1";
+
     void LoadRam();
 
     void InitStateImage() {
