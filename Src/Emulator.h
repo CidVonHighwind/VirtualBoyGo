@@ -1,62 +1,76 @@
-#include "KingInclude.h"
+#ifndef VB_EMULATOR_H
+#define VB_EMULATOR_H
 
-class Emulator {
- public:
-  struct Rom {};
+#include <string>
+#include <vector>
+#include "App.h"
+#include "MenuHelper.h"
 
-  struct SaveState {};
+using namespace OVR;
 
-  struct LoadedGame {};
+namespace Emulator {
 
-  const std::vector<std::string> supportedFileNames;
+    struct Rom {
+        bool isGbc;
+        std::string RomName;
+        std::string FullPath;
+        std::string FullPathNorm;
+        std::string SavePath;
+    };
 
-  std::vector<Rom> *romFileList;
+    struct SaveState {
+        bool hasImage;
+        bool hasState;
+        uint8_t *saveImage;
+    };
 
-  LoadedGame *currentGame;
+    struct LoadedGame {
+        SaveState saveStates[10];
+    };
 
-  GLuint screenTextureId, stateImageId;
+    const static int buttonCount = 14;
+    extern GLuint *button_icons[];
+    extern uint button_mapping_index[];
 
-  const int CylinderWidth, CylinderHeight;
+    extern const std::string romFolderPath;
+    extern const std::vector<std::string> supportedFileNames;
 
-  ovrTextureSwapChain *CylinderSwapChain;
+    void Init(std::string stateFolder);
 
-  int button_mapping_index[];
+    void InitSettingsMenu(int &posX, int &posY, Menu &settingsMenu);
 
-  virtual void void Delete() = 0;
+    void InitRomSelectionMenu(int posX, int posY, Menu &romSelectionMenu);
 
-  virtual void AddRom(std::string strFullPath, std::string strFilename) = 0;
+    void InitMainMenu(int posX, int posY, Menu &mainMenu);
 
-  virtual void Init(std::string stateFolder) = 0;
+    void SaveEmulatorSettings(std::ofstream *outfile);
 
-  virtual void UpdateStateImage(int saveSlot) = 0;
+    void LoadEmulatorSettings(std::ifstream *file);
 
-  virtual void LoadRom(std::string path) = 0;
+    void AddRom(std::string strFullPath, std::string strFilename);
 
-  virtual void void ResetGame() = 0;
+    void SortRomList();
 
-  virtual void void UpdateButtonMapping() = 0;
+    void ResetGame();
 
-  virtual void void ChangeButtonMapping(int buttonIndex, int dir) = 0;
+    void SaveState(int slot);
 
-  virtual void void SaveSettings(std::ofstream *outfile) = 0;
+    void LoadState(int slot);
 
-  virtual void void LoadSettings(std::ifstream *file) = 0;
+    void UpdateStateImage(int saveSlot);
 
-  virtual void void LoadGame(Rom *rom) = 0;
+    void ChangeButtonMapping(int buttonIndex, int dir);
 
-  virtual void void SaveRam() = 0;
+    void UpdateButtonMapping();
 
-  virtual void void LoadRam() = 0;
+    void RestButtonMapping();
 
-  virtual void void SaveStateImage(int slot) = 0;
+    void SaveRam();
 
-  virtual void bool LoadStateImage(int slot) = 0;
+    void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState);
 
-  virtual void void SaveState(int saveSlot) = 0;
+    void DrawScreenLayer(ovrFrameResult &res, const ovrFrameInput &vrFrame);
 
-  virtual void void LoadState(int slot) = 0;
+}  // namespace Emulator
 
-  virtual void void Update(const ovrFrameInput &vrFrame, unsigned int lastButtonState) = 0;
-
-  virtual void bool SortByRomName(const Rom &first, const Rom &second) = 0;
-};
+#endif

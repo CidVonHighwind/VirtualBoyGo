@@ -1,4 +1,5 @@
-#include "VBEmulator.h"
+#include "Emulator.h"
+
 #include <VrApi/Include/VrApi_Types.h>
 #include <VrAppFramework/Src/Framebuffer.h>
 #include <sys/stat.h>
@@ -6,12 +7,15 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+
 #include "Audio/OpenSLWrap.h"
 #include "DrawHelper.h"
 #include "FontMaster.h"
-#include "Global.h"
 #include "LayerBuilder.h"
 #include "MenuHelper.h"
+#include "Global.h"
+
+#include "OvrApp.h"
 
 template<typename T>
 std::string to_string(T value) {
@@ -21,7 +25,7 @@ std::string to_string(T value) {
 }
 
 template<>
-void MenuList<VBEmulator::Rom>::DrawTexture(float offsetX, float offsetY, float transparency) {
+void MenuList<Emulator::Rom>::DrawTexture(float offsetX, float offsetY, float transparency) {
     // calculate the slider position
     float scale = maxListItems / (float) ItemList->size();
     if (scale > 1) scale = 1;
@@ -66,7 +70,7 @@ void MenuList<VBEmulator::Rom>::DrawTexture(float offsetX, float offsetY, float 
 }
 
 template<>
-void MenuList<VBEmulator::Rom>::DrawText(float offsetX, float offsetY, float transparency) {
+void MenuList<Emulator::Rom>::DrawText(float offsetX, float offsetY, float transparency) {
     // draw rom list
     for (uint i = (uint) menuListFState; i < menuListFState + maxListItems; i++) {
         if (i < ItemList->size()) {
@@ -92,63 +96,72 @@ void MenuList<VBEmulator::Rom>::DrawText(float offsetX, float offsetY, float tra
     }
 }
 
-namespace VBEmulator {
+const std::string STR_HEADER = "VirtualBoyGo";
+const std::string STR_VERSION = "ver.1.2";
+const float DisplayRefreshRate = 72.0f;
+const int SAVE_FILE_VERSION = 16;
+
+ovrVector4f headerTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
+ovrVector4f textSelectionColor = {0.9f, 0.1f, 0.1f, 1.0f};
+ovrVector4f textColor = {0.8f, 0.8f, 0.8f, 1.0f};
+ovrVector4f sliderColor = {0.8f, 0.8f, 0.8f, 0.8f};
+ovrVector4f MenuBackgroundColor = {0.2f, 0.2f, 0.2f, 0.95f};
+ovrVector4f MenuBackgroundOverlayHeader = {0.5f, 0.5f, 0.5f, 0.15f};
+ovrVector4f MenuBackgroundOverlayColorLight = {0.5f, 0.5f, 0.5f, 0.15f};
+ovrVector4f MenuBackgroundOverlayColor = {0.431f, 0.412f, 0.443f, 0.75f};
+ovrVector4f textColorBattery = {0.25f, 0.25f, 0.25f, 1.0f};
+ovrVector4f textColorVersion = {0.8f, 0.8f, 0.8f, 1.0f};
+ovrVector4f BatteryBackgroundColor = {0.25f, 0.25f, 0.25f, 1.0f};
+ovrVector4f MenuBottomColor = {0.25f, 0.25f, 0.25f, 1.0f};
+
+const ovrJava *java;
+jclass clsData;
+
+namespace OVR {
+
+#if defined( OVR_OS_ANDROID )
+    extern "C" {
+
+    jlong
+    Java_com_nintendont_virtualboygo_MainActivity_nativeSetAppInterface(JNIEnv *jni, jclass clazz,
+                                                                        jobject activity,
+                                                                        jstring fromPackageName,
+                                                                        jstring commandString,
+                                                                        jstring uriString) {
+
+        jmethodID messageMe = jni->GetMethodID(clazz, "getInternalStorageDir",
+                                               "()Ljava/lang/String;");
+        jobject result = (jstring) jni->CallObjectMethod(activity, messageMe);
+        const char *storageDir = jni->GetStringUTFChars((jstring) result, NULL);
+
+        messageMe = jni->GetMethodID(clazz, "getExternalFilesDir", "()Ljava/lang/String;");
+        result = (jstring) jni->CallObjectMethod(activity, messageMe);
+        const char *appDir = jni->GetStringUTFChars((jstring) result, NULL);
+
+        appStoragePath = storageDir;
+
+        saveFilePath = appDir;
+        saveFilePath.append("/settings.config");
+
+        LOG("got string from java: appdir %s", appDir);
+        LOG("got string from java: storageDir %s", storageDir);
+
+        LOG("nativeSetAppInterface");
+        return (new OvrApp())->SetActivity(jni, clazz, activity, fromPackageName, commandString,
+                                           uriString);
+    }
+
+    } // extern "C"
+#endif
+}
+
+namespace Emulator {
 
     GLuint screenTextureId, stateImageId;
     GLuint screenTextureCylinderId;
     ovrTextureSwapChain *CylinderSwapChain;
 
-    ovrSurfaceDef SurfaceDef;
     GlProgram Program;
-
-    static const char VERTEX_SHADER[] =
-            "in vec3 Position;\n"
-                    "in vec4 VertexColor;\n"
-                    "in vec2 TextureCoords;\n"
-
-                    "in mat4 VertexTransform;\n"
-
-                    "out vec4 fragmentColor;\n"
-                    //"out vec2 texCoords;\n"
-
-                    "void main()\n"
-                    "{\n"
-                    "	gl_Position = sm.ProjectionMatrix[VIEW_ID] * ( sm.ViewMatrix[VIEW_ID] * ( VertexTransform "
-                    "* vec4( Position, 1.0 ) ) );\n"
-                    "	fragmentColor = VertexColor;\n"
-                    //"	texCoords = TextureCoords;\n"
-                    "}\n";
-
-    static const char FRAGMENT_SHADER[] =
-            "in vec4 fragmentColor;\n"
-                    //"in vec2 texCoords;\n"
-
-                    "out vec4 color;\n"
-
-                    "uniform sampler2D text;\n"
-                    //"uniform vec4 textColor;\n"
-
-                    "void main()\n"
-                    "{\n"
-                    "	vec4 tex_sample = texture(text, vec2(fragmentColor.x, fragmentColor.y));\n"
-                    "	color = tex_sample * 0.85f + fragmentColor * 0.15f;// * tex_sample.a;\n"
-                    //"	color = fragmentColor;\n"
-                    "}\n";
-
-    static const char FRAGMENT_SHADER_TEXTURE[] =
-            "#version 330 core\n"
-                    "in vec2 TexCoords;\n"
-
-                    "out vec4 color;\n"
-
-                    "uniform sampler2D text;\n"
-                    "uniform vec4 textColor;\n"
-
-                    "void main()\n"
-                    "{\n"
-                    "	vec4 tex_sample = texture(text, TexCoords);\n"
-                    "	color = tex_sample * textColor * tex_sample.a;\n"
-                    "}\n";
 
     static const char *movieUiVertexShaderSrc =
             "uniform TextureMatrices\n"
@@ -179,78 +192,7 @@ namespace VBEmulator {
                     "	gl_FragColor = ColorBias + oColor * movieColor;\n"
                     "}\n";
 
-    static const int NUM_INSTANCES = 150;
-    static const int NUM_ROTATIONS = 16;
-
-    GlGeometry Cube;
-    ovrVector3f CubePositions[NUM_INSTANCES];
-
-    GLint VertexTransformAttribute;
-    GLuint InstanceTransformBuffer;
-
-// setup Cube
-    struct ovrCubeVertices {
-        Vector3f positions[8];
-        Vector4f colors[8];
-        Vector2f texcoords[8];
-    };
-
-    int CubeRotations[NUM_INSTANCES];
-    ovrVector3f Rotations[NUM_ROTATIONS];
-
     const void *currentScreenData = nullptr;
-
-    static ovrCubeVertices cubeVertices = {
-            // positions
-            {
-                    Vector3f(-1.0f, +1.0f, -1.0f),    Vector3f(+1.0f, +1.0f, -1.0f), Vector3f(+1.0f,
-                                                                                              +1.0f,
-                                                                                              +1.0f),
-                                                                                                     Vector3f(
-                                                                                                             -1.0f,
-                                                                                                             +1.0f,
-                                                                                                             +1.0f),  // top
-                    Vector3f(-1.0f, -1.0f, -1.0f),    Vector3f(-1.0f, -1.0f, +1.0f), Vector3f(+1.0f,
-                                                                                              -1.0f,
-                                                                                              +1.0f),
-                                                                                                     Vector3f(
-                                                                                                             +1.0f,
-                                                                                                             -1.0f,
-                                                                                                             -1.0f)  // bottom
-            },
-            // colors
-            {
-                    Vector4f(1.0f, 0.0f, 1.0f, 1.0f), Vector4f(0.0f, 1.0f, 1.0f, 1.0f),
-                                                                                     Vector4f(1.0f,
-                                                                                              1.0f,
-                                                                                              0.0f,
-                                                                                              1.0f), Vector4f(
-                    0.0f, 0.0f, 1.0f, 1.0f),
-                    Vector4f(0.0f, 0.0f, 1.0f, 1.0f), Vector4f(0.0f, 1.0f, 0.0f, 1.0f),
-                                                                                     Vector4f(1.0f,
-                                                                                              0.0f,
-                                                                                              1.0f,
-                                                                                              1.0f), Vector4f(
-                    1.0f, 0.0f, 0.0f, 1.0f)
-            },
-            {
-                    Vector2f(1.0f, 0.0f),             Vector2f(0.0f, 1.0f),          Vector2f(1.0f,
-                                                                                              0.0f), Vector2f(
-                    1.0f, 1.0f),
-                    Vector2f(0.0f, 1.0f),             Vector2f(0.0f, 1.0f),          Vector2f(1.0f,
-                                                                                              0.0f), Vector2f(
-                    1.0f, 1.0f)
-            }
-    };
-
-    static const unsigned short cubeIndices[36] = {
-            0, 2, 1, 2, 0, 3,  // top
-            4, 6, 5, 6, 4, 7,  // bottom
-            2, 6, 7, 7, 1, 2,  // right
-            0, 4, 5, 5, 3, 0,  // left
-            3, 5, 6, 6, 2, 3,  // front
-            0, 1, 7, 7, 4, 0   // back
-    };
 
     ovrSurfaceDef ScreenSurfaceDef;
     Bounds3f SceneScreenBounds;
@@ -263,6 +205,7 @@ namespace VBEmulator {
     double startTime;
 
     const float COLOR_STEP_SIZE = 0.05f;
+    const float IPD_STEP_SIZE = 0.001953125f;
 
 // 384
 // 768
@@ -274,20 +217,23 @@ namespace VBEmulator {
 
     std::string strColor[]{"R: ", "G: ", "B: "};
     float color[]{1.0f, 1.0f, 1.0f};
+    float threedeeIPD = 0;
+    float minIPD = -0.1953125f;
+    float maxIPD = 0.1953125f;
 
     int selectedPredefColor;
     const int predefColorCount = 11;
-    ovrVector3f predefColors[] = {{1.0f,  0.0f,  0.0f},
-                                  {0.9f,  0.3f,  0.1f},
+    ovrVector3f predefColors[] = {{1.0f,  0.0f, 0.0f},
+                                  {0.9f,  0.3f, 0.1f},
                                   {1.0f,  0.85f, 0.1f},
-                                  {0.25f, 1.0f,  0.1f},
-                                  {0.0f,  1.0f,  0.45f},
-                                  {0.0f,  1.0f,  0.85f},
+                                  {0.25f, 1.0f, 0.1f},
+                                  {0.0f,  1.0f, 0.45f},
+                                  {0.0f,  1.0f, 0.85f},
                                   {0.0f,  0.85f, 1.0f},
-                                  {0.15f, 1.0f,  1.0f},
+                                  {0.15f, 1.0f, 1.0f},
                                   {0.75f, 0.65f, 1.0f},
-                                  {1.0f,  1.0f,  1.0f},
-                                  {1.0f,  0.3f,  0.2f}};
+                                  {1.0f,  1.0f, 1.0f},
+                                  {1.0f,  0.3f, 0.2f}};
 
 /*
  *     {BUTTON_A, BUTTON_B, BUTTON_RIGHT_TRIGGER, BUTTON_LEFT_TRIGGER, BUTTON_RSTICK_UP,
@@ -305,13 +251,16 @@ namespace VBEmulator {
              &mappingRightLeftId,
              &mappingRightDownId};
 
-    uint button_mapping_index_reset[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
+    uint button_mapping_index_reset[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20,
+                                                    19};
     uint button_mapping_index[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
     uint button_mapping[buttonCount];
 
     LoadedGame *currentGame;
 
     const std::string romFolderPath = "/Roms/VB/";
+    const std::string stateFilePath = "/Roms/VB/States/";
+
     std::string stateFolderPath;
 
     const std::vector<std::string> supportedFileNames = {".vb", ".vboy", ".bin"};
@@ -342,10 +291,6 @@ namespace VBEmulator {
     int romSelection = 0;
 
     MenuButton *rButton, *gButton, *bButton;
-
-    // global
-    const std::string STR_HEADER = "VirtualBoyGo";
-    const std::string STR_VERSION = "ver.1.1";
 
     void LoadRam();
 
@@ -552,7 +497,7 @@ namespace VBEmulator {
     }
 
     void Init(std::string appFolderPath) {
-        stateFolderPath = appFolderPath + "/Roms/VB/States/";
+        stateFolderPath = appFolderPath + stateFilePath;
 
         // set the button mapping
         UpdateButtonMapping();
@@ -736,6 +681,17 @@ namespace VBEmulator {
         UpdateStateImage(saveSlot);
     }
 
+    void ChangeOffset(MenuButton *item, float dir) {
+        threedeeIPD += dir;
+
+        if (threedeeIPD < minIPD)
+            threedeeIPD = minIPD;
+        else if (threedeeIPD > maxIPD)
+            threedeeIPD = maxIPD;
+
+        item->Text = "IPD: " + to_string(threedeeIPD * 256);
+    }
+
     void ChangePalette(MenuButton *item, float dir) {
         selectedPredefColor += dir;
         if (selectedPredefColor < 0)
@@ -791,6 +747,15 @@ namespace VBEmulator {
 
     void OnClickBRight(MenuItem *item) { ChangeColor((MenuButton *) item, 2, COLOR_STEP_SIZE); }
 
+    void OnClickOffsetLeft(MenuItem *item) { ChangeOffset((MenuButton *) item, -IPD_STEP_SIZE); }
+
+    void OnClickOffsetRight(MenuItem *item) { ChangeOffset((MenuButton *) item, IPD_STEP_SIZE); }
+
+    void OnClickResetOffset(MenuItem *item) {
+        threedeeIPD = 0;
+        ChangeOffset((MenuButton *) item, 0);
+    }
+
     void InitSettingsMenu(int &posX, int &posY, Menu &settingsMenu) {
         //MenuButton *curveButton =
         //    new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize,
@@ -799,6 +764,10 @@ namespace VBEmulator {
         MenuButton *screenModeButton = new MenuButton(&fontMenu, threedeeIconId, "", posX,
                                                       posY += menuItemSize, OnClickScreenMode,
                                                       OnClickScreenMode, OnClickScreenMode);
+
+        MenuButton *offsetButton = new MenuButton(&fontMenu, textureIpdIconId, "", posX,
+                                                  posY += menuItemSize, OnClickResetOffset,
+                                                  OnClickOffsetLeft, OnClickOffsetRight);
 
         MenuButton *paletteButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
                                                    posY += menuItemSize + 5,
@@ -814,11 +783,13 @@ namespace VBEmulator {
 
         //settingsMenu.MenuItems.push_back(curveButton);
         settingsMenu.MenuItems.push_back(screenModeButton);
+        settingsMenu.MenuItems.push_back(offsetButton);
         settingsMenu.MenuItems.push_back(paletteButton);
         settingsMenu.MenuItems.push_back(rButton);
         settingsMenu.MenuItems.push_back(gButton);
         settingsMenu.MenuItems.push_back(bButton);
 
+        ChangeOffset(offsetButton, 0);
         SetThreeDeeMode(screenModeButton, useThreeDeeMode);
         ChangePalette(paletteButton, 0);
     }
@@ -835,7 +806,7 @@ namespace VBEmulator {
                                     MENU_WIDTH - 20,
                                     (MENU_HEIGHT - HEADER_HEIGHT - BOTTOM_HEIGHT - 20));
 
-        if(romSelection < 0 || romSelection >= romList->ItemList->size())
+        if (romSelection < 0 || romSelection >= romList->ItemList->size())
             romSelection = 0;
 
         romList->CurrentSelection = romSelection;
@@ -848,6 +819,7 @@ namespace VBEmulator {
         saveFile->write(reinterpret_cast<const char *>(&color[1]), sizeof(float));
         saveFile->write(reinterpret_cast<const char *>(&color[2]), sizeof(float));
         saveFile->write(reinterpret_cast<const char *>(&selectedPredefColor), sizeof(int));
+        saveFile->write(reinterpret_cast<const char *>(&threedeeIPD), sizeof(float));
         saveFile->write(reinterpret_cast<const char *>(&useThreeDeeMode), sizeof(bool));
 
         // save button mapping
@@ -862,6 +834,7 @@ namespace VBEmulator {
         readFile->read((char *) &color[1], sizeof(float));
         readFile->read((char *) &color[2], sizeof(float));
         readFile->read((char *) &selectedPredefColor, sizeof(int));
+        readFile->read((char *) &threedeeIPD, sizeof(float));
         readFile->read((char *) &useThreeDeeMode, sizeof(bool));
 
         // load button mapping
@@ -893,7 +866,7 @@ namespace VBEmulator {
         return (first.isGbc == second.isGbc) ? first.RomName < second.RomName : first.isGbc;
     }
 
-    void SortRomList(){
+    void SortRomList() {
         LOG("sort list");
         std::sort(romFileList->begin(), romFileList->end(), SortByRomName);
         LOG("finished sorting list");
@@ -1114,7 +1087,7 @@ namespace VBEmulator {
             // virtual screen layer
             res.Layers[res.LayerCount].Cylinder = LayerBuilder::BuildGameCylinderLayer3D(
                     CylinderSwapChain, CylinderWidth, CylinderHeight, &vrFrame.Tracking, followHead,
-                    !menuOpen && useThreeDeeMode);
+                    !menuOpen && useThreeDeeMode, threedeeIPD);
             res.Layers[res.LayerCount].Cylinder.Header.Flags |=
                     VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
             res.Layers[res.LayerCount].Cylinder.Header.Flags |=
