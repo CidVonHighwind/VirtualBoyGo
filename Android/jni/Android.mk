@@ -20,14 +20,13 @@ LOCAL_SHARED_LIBRARIES	:= vrapi
 
 LOCAL_LDLIBS    += -lOpenSLES
 
-APP_STL := gnustl_static
-LOCAL_C_INCLUDES := ../Src/ ../../../FreeType ../../../beetle-vb-libretro/mednafen ../../../
-LOCAL_C_INCLUDES += ../../FrontendGo
+APP_STL := c++_static
+LOCAL_C_INCLUDES := ../Src/ ../../../VrEmulators/BeetleVBLibretroGo/mednafen/ ../../../VrEmulators/FreeType/include/ ../../../ ../../../VrEmulators/ ../../FrontendGo/
 
 include $(BUILD_SHARED_LIBRARY)
 
-$(call import-module,beetle-vb-libretro/jni)
-$(call import-module,FreeType)
+$(call import-module,VrEmulators/BeetleVBLibretroGo/jni)
+$(call import-module,VrEmulators/FreeType)
 
 $(call import-module,LibOVRKernel/Projects/Android/jni)
 $(call import-module,VrApi/Projects/AndroidPrebuilt/jni)

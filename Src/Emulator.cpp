@@ -7,6 +7,8 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <VrAppFramework/Include/OVR_Input.h>
+#include <VrApi/Include/VrApi_Input.h>
 
 #include "Audio/OpenSLWrap.h"
 #include "DrawHelper.h"
@@ -143,10 +145,10 @@ namespace OVR {
         saveFilePath = appDir;
         saveFilePath.append("/settings.config");
 
-        LOG("got string from java: appdir %s", appDir);
-        LOG("got string from java: storageDir %s", storageDir);
+        OVR_LOG("got string from java: appdir %s", appDir);
+        OVR_LOG("got string from java: storageDir %s", storageDir);
 
-        LOG("nativeSetAppInterface");
+        OVR_LOG("nativeSetAppInterface");
         return (new OvrApp())->SetActivity(jni, clazz, activity, fromPackageName, commandString,
                                            uriString);
     }
@@ -223,17 +225,17 @@ namespace Emulator {
 
     int selectedPredefColor;
     const int predefColorCount = 11;
-    ovrVector3f predefColors[] = {{1.0f,  0.0f, 0.0f},
-                                  {0.9f,  0.3f, 0.1f},
+    ovrVector3f predefColors[] = {{1.0f,  0.0f,  0.0f},
+                                  {0.9f,  0.3f,  0.1f},
                                   {1.0f,  0.85f, 0.1f},
-                                  {0.25f, 1.0f, 0.1f},
-                                  {0.0f,  1.0f, 0.45f},
-                                  {0.0f,  1.0f, 0.85f},
+                                  {0.25f, 1.0f,  0.1f},
+                                  {0.0f,  1.0f,  0.45f},
+                                  {0.0f,  1.0f,  0.85f},
                                   {0.0f,  0.85f, 1.0f},
-                                  {0.15f, 1.0f, 1.0f},
+                                  {0.15f, 1.0f,  1.0f},
                                   {0.75f, 0.65f, 1.0f},
-                                  {1.0f,  1.0f, 1.0f},
-                                  {1.0f,  0.3f, 0.2f}};
+                                  {1.0f,  1.0f,  1.0f},
+                                  {1.0f,  0.3f,  0.2f}};
 
 /*
  *     {BUTTON_A, BUTTON_B, BUTTON_RIGHT_TRIGGER, BUTTON_LEFT_TRIGGER, BUTTON_RSTICK_UP,
@@ -391,7 +393,7 @@ namespace Emulator {
         SetBuffer(audio, (unsigned) (sampleCount * 2));
         // 52602
         // 877
-        // LOG("VRVB audio size: %i", sampleCount);
+        // OVR_LOG("VRVB audio size: %i", sampleCount);
     }
 
     void VB_Audio_CB(int16_t *SoundBuf, int32_t SoundBufSize) {
@@ -399,7 +401,7 @@ namespace Emulator {
     }
 
     void VB_VIDEO_CB(const void *data, unsigned width, unsigned height) {
-        // LOG("VRVB width: %i, height: %i, %i", width, height, (((int8_t *) data)[5])); // 144 + 31 * 384
+        // OVR_LOG("VRVB width: %i, height: %i, %i", width, height, (((int8_t *) data)[5])); // 144 + 31 * 384
         // update the screen texture with the newly received image
         currentScreenData = data;
         UpdateScreen(data);
@@ -416,12 +418,12 @@ namespace Emulator {
         std::string savePath = stateFolderPath + CurrentRom->RomName + ".stateimg";
         if (slot > 0) savePath += to_string(slot);
 
-        LOG("save image of slot to %s", savePath.c_str());
+        OVR_LOG("save image of slot to %s", savePath.c_str());
         std::ofstream outfile(savePath, std::ios::trunc | std::ios::binary);
         outfile.write((const char *) currentGame->saveStates[slot].saveImage,
                       sizeof(uint8_t) * VIDEO_WIDTH * VIDEO_HEIGHT);
         outfile.close();
-        LOG("finished writing save image to file");
+        OVR_LOG("finished writing save image to file");
     }
 
     bool LoadStateImage(int slot) {
@@ -440,12 +442,12 @@ namespace Emulator {
 
             delete[] data;
 
-            LOG("loaded image file: %s", savePath.c_str());
+            OVR_LOG("loaded image file: %s", savePath.c_str());
 
             return true;
         }
 
-        LOG("could not load image file: %s", savePath.c_str());
+        OVR_LOG("could not load image file: %s", savePath.c_str());
         return false;
     }
 
@@ -453,7 +455,7 @@ namespace Emulator {
         // save the ram of the old rom
         SaveRam();
 
-        LOG("LOAD VRVB ROM %s", rom->FullPath.c_str());
+        OVR_LOG("LOAD VRVB ROM %s", rom->FullPath.c_str());
         std::ifstream file(rom->FullPath, std::ios::in | std::ios::binary | std::ios::ate);
         if (file.is_open()) {
             long romBufferSize = file.tellg();
@@ -468,13 +470,13 @@ namespace Emulator {
             delete[] memblock;
 
             CurrentRom = rom;
-            LOG("finished loading rom %ld", romBufferSize);
+            OVR_LOG("finished loading rom %ld", romBufferSize);
 
-            LOG("start loading ram");
+            OVR_LOG("start loading ram");
             LoadRam();
-            LOG("finished loading ram");
+            OVR_LOG("finished loading ram");
         } else {
-            LOG("could not load VB rom file");
+            OVR_LOG("could not load VB rom file");
         }
 
         for (int i = 0; i < 10; ++i) {
@@ -493,7 +495,7 @@ namespace Emulator {
 
         UpdateStateImage(0);
 
-        LOG("LOADED VRVB ROM");
+        OVR_LOG("LOADED VRVB ROM");
     }
 
     void Init(std::string appFolderPath) {
@@ -502,14 +504,14 @@ namespace Emulator {
         // set the button mapping
         UpdateButtonMapping();
 
-        LOG("VRVB INIT w %i, %i, %i, %i", CylinderWidth, CylinderHeight, VIDEO_WIDTH, VIDEO_HEIGHT);
+        OVR_LOG("VRVB INIT w %i, %i, %i, %i", CylinderWidth, CylinderHeight, VIDEO_WIDTH, VIDEO_HEIGHT);
         // emu screen layer
         // left layer
         int cubeSizeX = CylinderWidth;
         int cubeSizeY = CylinderWidth;
 
         screenPosY = CylinderWidth / 2 - CylinderHeight / 2;
-        LOG("screePosY %i", screenPosY);
+        OVR_LOG("screePosY %i", screenPosY);
 
         for (int y = 0; y < cubeSizeY; ++y) {
             for (int x = 0; x < cubeSizeX; ++x) {
@@ -576,7 +578,7 @@ namespace Emulator {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
 
-        LOG("INIT VRVB");
+        OVR_LOG("INIT VRVB");
         VRVB::Init();
 
         VRVB::audio_cb = VB_Audio_CB;
@@ -795,7 +797,7 @@ namespace Emulator {
     }
 
     void OnClickRom(Rom *rom) {
-        LOG("LOAD ROM");
+        OVR_LOG("LOAD ROM");
         LoadGame(rom);
         ResetMenuState();
     }
@@ -857,7 +859,7 @@ namespace Emulator {
 
         romFileList->push_back(newRom);
 
-        LOG("found rom: %s %s %s", newRom.RomName.c_str(), newRom.FullPath.c_str(),
+        OVR_LOG("found rom: %s %s %s", newRom.RomName.c_str(), newRom.FullPath.c_str(),
             newRom.SavePath.c_str());
     }
 
@@ -867,9 +869,9 @@ namespace Emulator {
     }
 
     void SortRomList() {
-        LOG("sort list");
+        OVR_LOG("sort list");
         std::sort(romFileList->begin(), romFileList->end(), SortByRomName);
-        LOG("finished sorting list");
+        OVR_LOG("finished sorting list");
     }
 
     void ResetGame() {
@@ -878,11 +880,11 @@ namespace Emulator {
 
     void SaveRam() {
         if (CurrentRom != nullptr && VRVB::save_ram_size() > 0) {
-            LOG("save ram %i", (int) VRVB::save_ram_size());
+            OVR_LOG("save ram %i", (int) VRVB::save_ram_size());
             std::ofstream outfile(CurrentRom->SavePath, std::ios::trunc | std::ios::binary);
             outfile.write((const char *) VRVB::save_ram(), VRVB::save_ram_size());
             outfile.close();
-            LOG("finished writing ram file");
+            OVR_LOG("finished writing ram file");
         }
     }
 
@@ -894,20 +896,20 @@ namespace Emulator {
             file.seekg(0, std::ios::beg);
             file.read(memblock, romBufferSize);
             file.close();
-            LOG("loaded ram %ld", romBufferSize);
+            OVR_LOG("loaded ram %ld", romBufferSize);
 
-            LOG("ram size %i", (int) VRVB::save_ram_size());
+            OVR_LOG("ram size %i", (int) VRVB::save_ram_size());
 
             if (romBufferSize != (int) VRVB::save_ram_size()) {
-                LOG("ERROR loaded ram size is wrong");
+                OVR_LOG("ERROR loaded ram size is wrong");
             } else {
                 memcpy(VRVB::save_ram(), memblock, VRVB::save_ram_size());
-                LOG("finished loading ram");
+                OVR_LOG("finished loading ram");
             }
 
             delete[] memblock;
         } else {
-            LOG("could not load ram file: %s", CurrentRom->SavePath.c_str());
+            OVR_LOG("could not load ram file: %s", CurrentRom->SavePath.c_str());
         }
     }
 
@@ -919,21 +921,21 @@ namespace Emulator {
             std::string savePath = stateFolderPath + CurrentRom->RomName + ".state";
             if (saveSlot > 0) savePath += to_string(saveSlot);
 
-            LOG("save slot");
+            OVR_LOG("save slot");
             void *data = new uint8_t[size];
             VRVB::retro_serialize(data, size);
 
-            LOG("save slot to %s", savePath.c_str());
+            OVR_LOG("save slot to %s", savePath.c_str());
             std::ofstream outfile(savePath, std::ios::trunc | std::ios::binary);
             outfile.write((const char *) data, size);
             outfile.close();
-            LOG("finished writing slot to file");
+            OVR_LOG("finished writing slot to file");
         }
 
-        LOG("copy image");
+        OVR_LOG("copy image");
         memcpy(currentGame->saveStates[saveSlot].saveImage, screenData,
                sizeof(uint8_t) * VIDEO_WIDTH * VIDEO_HEIGHT);
-        LOG("update image");
+        OVR_LOG("update image");
         UpdateStateImage(saveSlot);
         // save image for the slot
         SaveStateImage(saveSlot);
@@ -953,13 +955,13 @@ namespace Emulator {
             file.seekg(0, std::ios::beg);
             file.read(data, size);
             file.close();
-            LOG("loaded slot has size: %ld", size);
+            OVR_LOG("loaded slot has size: %ld", size);
 
             VRVB::retro_unserialize(data, size);
 
             delete[] data;
         } else {
-            LOG("could not load ram file: %s", CurrentRom->SavePath.c_str());
+            OVR_LOG("could not load ram file: %s", CurrentRom->SavePath.c_str());
         }
     }
 
@@ -978,8 +980,6 @@ namespace Emulator {
 
         UpdateButtonMapping();
     }
-
-    void UpdateInput() {}
 
     void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState) {
         // methode will only get called "emulationSpeed" times a second
