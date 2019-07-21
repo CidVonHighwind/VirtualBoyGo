@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <VrSamples/FrontendGo/ButtonMapping.h>
 #include "App.h"
 #include "MenuHelper.h"
 
@@ -11,7 +12,6 @@ using namespace OVR;
 namespace Emulator {
 
     struct Rom {
-        bool isGbc;
         std::string RomName;
         std::string FullPath;
         std::string FullPathNorm;
@@ -30,7 +30,7 @@ namespace Emulator {
 
     const static int buttonCount = 14;
     extern GLuint *button_icons[];
-    extern uint button_mapping_index[];
+    extern MappedButtons buttonMapping[];
 
     extern const std::string romFolderPath;
     extern const std::vector<std::string> supportedFileNames;
@@ -67,7 +67,7 @@ namespace Emulator {
 
     void SaveRam();
 
-    void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState);
+    void Update(const ovrFrameInput &vrFrame, uint* buttonStates, uint* lastButtonStates);
 
     void DrawScreenLayer(ovrFrameResult &res, const ovrFrameInput &vrFrame);
 
