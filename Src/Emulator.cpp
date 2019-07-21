@@ -1000,7 +1000,7 @@ namespace Emulator {
         buttonMapping[3].Buttons[1].InputDevice = DeviceLeftTouch;
         buttonMapping[3].Buttons[1].Button = EmuButton_Trigger;
         buttonMapping[4].Buttons[1].InputDevice = DeviceRightTouch;
-        buttonMapping[4].Buttons[1].Button = EmuButton_Up;
+        buttonMapping[4].Buttons[1].Button = EmuButton_Down;
         buttonMapping[5].Buttons[1].InputDevice = DeviceRightTouch;
         buttonMapping[5].Buttons[1].Button = EmuButton_Right;
         buttonMapping[6].Buttons[1].InputDevice = DeviceLeftTouch;
@@ -1008,9 +1008,9 @@ namespace Emulator {
         buttonMapping[7].Buttons[1].InputDevice = DeviceLeftTouch;
         buttonMapping[7].Buttons[1].Button = EmuButton_Left;
         buttonMapping[8].Buttons[1].InputDevice = DeviceLeftTouch;
-        buttonMapping[8].Buttons[1].Button = EmuButton_Down;
+        buttonMapping[8].Buttons[1].Button = EmuButton_Up;
         buttonMapping[9].Buttons[1].InputDevice = DeviceLeftTouch;
-        buttonMapping[9].Buttons[1].Button = EmuButton_Up;
+        buttonMapping[9].Buttons[1].Button = EmuButton_Down;
         buttonMapping[10].Buttons[1].InputDevice = DeviceLeftTouch;
         buttonMapping[10].Buttons[1].Button = EmuButton_Y;
         buttonMapping[11].Buttons[1].InputDevice = DeviceLeftTouch;
@@ -1018,7 +1018,7 @@ namespace Emulator {
         buttonMapping[12].Buttons[1].InputDevice = DeviceRightTouch;
         buttonMapping[12].Buttons[1].Button = EmuButton_Left;
         buttonMapping[13].Buttons[1].InputDevice = DeviceRightTouch;
-        buttonMapping[13].Buttons[1].Button = EmuButton_Down;
+        buttonMapping[13].Buttons[1].Button = EmuButton_Up;
 
         // TODO: make this nicer...
         for (int j = 0; j < buttonCount; ++j) {
