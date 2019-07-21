@@ -99,9 +99,9 @@ void MenuList<Emulator::Rom>::DrawText(float offsetX, float offsetY, float trans
 }
 
 const std::string STR_HEADER = "VirtualBoyGo";
-const std::string STR_VERSION = "ver.1.2";
+const std::string STR_VERSION = "ver.1.3";
 const float DisplayRefreshRate = 72.0f;
-const int SAVE_FILE_VERSION = 16;
+const int SAVE_FILE_VERSION = 25;
 
 ovrVector4f headerTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
 ovrVector4f textSelectionColor = {0.9f, 0.1f, 0.1f, 1.0f};
@@ -167,32 +167,32 @@ namespace Emulator {
 
     static const char *movieUiVertexShaderSrc =
             "uniform TextureMatrices\n"
-                    "{\n"
-                    "highp mat4 Texm[NUM_VIEWS];\n"
-                    "};\n"
-                    "attribute vec4 Position;\n"
-                    "attribute vec2 TexCoord;\n"
-                    "uniform lowp vec4 UniformColor;\n"
-                    "varying  highp vec2 oTexCoord;\n"
-                    "varying  lowp vec4 oColor;\n"
-                    "void main()\n"
-                    "{\n"
-                    "   gl_Position = TransformVertex( Position );\n"
-                    "   oTexCoord = vec2( Texm[ VIEW_ID ] * vec4(TexCoord,1,1) );\n"
-                    "   oColor = UniformColor;\n"
-                    "}\n";
+            "{\n"
+            "highp mat4 Texm[NUM_VIEWS];\n"
+            "};\n"
+            "attribute vec4 Position;\n"
+            "attribute vec2 TexCoord;\n"
+            "uniform lowp vec4 UniformColor;\n"
+            "varying  highp vec2 oTexCoord;\n"
+            "varying  lowp vec4 oColor;\n"
+            "void main()\n"
+            "{\n"
+            "   gl_Position = TransformVertex( Position );\n"
+            "   oTexCoord = vec2( Texm[ VIEW_ID ] * vec4(TexCoord,1,1) );\n"
+            "   oColor = UniformColor;\n"
+            "}\n";
 
     const char *movieUiFragmentShaderSrc =
             "uniform sampler2D Texture0;\n"
-                    "uniform sampler2D Texture1;\n"    // fade / clamp texture
-                    "uniform lowp vec4 ColorBias;\n"
-                    "varying highp vec2 oTexCoord;\n"
-                    "varying lowp vec4	oColor;\n"
-                    "void main()\n"
-                    "{\n"
-                    "	lowp vec4 movieColor = texture2D( Texture0, oTexCoord ) * texture2D( Texture1, oTexCoord );\n"
-                    "	gl_FragColor = ColorBias + oColor * movieColor;\n"
-                    "}\n";
+            "uniform sampler2D Texture1;\n"    // fade / clamp texture
+            "uniform lowp vec4 ColorBias;\n"
+            "varying highp vec2 oTexCoord;\n"
+            "varying lowp vec4	oColor;\n"
+            "void main()\n"
+            "{\n"
+            "	lowp vec4 movieColor = texture2D( Texture0, oTexCoord ) * texture2D( Texture1, oTexCoord );\n"
+            "	gl_FragColor = ColorBias + oColor * movieColor;\n"
+            "}\n";
 
     const void *currentScreenData = nullptr;
 
@@ -246,17 +246,13 @@ namespace Emulator {
 
 //const uint buttonCount = 14;
     GLuint *button_icons[buttonCount] =
-            {&textureButtonAIconId, &textureButtonBIconId, &mappingTriggerRight,
-             &mappingTriggerLeft,
-             &mappingRightUpId, &mappingRightRightId, &mappingLeftRightId, &mappingLeftLeftId,
-             &mappingLeftDownId, &mappingLeftUpId, &mappingStartId, &mappingSelectId,
-             &mappingRightLeftId,
-             &mappingRightDownId};
+            {&textureButtonAIconId, &textureButtonBIconId, &mappingTriggerRight, &mappingTriggerLeft, &mappingRightUpId, &mappingRightRightId,
+             &mappingLeftRightId, &mappingLeftLeftId, &mappingLeftDownId, &mappingLeftUpId, &mappingStartId, &mappingSelectId,
+             &mappingRightLeftId, &mappingRightDownId};
 
-    uint button_mapping_index_reset[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20,
-                                                    19};
-    uint button_mapping_index[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
-    uint button_mapping[buttonCount];
+    // uint button_mapping_index_reset[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
+    MappedButtons buttonMapping[buttonCount];// = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
+    //uint button_mapping[buttonCount];
 
     LoadedGame *currentGame;
 
@@ -348,8 +344,7 @@ namespace Emulator {
             memset(&pixelData[VIDEO_WIDTH * VIDEO_HEIGHT], 0, 12 * VIDEO_WIDTH * 4);
 
             glBindTexture(GL_TEXTURE_2D, screenTextureId);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CylinderWidth, TextureHeight, GL_RGBA,
-                            GL_UNSIGNED_BYTE, pixelData);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CylinderWidth, TextureHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixelData);
             glBindTexture(GL_TEXTURE_2D, 0);
 
             glDisable(GL_CULL_FACE);
@@ -522,15 +517,7 @@ namespace Emulator {
 
         glGenTextures(1, &screenTextureId);
         glBindTexture(GL_TEXTURE_2D, screenTextureId);
-        glTexImage2D(GL_TEXTURE_2D,
-                     0,
-                     GL_RGBA,
-                     VIDEO_WIDTH,
-                     VIDEO_HEIGHT * 2 + 12,
-                     0,
-                     GL_RGBA,
-                     GL_UNSIGNED_BYTE,
-                     NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, VIDEO_WIDTH, VIDEO_HEIGHT * 2 + 12, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -544,23 +531,11 @@ namespace Emulator {
             int borderSize = 24;
             // left texture
             CylinderSwapChain =
-                    vrapi_CreateTextureSwapChain(VRAPI_TEXTURE_TYPE_2D,
-                                                 VRAPI_TEXTURE_FORMAT_8888_sRGB,
-                                                 CylinderWidth * 2 + borderSize,
-                                                 TextureHeight * 2 + borderSize,
-                                                 1,
-                                                 false);
+                    vrapi_CreateTextureSwapChain(VRAPI_TEXTURE_TYPE_2D, VRAPI_TEXTURE_FORMAT_8888_sRGB, CylinderWidth * 2 + borderSize,
+                                                 TextureHeight * 2 + borderSize, 1, false);
             screenTextureCylinderId = vrapi_GetTextureSwapChainHandle(CylinderSwapChain, 0);
             glBindTexture(GL_TEXTURE_2D, screenTextureCylinderId);
-            glTexSubImage2D(GL_TEXTURE_2D,
-                            0,
-                            0,
-                            0,
-                            CylinderWidth * 2 + borderSize,
-                            TextureHeight * 2 + borderSize,
-                            GL_RGBA,
-                            GL_UNSIGNED_BYTE,
-                            NULL);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CylinderWidth * 2 + borderSize, TextureHeight * 2 + borderSize, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             //glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
@@ -570,8 +545,7 @@ namespace Emulator {
             glGenFramebuffers(1, &screenFramebuffer[0]);
             glBindFramebuffer(GL_FRAMEBUFFER, screenFramebuffer[0]);
             // Set "renderedTexture" as our colour attachement #0
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                                   screenTextureCylinderId, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTextureCylinderId, 0);
             // Set the list of draw buffers.
             GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
             glDrawBuffers(1, DrawBuffers);
@@ -628,11 +602,11 @@ namespace Emulator {
         startTime = SystemClock::GetTimeInSeconds();
     }
 
-    void UpdateEmptySlotLabel(MenuItem *item, uint &buttonState, uint &lastButtonState) {
+    void UpdateEmptySlotLabel(MenuItem *item, uint *buttonState, uint *lastButtonState) {
         item->Visible = !currentGame->saveStates[saveSlot].hasState;
     }
 
-    void UpdateNoImageSlotLabel(MenuItem *item, uint &buttonState, uint &lastButtonState) {
+    void UpdateNoImageSlotLabel(MenuItem *item, uint *buttonState, uint *lastButtonState) {
         item->Visible =
                 currentGame->saveStates[saveSlot].hasState &&
                 !currentGame->saveStates[saveSlot].hasImage;
@@ -763,17 +737,14 @@ namespace Emulator {
         //    new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize,
         //                   OnClickCurveScreen, nullptr, nullptr);
 
-        MenuButton *screenModeButton = new MenuButton(&fontMenu, threedeeIconId, "", posX,
-                                                      posY += menuItemSize, OnClickScreenMode,
-                                                      OnClickScreenMode, OnClickScreenMode);
+        MenuButton *screenModeButton =
+                new MenuButton(&fontMenu, threedeeIconId, "", posX, posY += menuItemSize, OnClickScreenMode, OnClickScreenMode, OnClickScreenMode);
 
-        MenuButton *offsetButton = new MenuButton(&fontMenu, textureIpdIconId, "", posX,
-                                                  posY += menuItemSize, OnClickResetOffset,
-                                                  OnClickOffsetLeft, OnClickOffsetRight);
+        MenuButton *offsetButton =
+                new MenuButton(&fontMenu, textureIpdIconId, "", posX, posY += menuItemSize, OnClickResetOffset, OnClickOffsetLeft,
+                               OnClickOffsetRight);
 
-        MenuButton *paletteButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
-                                                   posY += menuItemSize + 5,
-                                                   OnClickPrefabColorRight,
+        MenuButton *paletteButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize + 5, OnClickPrefabColorRight,
                                                    OnClickPrefabColorLeft, OnClickPrefabColorRight);
 
         rButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
@@ -826,11 +797,18 @@ namespace Emulator {
 
         // save button mapping
         for (int i = 0; i < buttonCount; ++i) {
-            saveFile->write(reinterpret_cast<const char *>(&button_mapping_index[i]), sizeof(int));
+            int device0 = buttonMapping[i].Buttons[0].IsSet ? buttonMapping[i].Buttons[0].InputDevice : -1;
+            int device1 = buttonMapping[i].Buttons[1].IsSet ? buttonMapping[i].Buttons[1].InputDevice : -1;
+
+            saveFile->write(reinterpret_cast<const char *>(&device0), sizeof(int));
+            saveFile->write(reinterpret_cast<const char *>(&buttonMapping[i].Buttons[0].ButtonIndex), sizeof(int));
+            saveFile->write(reinterpret_cast<const char *>(&device1), sizeof(int));
+            saveFile->write(reinterpret_cast<const char *>(&buttonMapping[i].Buttons[1].ButtonIndex), sizeof(int));
         }
     }
 
     void LoadEmulatorSettings(std::ifstream *readFile) {
+
         readFile->read((char *) &romSelection, sizeof(int));
         readFile->read((char *) &color[0], sizeof(float));
         readFile->read((char *) &color[1], sizeof(float));
@@ -841,7 +819,19 @@ namespace Emulator {
 
         // load button mapping
         for (int i = 0; i < buttonCount; ++i) {
-            readFile->read((char *) &button_mapping_index[i], sizeof(int));
+            readFile->read((char *) &buttonMapping[i].Buttons[0].InputDevice, sizeof(int));
+            readFile->read((char *) &buttonMapping[i].Buttons[0].ButtonIndex, sizeof(int));
+            readFile->read((char *) &buttonMapping[i].Buttons[1].InputDevice, sizeof(int));
+            readFile->read((char *) &buttonMapping[i].Buttons[1].ButtonIndex, sizeof(int));
+
+            if (buttonMapping[i].Buttons[0].InputDevice < 0) {
+                buttonMapping[i].Buttons[0].IsSet = false;
+                buttonMapping[i].Buttons[0].InputDevice = 0;
+            }
+            if (buttonMapping[i].Buttons[1].InputDevice < 0) {
+                buttonMapping[i].Buttons[1].IsSet = false;
+                buttonMapping[i].Buttons[1].InputDevice = 0;
+            }
         }
     }
 
@@ -860,12 +850,12 @@ namespace Emulator {
         romFileList->push_back(newRom);
 
         OVR_LOG("found rom: %s %s %s", newRom.RomName.c_str(), newRom.FullPath.c_str(),
-            newRom.SavePath.c_str());
+                newRom.SavePath.c_str());
     }
 
     // sort the roms by name
     bool SortByRomName(const Rom &first, const Rom &second) {
-        return (first.isGbc == second.isGbc) ? first.RomName < second.RomName : first.isGbc;
+        return first.RomName < second.RomName;
     }
 
     void SortRomList() {
@@ -969,19 +959,79 @@ namespace Emulator {
 
     void UpdateButtonMapping() {
         for (int i = 0; i < buttonCount; ++i) {
-            button_mapping[i] = 1u << button_mapping_index[i];
+            buttonMapping[i].Buttons[0].Button = ButtonMapping[buttonMapping[i].Buttons[0].ButtonIndex];
         }
     }
 
     void RestButtonMapping() {
         for (int i = 0; i < buttonCount; ++i) {
-            button_mapping_index[i] = button_mapping_index_reset[i];
+            buttonMapping[i].Buttons[0].InputDevice = DeviceGamepad;
+            buttonMapping[i].Buttons[0].IsSet = true;
+            buttonMapping[i].Buttons[1].IsSet = true;
         }
 
-        UpdateButtonMapping();
+//        {&textureButtonAIconId, &textureButtonBIconId, &mappingTriggerRight, &mappingTriggerLeft, &mappingRightUpId, &mappingRightRightId,
+//                    &mappingLeftRightId, &mappingLeftLeftId, &mappingLeftDownId, &mappingLeftUpId, &mappingStartId, &mappingSelectId,
+//                    &mappingRightLeftId, &mappingRightDownId};
+
+        // gamepad mapping
+        buttonMapping[0].Buttons[0].Button = EmuButton_A;
+        buttonMapping[1].Buttons[0].Button = EmuButton_B;
+        buttonMapping[2].Buttons[0].Button = EmuButton_RShoulder;
+        buttonMapping[3].Buttons[0].Button = EmuButton_LShoulder;
+        buttonMapping[4].Buttons[0].Button = EmuButton_RightStickUp;
+        buttonMapping[5].Buttons[0].Button = EmuButton_RightStickRight;
+        buttonMapping[6].Buttons[0].Button = EmuButton_Right;
+        buttonMapping[7].Buttons[0].Button = EmuButton_Left;
+        buttonMapping[8].Buttons[0].Button = EmuButton_Down;
+        buttonMapping[9].Buttons[0].Button = EmuButton_Up;
+        buttonMapping[10].Buttons[0].Button = EmuButton_Enter;
+        buttonMapping[11].Buttons[0].Button = EmuButton_Back;
+        buttonMapping[12].Buttons[0].Button = EmuButton_RightStickLeft;
+        buttonMapping[13].Buttons[0].Button = EmuButton_RightStickDown;
+
+        // touch controller mapping
+        buttonMapping[0].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[0].Buttons[1].Button = EmuButton_A;
+        buttonMapping[1].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[1].Buttons[1].Button = EmuButton_B;
+        buttonMapping[2].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[2].Buttons[1].Button = EmuButton_Trigger;
+        buttonMapping[3].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[3].Buttons[1].Button = EmuButton_Trigger;
+        buttonMapping[4].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[4].Buttons[1].Button = EmuButton_Up;
+        buttonMapping[5].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[5].Buttons[1].Button = EmuButton_Right;
+        buttonMapping[6].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[6].Buttons[1].Button = EmuButton_Right;
+        buttonMapping[7].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[7].Buttons[1].Button = EmuButton_Left;
+        buttonMapping[8].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[8].Buttons[1].Button = EmuButton_Down;
+        buttonMapping[9].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[9].Buttons[1].Button = EmuButton_Up;
+        buttonMapping[10].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[10].Buttons[1].Button = EmuButton_Y;
+        buttonMapping[11].Buttons[1].InputDevice = DeviceLeftTouch;
+        buttonMapping[11].Buttons[1].Button = EmuButton_X;
+        buttonMapping[12].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[12].Buttons[1].Button = EmuButton_Left;
+        buttonMapping[13].Buttons[1].InputDevice = DeviceRightTouch;
+        buttonMapping[13].Buttons[1].Button = EmuButton_Down;
+
+        // TODO: make this nicer...
+        for (int j = 0; j < buttonCount; ++j) {
+            for (int i = 0; i < EmuButtonCount; ++i) {
+                if (buttonMapping[j].Buttons[0].Button == ButtonMapping[i])
+                    buttonMapping[j].Buttons[0].ButtonIndex = i;
+                if (buttonMapping[j].Buttons[1].Button == ButtonMapping[i])
+                    buttonMapping[j].Buttons[1].ButtonIndex = i;
+            }
+        }
     }
 
-    void Update(const ovrFrameInput &vrFrame, uint buttonState, uint lastButtonState) {
+    void Update(const ovrFrameInput &vrFrame, uint *buttonState, uint *lastButtonState) {
         // methode will only get called "emulationSpeed" times a second
         frameCounter += vrFrame.DeltaSeconds;
         if (frameCounter < 1 / emulationSpeed) {
@@ -989,21 +1039,15 @@ namespace Emulator {
         }
         frameCounter -= 1 / emulationSpeed;
 
+        // TODO
         VRVB::input_buf[0] = 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[0]) ? 1 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[1]) ? 2 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[2]) ? 4 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[3]) ? 8 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[4]) ? 16 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[5]) ? 32 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[6]) ? 64 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[7]) ? 128 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[8]) ? 256 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[9]) ? 512 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[10]) ? 1024 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[11]) ? 2048 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[12]) ? 4096 : 0;
-        VRVB::input_buf[0] |= (buttonState & button_mapping[13]) ? 8192 : 0;
+
+        for (int i = 0; i < buttonCount; ++i)
+            VRVB::input_buf[0] |=
+                    ((buttonMapping[i].Buttons[0].IsSet &&
+                      (buttonState[buttonMapping[i].Buttons[0].InputDevice] & buttonMapping[i].Buttons[0].Button)) ||
+                     (buttonMapping[i].Buttons[1].IsSet &&
+                      (buttonState[buttonMapping[i].Buttons[1].InputDevice] & buttonMapping[i].Buttons[1].Button))) ? (1 << i) : 0;
 
         VRVB::Run();
     }

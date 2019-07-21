@@ -6,6 +6,7 @@ include ../../../cflags.mk
 
 LOCAL_MODULE			:= ovrapp
 LOCAL_SRC_FILES			:= 	../../../FrontendGo/OvrApp.cpp \
+							../../../FrontendGo/ButtonMapping.cpp \
 							../../../FrontendGo/TextureLoader.cpp \
 							../../../FrontendGo/Audio/OpenSLWrap.cpp \
 							../../../FrontendGo/LayerBuilder.cpp \
