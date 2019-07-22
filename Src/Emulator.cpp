@@ -131,8 +131,7 @@ namespace OVR {
                                                                         jstring commandString,
                                                                         jstring uriString) {
 
-        jmethodID messageMe = jni->GetMethodID(clazz, "getInternalStorageDir",
-                                               "()Ljava/lang/String;");
+        jmethodID messageMe = jni->GetMethodID(clazz, "getInternalStorageDir", "()Ljava/lang/String;");
         jobject result = (jstring) jni->CallObjectMethod(activity, messageMe);
         const char *storageDir = jni->GetStringUTFChars((jstring) result, NULL);
 
@@ -149,8 +148,7 @@ namespace OVR {
         OVR_LOG("got string from java: storageDir %s", storageDir);
 
         OVR_LOG("nativeSetAppInterface");
-        return (new OvrApp())->SetActivity(jni, clazz, activity, fromPackageName, commandString,
-                                           uriString);
+        return (new OvrApp())->SetActivity(jni, clazz, activity, fromPackageName, commandString, uriString);
     }
 
     } // extern "C"
@@ -572,20 +570,16 @@ namespace Emulator {
                         {"Texture1",        ovrProgramParmType::TEXTURE_SAMPLED},
                         {"ColorBias",       ovrProgramParmType::FLOAT_VECTOR4},
                 };
-        GlProgram
-                MovieExternalUiProgram = GlProgram::Build(movieUiVertexShaderSrc,
-                                                          movieUiFragmentShaderSrc,
-                                                          MovieExternalUiUniformParms,
-                                                          sizeof(MovieExternalUiUniformParms)
-                                                          / sizeof(ovrProgramParm));
+        GlProgram MovieExternalUiProgram = GlProgram::Build(movieUiVertexShaderSrc, movieUiFragmentShaderSrc, MovieExternalUiUniformParms,
+                                                            sizeof(MovieExternalUiUniformParms) / sizeof(ovrProgramParm));
 
-        ScreenTexMatrices.Create(GLBUFFER_TYPE_UNIFORM, sizeof(Matrix4f) * GlProgram::MAX_VIEWS,
-                                 NULL);
+        ScreenTexMatrices.Create(GLBUFFER_TYPE_UNIFORM, sizeof(Matrix4f) * GlProgram::MAX_VIEWS, NULL);
 
         ScreenColor[0] = Vector4f(1.0f, 1.0f, 1.0f, 0.0f);
         ScreenColor[1] = Vector4f(0.0f, 0.0f, 0.0f, 0.0f);
 
-        ScreenSurfaceDef.surfaceName = "ScreenSurf";
+        // this leads to the app crashing on exit
+        // ScreenSurfaceDef.surfaceName = "ScreenSurf";
         ScreenSurfaceDef.geo = BuildTesselatedQuad(1, 1);
         ScreenSurfaceDef.graphicsCommand.Program = MovieExternalUiProgram;
         ScreenSurfaceDef.graphicsCommand.UniformData[0].Data = &ScreenTexMatrices;
@@ -776,8 +770,7 @@ namespace Emulator {
     void InitRomSelectionMenu(int posX, int posY, Menu &romSelectionMenu) {
         // rom list
         romList = new MenuList<Rom>(&fontList, OnClickRom, romFileList, 10, HEADER_HEIGHT + 10,
-                                    MENU_WIDTH - 20,
-                                    (MENU_HEIGHT - HEADER_HEIGHT - BOTTOM_HEIGHT - 20));
+                                    MENU_WIDTH - 20, (MENU_HEIGHT - HEADER_HEIGHT - BOTTOM_HEIGHT - 20));
 
         if (romSelection < 0 || romSelection >= romList->ItemList->size())
             romSelection = 0;
