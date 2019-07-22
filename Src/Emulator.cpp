@@ -985,9 +985,9 @@ namespace Emulator {
 
         // touch controller mapping
         buttonMapping[0].Buttons[1].InputDevice = DeviceRightTouch;
-        buttonMapping[0].Buttons[1].Button = EmuButton_B;
+        buttonMapping[0].Buttons[1].Button = EmuButton_A;
         buttonMapping[1].Buttons[1].InputDevice = DeviceRightTouch;
-        buttonMapping[1].Buttons[1].Button = EmuButton_A;
+        buttonMapping[1].Buttons[1].Button = EmuButton_B;
         buttonMapping[2].Buttons[1].InputDevice = DeviceRightTouch;
         buttonMapping[2].Buttons[1].Button = EmuButton_Trigger;
         buttonMapping[3].Buttons[1].InputDevice = DeviceLeftTouch;
