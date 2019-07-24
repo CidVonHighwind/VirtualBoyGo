@@ -63,7 +63,7 @@ namespace Emulator {
 
     void UpdateButtonMapping();
 
-    void RestButtonMapping();
+    void ResetButtonMapping();
 
     void SaveRam();
 
