@@ -242,15 +242,13 @@ namespace Emulator {
      BUTTON_RSTICK_LEFT, BUTTON_RSTICK_DOWN};
  */
 
-//const uint buttonCount = 14;
     GLuint *button_icons[buttonCount] =
             {&textureButtonAIconId, &textureButtonBIconId, &mappingTriggerRight, &mappingTriggerLeft, &mappingRightUpId, &mappingRightRightId,
              &mappingLeftRightId, &mappingLeftLeftId, &mappingLeftDownId, &mappingLeftUpId, &mappingStartId, &mappingSelectId,
              &mappingRightLeftId, &mappingRightDownId};
 
-    // uint button_mapping_index_reset[buttonCount] = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
-    MappedButtons buttonMapping[buttonCount];// = {0, 1, 8, 9, 18, 21, 17, 16, 15, 14, 4, 6, 20, 19};
-    //uint button_mapping[buttonCount];
+    MappedButtons buttonMapping[buttonCount];
+    int buttonOrder[14] = {0, 1, 3, 2, 11, 10, 7, 6, 9, 8, 12, 5, 4, 13};
 
     LoadedGame *currentGame;
 
@@ -659,7 +657,7 @@ namespace Emulator {
         else if (threedeeIPD > maxIPD)
             threedeeIPD = maxIPD;
 
-        item->Text = "IPD: " + to_string(threedeeIPD * 256);
+        item->Text = "IPD offset: " + to_string(threedeeIPD * 256);
     }
 
     void ChangePalette(MenuButton *item, float dir) {
@@ -741,12 +739,9 @@ namespace Emulator {
         MenuButton *paletteButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize + 5, OnClickPrefabColorRight,
                                                    OnClickPrefabColorLeft, OnClickPrefabColorRight);
 
-        rButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
-                                 posY += menuItemSize, nullptr, OnClickRLeft, OnClickRRight);
-        gButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
-                                 posY += menuItemSize, nullptr, OnClickGLeft, OnClickGRight);
-        bButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX,
-                                 posY += menuItemSize, nullptr, OnClickBLeft, OnClickBRight);
+        rButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize, nullptr, OnClickRLeft, OnClickRRight);
+        gButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize, nullptr, OnClickGLeft, OnClickGRight);
+        bButton = new MenuButton(&fontMenu, texturePaletteIconId, "", posX, posY += menuItemSize, nullptr, OnClickBLeft, OnClickBRight);
 
         //settingsMenu.MenuItems.push_back(curveButton);
         settingsMenu.MenuItems.push_back(screenModeButton);

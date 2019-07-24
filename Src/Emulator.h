@@ -31,6 +31,7 @@ namespace Emulator {
     const static int buttonCount = 14;
     extern GLuint *button_icons[];
     extern MappedButtons buttonMapping[];
+    extern int buttonOrder[14];
 
     extern const std::string romFolderPath;
     extern const std::vector<std::string> supportedFileNames;
