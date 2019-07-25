@@ -40,4 +40,6 @@ android {
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
     }
+    compileSdkVersion = 24
+    buildToolsVersion = '27.0.3'
 }
