@@ -24,6 +24,8 @@ android {
                 abiFilters 'armeabi-v7a', 'arm64-v8a'
             }
         }
+        minSdkVersion 21
+        targetSdkVersion 25
     }
 
     sourceSets {
@@ -40,4 +42,5 @@ android {
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
     }
+    compileSdkVersion = 26
 }
