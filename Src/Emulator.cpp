@@ -205,7 +205,7 @@ namespace Emulator {
     double startTime;
 
     const float COLOR_STEP_SIZE = 0.05f;
-    const float IPD_STEP_SIZE = 0.001953125f;
+    const float IPD_STEP_SIZE = 0.00390625f;
 
 // 384
 // 768
@@ -218,8 +218,8 @@ namespace Emulator {
     std::string strColor[]{"R: ", "G: ", "B: "};
     float color[]{1.0f, 1.0f, 1.0f};
     float threedeeIPD = 0;
-    float minIPD = -0.1953125f;
-    float maxIPD = 0.1953125f;
+    float minIPD = -0.125f;
+    float maxIPD = 0.125f;
 
     int selectedPredefColor;
     const int predefColorCount = 11;
@@ -534,7 +534,8 @@ namespace Emulator {
                                                  TextureHeight * 2 + borderSize * 2, 1, false);
             screenTextureCylinderId = vrapi_GetTextureSwapChainHandle(CylinderSwapChain, 0);
             glBindTexture(GL_TEXTURE_2D, screenTextureCylinderId);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CylinderWidth * 2 + borderSize * 2, TextureHeight * 2 + borderSize * 2, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CylinderWidth * 2 + borderSize * 2, TextureHeight * 2 + borderSize * 2, GL_RGBA, GL_UNSIGNED_BYTE,
+                            NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             //glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
@@ -660,7 +661,7 @@ namespace Emulator {
         else if (threedeeIPD > maxIPD)
             threedeeIPD = maxIPD;
 
-        item->Text = "IPD offset: " + to_string(threedeeIPD * 256);
+        item->Text = "IPD offset: " + to_string(threedeeIPD);
     }
 
     void ChangePalette(MenuButton *item, float dir) {
@@ -1122,7 +1123,7 @@ namespace Emulator {
             // virtual screen layer
             res.Layers[res.LayerCount].Cylinder = LayerBuilder::BuildGameCylinderLayer3D(
                     CylinderSwapChain, CylinderWidth, CylinderHeight, &vrFrame.Tracking, followHead,
-                    !menuOpen && useThreeDeeMode, threedeeIPD);
+                    !menuOpen && useThreeDeeMode, threedeeIPD, vrFrame.IPD);
             res.Layers[res.LayerCount].Cylinder.Header.Flags |=
                     VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
             res.Layers[res.LayerCount].Cylinder.Header.Flags |=
