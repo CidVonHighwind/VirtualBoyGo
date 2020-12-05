@@ -10,6 +10,7 @@ import sys
 
 def init():
 	root = os.path.realpath( os.path.dirname(os.path.realpath(__file__) ) )
+	print( "root = " + root )
 	os.chdir(root) # make sure we are always executing from the project directory
 	while( os.path.isdir( os.path.join(root, 'bin/scripts/build') ) == False ):
 		root = os.path.realpath( os.path.join(root, '..') )

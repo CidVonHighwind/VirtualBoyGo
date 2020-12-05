@@ -1,0 +1,6 @@
+rootProject.projectDir = new File(settingsDir, '../../../..')
+rootProject.name = "VirtualBoyGo"
+
+include ':', \
+	'VBGo:VirtualBoyGo:Projects:Android'
+

@@ -1,9 +1,0 @@
-rootProject.projectDir = new File(settingsDir, '../../..')
-rootProject.name = "VirtualBoyGo"
-
-include ':', \
-	'VrAppFramework:Projects:Android', \
-	'VrAppSupport:VrLocale:Projects:Android', \
-	'VrAppSupport:VrSound:Projects:Android', \
-	'VrSamples:VirtualBoyGo:Android', \
-	'VrAppSupport:VrGUI:Projects:Android'
