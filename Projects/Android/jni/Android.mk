@@ -9,7 +9,7 @@ LOCAL_MODULE			:= virtualboygo
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/../../../../ \
 					$(LOCAL_PATH)/../../../../VirtualBoyGo/Src \
-					$(LOCAL_PATH)/../../../../SampleFramework/Src \
+					$(LOCAL_PATH)/../../../../../VrSamples/SampleFramework/Src \
   					$(LOCAL_PATH)/../../../../../1stParty/OVR/Include \
   					$(LOCAL_PATH)/../../../../../1stParty/utilities/include \
   					$(LOCAL_PATH)/../../../../../3rdParty/stb/src \
