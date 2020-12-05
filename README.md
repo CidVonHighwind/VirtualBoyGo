@@ -28,17 +28,25 @@ The font used in the emulator header is from https://www.planetvb.com/modules/ne
   - add this at the end of the file:
 
     LOCAL_CFLAGS += -Wno-sign-compare
+    
     LOCAL_CFLAGS += -Wno-format
+    
     LOCAL_CFLAGS += -Wno-unused-variable
+    
     LOCAL_CFLAGS += -Wno-unused-function
+    
     LOCAL_CFLAGS += -Wno-ignored-qualifiers
+    
     LOCAL_CFLAGS += -Wno-sign-compare
+    
     LOCAL_CFLAGS += -Wno-dangling-else
+    
     LOCAL_CFLAGS += -Wno-deprecated-declarations
+    
     LOCAL_CFLAGS += -frtti
 
-- download "FreeType 2.10.0" https://download.savannah.gnu.org/releases/freetype/ and copy the "include" and the "src" folder into "ovr_sdk_mobile_1.35.0/VBGo/FreeType/" folder
-- Also copy the "Android.mk" and the "Application.mk" files from the "FrontendGo/freetype mk" and copy them into "ovr_sdk_mobile_1.35.0/VBGo/FreeType/"
+- download "FreeType 2.10.0" https://download.savannah.gnu.org/releases/freetype/ and copy the "include" and the "src" folder into the newly created "ovr_sdk_mobile_1.35.0/VBGo/FreeType/" folder
+- Copy "Android.mk" and "Application.mk" from the "FrontendGo/freetype mk" into "ovr_sdk_mobile_1.35.0/VBGo/FreeType/"
 
 - download "gli 0.8.2.0" https://github.com/g-truc/gli/releases and copy the gli folder (the one next to doc, test, util, etc.) into "ovr_sdk_mobile_1.35.0/VBGo/"
 
@@ -47,4 +55,4 @@ The font used in the emulator header is from https://www.planetvb.com/modules/ne
 - the VBGo folder should now look like this:
  ![0](images/folder.png)
 
-- in Android Studio open ovr_sdk_mobile_1.35.0/VirtualBoyGo/Android
+- in Android Studio open ovr_sdk_mobile_1.35.0/VirtualBoyGo/Projects/Android
