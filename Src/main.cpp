@@ -36,11 +36,11 @@ long Java_com_nintendont_virtualboygo_MainActivity_nativeSetAppInterface(JNIEnv 
 }
 
 void Java_com_nintendont_virtualboygo_MainActivity_nativeReloadRoms(JNIEnv *jni, jclass clazz, jlong interfacePtr) {
-    ALOG("nativeReloadPhoto interfacePtr=%p appPtr=%p", interfacePtr, appPtr);
+    ALOG("nativeReloadRoms interfacePtr=%p appPtr=%p", interfacePtr, appPtr);
     if (appPtr && interfacePtr) {
         appPtr->menuGo.ScanDirectory();
     } else {
-        ALOG("nativeReloadPhoto %p NULL ptr", appPtr);
+        ALOG("nativeReloadRoms %p NULL ptr", appPtr);
     }
 }
 

@@ -494,7 +494,7 @@ void Emulator::ChangePalette(MenuButton *item, float dir) {
     ChangeColor(gButton.get(), 1, 0);
     ChangeColor(bButton.get(), 2, 0);
 
-    item->Text = "Palette: " + ToString(selectedPredefColor);
+    item->Text = "Color Palette: " + ToString(selectedPredefColor);
 
     // update screen
     if (currentScreenData)
