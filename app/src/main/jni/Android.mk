@@ -34,6 +34,7 @@ LOCAL_SHARED_LIBRARIES	:= vrapi
 
 include $(BUILD_SHARED_LIBRARY)
 
+$(call import-add-path, $(PROJECT_ROOT))
 $(call import-module,VBGo/BeetleVBLibretroGo/jni)
 $(call import-module,VBGo/FreeType)
 

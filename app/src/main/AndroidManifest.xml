@@ -19,7 +19,8 @@
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name" >
+        android:label="@string/app_name"
+        android:dataExtractionRules="@xml/data_extraction_rules">
         <meta-data android:name="com.samsung.android.vr.application.mode" android:value="vr_only"/>
         <meta-data android:name="com.oculus.supportedDevices" android:value="all" />
         <!-- launchMode is set to singleTask because there should never be multiple copies of the app running -->
@@ -32,7 +33,8 @@
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
-            android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode">
+            android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode"
+            android:exported="true">
             <!-- Tell NativeActivity the name of the .so -->
             <!-- FIXUP: library name -->
             <meta-data android:name="android.app.lib_name" android:value="virtualboygo" />
