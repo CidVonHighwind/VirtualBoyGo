@@ -1,5 +1,5 @@
 #include <OVR_LogUtils.h>
-#include <VirtualBoyGo/Src/main.h>
+#include "main.h"
 #include "MenuHelper.h"
 #include "FontMaster.h"
 #include "DrawHelper.h"

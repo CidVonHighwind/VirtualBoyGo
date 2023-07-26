@@ -4,11 +4,11 @@
 #include <fstream>
 #include <OVR_LogUtils.h>
 #include <VrApi_SystemUtils.h>
-#include <VirtualBoyGo/Src/main.h>
+#include "main.h"
 
-#include "drawHelper.h"
-#include "layerBuilder.h"
-#include "emulator.h"
+#include "DrawHelper.h"
+#include "LayerBuilder.h"
+#include "Emulator.h"
 #include "Audio/OpenSLWrap.h"
 #include "FontMaster.h"
 #include "TextureLoader.h"

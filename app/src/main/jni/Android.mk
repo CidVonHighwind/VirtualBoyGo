@@ -8,7 +8,10 @@ include $(PROJECT_ROOT)/ovr_sdk_mobile_1.35.0/cflags.mk
 #FIXUP: change LOCAL_MODULE to project name
 LOCAL_MODULE			:= virtualboygo
 
-LOCAL_C_INCLUDES := $(PROJECT_ROOT)/VirtualBoyGo/Src \
+LOCAL_C_INCLUDES := $(PROJECT_ROOT) \
+					$(PROJECT_ROOT)/gli \
+					$(PROJECT_ROOT)/glm \
+					$(PROJECT_ROOT)/VirtualBoyGo/Src \
 					$(PROJECT_ROOT)/ovr_sdk_mobile_1.35.0/VrSamples/SampleFramework/Src \
   					$(PROJECT_ROOT)/ovr_sdk_mobile_1.35.0/1stParty/OVR/Include \
   					$(PROJECT_ROOT)/ovr_sdk_mobile_1.35.0/1stParty/utilities/include \

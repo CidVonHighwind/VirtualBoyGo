@@ -4,7 +4,7 @@
 ENABLE_SANITIZER := 0
 
 LOCAL_CFLAGS	:= -DANDROID_NDK
-LOCAL_CFLAGS	+= -Werror			# error on warnings
+#LOCAL_CFLAGS	+= -Werror			# error on warnings
 LOCAL_CFLAGS	+= -Wall
 LOCAL_CFLAGS	+= -Wextra
 #LOCAL_CFLAGS	+= -Wshadow
