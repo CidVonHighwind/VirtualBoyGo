@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 include $(CLEAR_VARS)
 
-include ../../../../cflags.mk
+include $(LOCAL_PATH)/../../../../../cflags.mk
 
 LOCAL_MODULE	:= sampleframework
 
