@@ -1,0 +1,7 @@
+rootProject.projectDir = new File(settingsDir, '../../../..')
+rootProject.name = "Vr360VideoPlayer"
+
+include ':', \
+	'VrSamples:SampleFramework:Projects:Android', \
+	'VrSamples:Vr360VideoPlayer:Projects:Android' 
+

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:tools="http://schemas.android.com/tools"
+	package="com.oculus.sdk.vrcinema"
+	android:versionCode="1"
+	android:versionName="1.0"
+	android:installLocation="auto"
+	tools:ignore="AppLinkUrlError">
+
+	
+	<!-- @todo to fix At least one host must be specified [AppLinkUrlError] -->
+
+	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+	<!-- Needed to record audio for VoIP -->
+	<uses-permission android:name="android.permission.RECORD_AUDIO" />
+	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+	<uses-permission android:name="android.permission.INTERNET" />
+	<!-- Needed for isWifiConnected() -->
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+	<uses-feature android:name="android.hardware.usb.host" />
+
+	<!-- Tell the system this app requires OpenGL ES 3.1. -->
+	<uses-feature android:glEsVersion="0x00030001" android:required="true" />
+  <!-- Tell the system this app works in either 3dof or 6dof mode -->
+  <uses-feature android:name="android.hardware.vr.headtracking" android:required="false" />
+
+	<application
+		android:allowBackup="false"
+		android:icon="@drawable/ic_launcher"
+		android:label="@string/app_name">
+		<meta-data android:name="com.samsung.android.vr.application.mode" android:value="vr_only"/>
+    <meta-data android:name="com.oculus.supportedDevices" android:value="all" />
+    
+ 		<!-- singleTask launchMode because we never want multiple copies of the app running, -->
+ 		<!-- but we might want to internally spawn other activities -->        
+ 		<!-- Theme.DeviceDefault.NoActionBar.Fullscreen gives solid black instead of a (bad stereoscopic) gradient on app transition -->
+        <!-- If targeting API level 24+, configChanges should additionally include 'density'. -->
+        <!-- If targeting API level 24+, android:resizeableActivity="false" should be added. -->
+		<activity
+			android:name="com.oculus.sdk.vrcinema.MainActivity"
+			android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+			android:label="@string/app_name" 
+			android:launchMode="singleTask" 
+			android:screenOrientation="landscape" 
+			android:excludeFromRecents="false" 
+			android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode">
+
+			<meta-data android:name="android.app.lib_name" android:value="vrcinema" />
+
+      <!-- Indicate the activity is aware of VrApi focus states required for system overlays  -->
+      <meta-data android:name="com.oculus.vr.focusaware" android:value="true"/>
+
+      <!-- this filter lets the apk show up as a launchable icon -->
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+        		<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+
+			<!--  this filter lets it accept intents for our data type -->
+			<intent-filter>
+				<!--  default category is necessary to have it used for an intent launched by type  -->
+				<category android:name="android.intent.category.DEFAULT" />
+
+ 				<!-- allow it to open data from the browser -->
+				<category android:name="android.intent.category.BROWSABLE" />
+                
+				<action android:name="android.intent.action.VIEW" />
+				<data android:mimeType="model/vnd.oculus.ovrcinema" />
+			</intent-filter>
+
+			<!--  this filter lets it accept intents for our file extension -->
+			<intent-filter>
+ 				<!-- allow it to open data from the browser -->
+   				<action android:name="android.intent.action.VIEW" />               
+				<category android:name="android.intent.category.BROWSABLE" />
+   				<category android:name="android.intent.category.DEFAULT" />
+				<data android:scheme="file" />
+				
+				<!--  if we want to have the file browser launch us, we must include the wildcard mimeType -->
+    			<data android:mimeType="*/*" />
+    			<data android:pathPattern=".*\\.ovrscene" />
+                <data android:pathPattern=".*\\.glb" />
+			</intent-filter>
+		</activity>
+	</application>
+</manifest>

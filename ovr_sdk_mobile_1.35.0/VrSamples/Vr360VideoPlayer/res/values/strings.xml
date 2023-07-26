@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources
+    xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://schemas.android.com/apk/res-auto"
+    xsi:noNamespaceSchemaLocation="../../../../../../i18n/hack/fbtstrings.xsd"
+    >
+    <string name="app_name">VR 360 Video Player</string>
+    <string name="action_settings">Settings</string>
+    <string name="hello_world">Hello world!</string>
+
+</resources>

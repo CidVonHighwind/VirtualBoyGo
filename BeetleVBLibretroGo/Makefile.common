@@ -1,0 +1,76 @@
+SOURCES_CXX :=
+SOURCES_C   :=
+
+MEDNAFEN_DIR := $(CORE_DIR)/mednafen
+CORE_EMU_DIR := $(MEDNAFEN_DIR)/vb
+LIBRETRO_COMM_DIR := $(CORE_DIR)/libretro-common
+
+INCFLAGS := -I$(CORE_DIR) \
+				-I$(MEDNAFEN_DIR) \
+				-I$(MEDNAFEN_DIR)/include \
+				-I$(MEDNAFEN_DIR)/hw_sound \
+				-I$(MEDNAFEN_DIR)/hw_cpu \
+				-I$(MEDNAFEN_DIR)/hw_misc \
+				-I$(LIBRETRO_COMM_DIR)/include
+
+ifneq (,$(findstring msvc2003,$(platform)))
+INCFLAGS += -I$(LIBRETRO_COMM_DIR)/include/compat/msvc
+endif
+
+# ifneq ($(HAVE_GRIFFIN),1)
+
+SOURCES_CXX += \
+	$(CORE_EMU_DIR)/input.cpp \
+	$(CORE_EMU_DIR)/timer.cpp \
+	$(CORE_EMU_DIR)/vip.cpp \
+	$(CORE_EMU_DIR)/vsu.cpp \
+	$(MEDNAFEN_DIR)/hw_cpu/v810/v810_cpu.cpp
+
+SOURCES_C += \
+	$(MEDNAFEN_DIR)/hw_cpu/v810/fpu-new/softfloat.c
+
+# endif
+
+# ifeq ($(NEED_BLIP), 1)
+SOURCES_C += $(MEDNAFEN_DIR)/sound/Blip_Buffer.c
+# endif
+
+ifeq ($(NEED_DEINTERLACER), 1)
+   FLAGS += -DNEED_DEINTERLACER
+endif
+
+ifeq ($(NEED_BPP), 8)
+FLAGS += -DWANT_8BPP
+endif
+
+ifeq ($(NEED_BPP), 16)
+FLAGS += -DWANT_16BPP
+endif
+
+ifeq ($(NEED_BPP), 32)
+FLAGS += -DWANT_32BPP
+endif
+
+ifeq ($(NO_COMPUTED_GOTO), 1)
+FLAGS += -DNO_COMPUTED_GOTO
+endif
+
+ifeq ($(FRONTEND_SUPPORTS_RGB565), 1)
+FLAGS += -DFRONTEND_SUPPORTS_RGB565
+endif
+
+# ifneq ($(HAVE_GRIFFIN), 1)
+
+SOURCES_CXX += \
+	$(MEDNAFEN_DIR)/settings.cpp \
+	$(MEDNAFEN_DIR)/state.cpp \
+	$(MEDNAFEN_DIR)/mempatcher.cpp \
+	$(MEDNAFEN_DIR)/video/surface.cpp \
+	$(CORE_DIR)/libretro.cpp
+
+# ifneq ($(STATIC_LINKING), 1)
+SOURCES_C += \
+	$(LIBRETRO_COMM_DIR)/compat/compat_strl.c \
+	$(LIBRETRO_COMM_DIR)/compat/compat_snprintf.c
+# endif
+# endif

@@ -1,0 +1,7 @@
+rootProject.projectDir = new File(settingsDir, '../../../..')
+rootProject.name = "Vr360PhotoViewer"
+
+include ':', \
+	'VrSamples:SampleFramework:Projects:Android', \
+	'VrSamples:Vr360PhotoViewer:Projects:Android' 
+
