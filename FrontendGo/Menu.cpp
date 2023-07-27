@@ -992,9 +992,7 @@ void MenuGo::Update(OVRFW::ovrAppl &app, const OVRFW::ovrApplFrameIn &in, OVRFW:
     }
 
     if (showExitDialog) {
-        OVR_LOG("Open menu");
-        showExitDialog = false;
-        vrapi_ShowSystemUI(java, VRAPI_SYS_UI_CONFIRM_QUIT_MENU);
+        std::exit(0);
     }
 }
 
