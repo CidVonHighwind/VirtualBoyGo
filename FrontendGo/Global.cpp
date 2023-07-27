@@ -14,13 +14,13 @@ void Global::Init(OVRFW::ovrFileSys *fileSys) {
 
     // load all the different font sizes
     FontManager::LoadFontFromAssets(fileSys, &fontHeader, "apk:///assets/fonts/VirtualLogo.ttf", 65);
-    FontManager::LoadFont(&fontMenu, "/system/fonts/Roboto-Regular.ttf", 24);
-    FontManager::LoadFont(&fontList, "/system/fonts/Roboto-Regular.ttf", 22);
-    FontManager::LoadFont(&fontBottom, "/system/fonts/Roboto-Bold.ttf", 22);
-    FontManager::LoadFont(&fontVersion, "/system/fonts/Roboto-Regular.ttf", 20);
-    FontManager::LoadFont(&fontSlot, "/system/fonts/Roboto-Regular.ttf", 26);
-    FontManager::LoadFont(&fontBattery, "/system/fonts/Roboto-Bold.ttf", 23);
-    FontManager::LoadFont(&fontTime, "/system/fonts/Roboto-Bold.ttf", 25);
+    FontManager::LoadFontFromAssets(fileSys, &fontMenu, "apk:///assets/fonts/Roboto-Regular.ttf", 24);
+    FontManager::LoadFontFromAssets(fileSys, &fontList, "apk:///assets/fonts/Roboto-Regular.ttf", 22);
+    FontManager::LoadFontFromAssets(fileSys, &fontBottom, "apk:///assets/fonts/Roboto-Bold.ttf", 22);
+    FontManager::LoadFontFromAssets(fileSys, &fontVersion, "apk:///assets/fonts/Roboto-Regular.ttf", 20);
+    FontManager::LoadFontFromAssets(fileSys, &fontSlot, "apk:///assets/fonts/Roboto-Regular.ttf", 26);
+    FontManager::LoadFontFromAssets(fileSys, &fontBattery, "apk:///assets/fonts/Roboto-Bold.ttf", 23);
+    FontManager::LoadFontFromAssets(fileSys, &fontTime, "apk:///assets/fonts/Roboto-Bold.ttf", 25);
     FontManager::CloseFontLoader();
 
     // load all the textures used in the menu
