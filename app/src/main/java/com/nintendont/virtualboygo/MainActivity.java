@@ -95,14 +95,17 @@ public class MainActivity extends android.app.NativeActivity
     }
 
     public void CreateFolder() {
-        Log.d("MainActivity", "create folder");
         // states folder is needed to create state files
         String storageDir = Environment.getExternalStorageDirectory().toString() + "/Roms/VB/States/";
+        Log.d("MainActivity", "create folder " + storageDir);
         File folder = new File(storageDir);
 
         if (!folder.exists()) {
-            folder.mkdirs();
-            Log.d("MainActivity", "created emulator directory");
+            if (folder.mkdirs()) {
+                Log.d("MainActivity", "created emulator directory");
+            } else {
+                Log.e("MainActivity", "creating emulator directory failed");
+            }
         } else {
             Log.d("MainActivity", "folder alread exists: " + storageDir);
         }

@@ -4,12 +4,12 @@ plugins {
 
 android {
     namespace 'com.nintendont.virtualboygo'
-    compileSdk 33
+    compileSdk 29
 
     defaultConfig {
         applicationId "com.nintendont.virtualboygo"
-        minSdk 29
-        targetSdk 33
+        minSdk 26
+        targetSdk 26
         versionCode 1
         versionName "1.0"
 
