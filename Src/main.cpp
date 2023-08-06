@@ -57,6 +57,9 @@ ovrVirtualBoyGo::~ovrVirtualBoyGo() {
 bool ovrVirtualBoyGo::AppInit(const OVRFW::ovrAppContext *appContext) {
     ALOGV("AppInit - enter");
 
+    const ovrJava& jj = *(reinterpret_cast<const ovrJava*>(appContext->ContextForVrApi()));
+    const xrJava ctx = JavaContextConvert(jj);
+
     java = reinterpret_cast<const ovrJava *>(appContext->ContextForVrApi());
     JNIEnv *env;
     java->Vm->AttachCurrentThread(&env, 0);
@@ -80,7 +83,7 @@ bool ovrVirtualBoyGo::AppInit(const OVRFW::ovrAppContext *appContext) {
     OVR_LOG("got string from java: appdir %s", appDir);
     OVR_LOG("got string from java: storageDir %s", storageDir);
 
-    FileSys = OVRFW::ovrFileSys::Create(*java);
+    FileSys = OVRFW::ovrFileSys::Create(ctx);
 
     OVR_LOG_WITH_TAG("OvrApp", "Init");
 
@@ -166,10 +169,6 @@ void ovrVirtualBoyGo::InitRefreshRate() {
     }
 }
 
-void ovrVirtualBoyGo::AppHandleInputShutdownRequest(ovrRendererOutput &out) {
-    // this gets called when B or Y is pressed on the touch controllers
-}
-
 void ovrVirtualBoyGo::AppShutdown(const OVRFW::ovrAppContext *) {
     ALOGV("AppShutdown - enter");
     OVRFW::ovrFileSys::Destroy(FileSys);
@@ -203,32 +202,36 @@ OVRFW::ovrApplFrameOut ovrVirtualBoyGo::AppFrame(const OVRFW::ovrApplFrameIn &vr
 }
 
 void ovrVirtualBoyGo::AppRenderFrame(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) {
-    if(!initRefreshRate)
-        InitRefreshRate();
+    // set up layers
+    int& layerCount = NumLayers;
+    layerCount = 0;
 
-    Scene.UpdateCenterEye();
-    Scene.GetFrameMatrices(SuggestedEyeFovDegreesX, SuggestedEyeFovDegreesY, out.FrameMatrices);
-    Scene.GenerateFrameSurfaceList(out.FrameMatrices, out.Surfaces);
+    /// Add content layer
+    ovrLayerProjection2& layer = Layers[layerCount].Projection;
+    layer = vrapi_DefaultLayerProjection2();
 
-    ovrLayerProjection2 &worldLayer = out.Layers[out.NumLayers++].Projection;
-    worldLayer = vrapi_DefaultLayerBlackProjection2();
-    worldLayer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_INHIBIT_SRGB_FRAMEBUFFER;
-    worldLayer.Header.SrcBlend = VRAPI_FRAME_LAYER_BLEND_SRC_ALPHA;
-    worldLayer.Header.DstBlend = VRAPI_FRAME_LAYER_BLEND_ONE_MINUS_SRC_ALPHA;
-    worldLayer.HeadPose = in.Tracking.HeadPose;
+    layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
+    layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_INHIBIT_SRGB_FRAMEBUFFER;
+    layer.Header.SrcBlend = VRAPI_FRAME_LAYER_BLEND_SRC_ALPHA;
+    layer.Header.DstBlend = VRAPI_FRAME_LAYER_BLEND_ONE_MINUS_SRC_ALPHA;
+    layer.HeadPose = Tracking.HeadPose;
 
     for (int eye = 0; eye < VRAPI_FRAME_LAYER_EYE_MAX; ++eye) {
-        ovrFramebuffer *framebuffer = GetFrameBuffer(eye);
-        worldLayer.Textures[eye].ColorSwapChain = framebuffer->ColorTextureSwapChain;
-        worldLayer.Textures[eye].SwapChainIndex = framebuffer->TextureSwapChainIndex;
-        worldLayer.Textures[eye].TexCoordsFromTanAngles = ovrMatrix4f_TanAngleMatrixFromProjection((ovrMatrix4f *) &out.FrameMatrices.EyeProjection[eye]);
+        ovrFramebuffer* framebuffer = GetFrameBuffer(GetNumFramebuffers() == 1 ? 0 : eye);
+        layer.Textures[eye].ColorSwapChain = framebuffer->ColorTextureSwapChain;
+        layer.Textures[eye].SwapChainIndex = framebuffer->TextureSwapChainIndex;
+        layer.Textures[eye].TexCoordsFromTanAngles = ovrMatrix4f_TanAngleMatrixFromProjection(
+                (ovrMatrix4f*)&out.FrameMatrices.EyeProjection[eye]);
     }
 
-    menuGo.Update(dynamic_cast<ovrAppl &>(*this), in, out);
+    layerCount++;
 
-    /// render images for each eye
+    // set up layers
+    menuGo.Update(dynamic_cast<ApplInterface &>(*this), dynamic_cast<ovrAppl &>(*this), in, out, Tracking);
+
+    // render images for each eye
     for (int eye = 0; eye < GetNumFramebuffers(); ++eye) {
-        ovrFramebuffer *framebuffer = GetFrameBuffer(eye);
+        ovrFramebuffer* framebuffer = GetFrameBuffer(eye);
         ovrFramebuffer_SetCurrent(framebuffer);
 
         AppEyeGLStateSetup(in, framebuffer, eye);
@@ -239,6 +242,12 @@ void ovrVirtualBoyGo::AppRenderFrame(const OVRFW::ovrApplFrameIn &in, OVRFW::ovr
     }
 
     ovrFramebuffer_SetNone();
+}
+
+void ovrVirtualBoyGo::AddLayerCylinder2(ovrLayerCylinder2 &layer) {
+    int& layerCount = NumLayers;
+    Layers[layerCount].Cylinder = layer;
+    layerCount++;
 }
 
 //==============================================================

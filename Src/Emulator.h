@@ -5,6 +5,7 @@
 #include <FrontendGo/LayerBuilder.h>
 #include <FrontendGo/Global.h>
 #include <FrontendGo/Audio/OpenSLWrap.h>
+#include <FrontendGo/ApplInterface.h>
 #include "MenuHelper.h"
 #include "ButtonMapping.h"
 #include "Global.h"
@@ -90,7 +91,7 @@ public:
 
     void Update(const OVRFW::ovrApplFrameIn &in, uint *buttonStates, uint *lastButtonStates);
 
-    void DrawScreenLayer(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out);
+    void DrawScreenLayer(ApplInterface &appl, const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out, const ovrTracking2 &tracking);
 
     void LoadEmulatorSettings(std::ifstream *file);
 

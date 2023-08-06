@@ -862,13 +862,13 @@ void Emulator::UpdateScreen(const void *data) {
     ScreenTexture[1] = GlTexture(screenTextureCylinderId, GL_TEXTURE_2D, VIDEO_WIDTH * 2 + screenborder * 4, TextureHeight * 2 + screenborder * 4);
 }
 
-void Emulator::DrawScreenLayer(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) {
-    out.Layers[out.NumLayers].Cylinder = layerBuilder->BuildGameCylinderLayer3D(
-            CylinderSwapChain, CylinderWidth, CylinderHeight, &in.Tracking, ovrVirtualBoyGo::global.followHead,
+void Emulator::DrawScreenLayer(ApplInterface &appl, const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out, const ovrTracking2 &tracking) {
+    ovrLayerCylinder2 layer = layerBuilder->BuildGameCylinderLayer3D(
+            CylinderSwapChain, CylinderWidth, CylinderHeight, &tracking, ovrVirtualBoyGo::global.followHead,
             !ovrVirtualBoyGo::global.menuOpen && useThreeDeeMode, threedeeIPD, in.IPD);
 
-    out.Layers[out.NumLayers].Cylinder.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
-    out.Layers[out.NumLayers].Cylinder.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_INHIBIT_SRGB_FRAMEBUFFER;
+    layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
+    layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_INHIBIT_SRGB_FRAMEBUFFER;
 
-    out.NumLayers++;
+    appl.AddLayerCylinder2(layer);
 }

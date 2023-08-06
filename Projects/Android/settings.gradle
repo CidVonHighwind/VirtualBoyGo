@@ -1,6 +1,6 @@
+
 rootProject.projectDir = new File(settingsDir, '../../../..')
-rootProject.name = "VirtualBoyGo"
+rootProject.name = "VrSampleBase"
 
 include ':', \
-	'VBGo:VirtualBoyGo:Projects:Android'
-
+    ':VBGo:VirtualBoyGo:Projects:Android'

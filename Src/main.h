@@ -15,7 +15,7 @@
 
 //==============================================================================
 // Our custom application class
-class ovrVirtualBoyGo : public OVRFW::ovrAppl {
+class ovrVirtualBoyGo : public ApplInterface, public OVRFW::ovrAppl {
 public:
     static Global global;
 
@@ -37,8 +37,6 @@ public:
     // Called when the application shuts down
     virtual void AppShutdown(const OVRFW::ovrAppContext *context) override;
 
-    virtual void AppHandleInputShutdownRequest(ovrRendererOutput& out) override ;
-
     // Called when the application is resumed by the system.
     virtual void AppResumed(const OVRFW::ovrAppContext *contet) override;
 
@@ -50,6 +48,8 @@ public:
 
     // Called once per frame to allow the application to render eye buffers.
     virtual void AppRenderFrame(const OVRFW::ovrApplFrameIn &in, OVRFW::ovrRendererOutput &out) override;
+
+    virtual void AddLayerCylinder2(ovrLayerCylinder2 &layer) override;
 
 private:
     OVRFW::ovrFileSys *FileSys;

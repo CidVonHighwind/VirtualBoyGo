@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 		package="com.nintendont.virtualboygo"
-		android:versionCode="1" 
-		android:versionName="1.0" 
+		android:versionCode="1"
+		android:versionName="1.0"
         android:installLocation="auto" >
 
 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-
 	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 	<uses-permission android:name="android.permission.INTERNET" />
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 	<uses-feature android:name="android.hardware.usb.host" />
 	<!-- Tell the system this app requires OpenGL ES 3.1. -->
 	<uses-feature android:glEsVersion="0x00030001" android:required="true" />
-	<!-- Tell the system this app works in either 3dof or 6dof mode -->
-	<uses-feature android:name="android.hardware.vr.headtracking" android:required="false" />
+
+	<uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
 	<application
 			android:allowBackup="false"
 			android:icon="@drawable/ic_launcher"
@@ -36,8 +36,6 @@
       <!-- Tell NativeActivity the name of the .so -->
       <!-- FIXUP: library name -->
       <meta-data android:name="android.app.lib_name" android:value="virtualboygo" />
-      <!-- Indicate the activity is aware of VrApi focus states required for system overlays  -->
-      <meta-data android:name="com.oculus.vr.focusaware" android:value="true"/>
       <!-- This filter lets the apk show up as a launchable icon -->
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
