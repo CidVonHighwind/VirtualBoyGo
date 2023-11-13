@@ -843,7 +843,7 @@ void Emulator::UpdateScreen(const void *data) {
     // render image to the screen texture
     glBindFramebuffer(GL_FRAMEBUFFER, screenFramebuffer[0]);
     glViewport(0, 0, VIDEO_WIDTH * 2 + screenborder * 2, TextureHeight * 2 + screenborder * 4);
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     // @HACK: make DrawTexture better
@@ -868,7 +868,6 @@ void Emulator::DrawScreenLayer(ApplInterface &appl, const OVRFW::ovrApplFrameIn 
             !ovrVirtualBoyGo::global.menuOpen && useThreeDeeMode, threedeeIPD, in.IPD);
 
     layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_CHROMATIC_ABERRATION_CORRECTION;
-    layer.Header.Flags |= VRAPI_FRAME_LAYER_FLAG_INHIBIT_SRGB_FRAMEBUFFER;
 
     appl.AddLayerCylinder2(layer);
 }
