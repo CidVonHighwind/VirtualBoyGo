@@ -14,9 +14,9 @@ An independent project (own `CMakeLists.txt`, no dependency on the
 reference material from the exploration phase, see below). Confirmed working
 on both platforms, live on a Quest 3:
 
-- OpenXR instance/system/session/swapchain lifecycle (`platform/OpenXrApp`).
+- OpenXR instance/system/session/swapchain lifecycle (`core/OpenXrApp`).
 - A Vulkan device created via `XR_KHR_vulkan_enable2`'s delegated-creation
-  path, plus a minimal render pipeline (`platform/VulkanRenderer`).
+  path, plus a minimal render pipeline (`core/VulkanRenderer`).
 - A **quad composition layer** rendering a real decoded JPEG
   (`assets/test_image.jpg`) as a floating panel - this is the important
   piece, since it's the OpenXR analogue of the old VrApi `ovrLayerCylinder2`
@@ -37,7 +37,7 @@ into this shell.
 ```
 CMakeLists.txt              root build - FetchContent for volk, Vulkan-Headers,
                              OpenXR-SDK (loader), glslang (shader compiler)
-platform/
+core/                        shared, platform-agnostic app code
   OpenXrApp.cpp/.h           instance/system/session/swapchain/event loop
   VulkanRenderer.cpp/.h      Vulkan device/pipelines/rendering
   XrMath.h                   small self-contained matrix math
@@ -46,6 +46,7 @@ platform/
   generated_shaders/         SPIR-V headers, produced by the PC build's
                              shader compiler and committed (Android's
                              cross-compile can't build/run glslang itself)
+platform/                    per-platform entry points only, call into core/
   pc/Main.cpp                desktop entry point (OpenXR, streamed to headset)
   pc2d/Main.cpp               flat GLFW window entry point (no headset needed)
   android/AndroidMain.cpp    NativeActivity entry point
@@ -88,7 +89,7 @@ adb shell am start -n com.nintendont.virtualboygo/android.app.NativeActivity
 ```
 
 If you change a shader (`shaders/*.vert|frag`), rebuild the **PC** target
-first to refresh the committed headers in `platform/generated_shaders/`
+first to refresh the committed headers in `core/generated_shaders/`
 before building Android - the Android cross-compile doesn't build the shader
 compiler itself.
 

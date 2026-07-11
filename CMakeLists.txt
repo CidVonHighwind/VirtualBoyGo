@@ -42,12 +42,12 @@ FetchContent_MakeAvailable(OpenXR-SDK)
 # Only built for the host (PC) configuration - the compiler is a build tool
 # that must run on the machine doing the build, not on the target (Android
 # cross-compiles produce ARM64 binaries that can't run during their own
-# build). The generated headers land in the committed platform/generated_shaders/
+# build). The generated headers land in the committed core/generated_shaders/
 # directory, so an Android build just consumes whatever the PC build most
 # recently produced instead of re-running the compiler itself. Re-run a PC
 # configure/build after changing shaders/*.vert|frag to refresh them.
 # --------------------------------------------------------------------------
-set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/platform/generated_shaders")
+set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/core/generated_shaders")
 
 if(NOT ANDROID)
     set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
@@ -90,15 +90,16 @@ if(NOT ANDROID)
 endif()
 
 # --------------------------------------------------------------------------
-# Core app: OpenXR session/swapchain lifecycle + Vulkan rendering.
-# Shared between the Android (.so) and PC (.exe) entry points.
+# Core app: OpenXR session/swapchain lifecycle + Vulkan rendering. Shared,
+# platform-agnostic code - the actual per-platform entry points (pc/, pc2d/,
+# android/) live under platform/ and just call into this.
 # --------------------------------------------------------------------------
 add_library(vbgo_app STATIC
-    platform/OpenXrApp.cpp
-    platform/VulkanRenderer.cpp
-    platform/AssetLoader.cpp
+    core/OpenXrApp.cpp
+    core/VulkanRenderer.cpp
+    core/AssetLoader.cpp
 )
-target_include_directories(vbgo_app PUBLIC platform ${VBGO_GENERATED_SHADER_DIR}/..)
+target_include_directories(vbgo_app PUBLIC core)
 target_link_libraries(vbgo_app PUBLIC openxr_loader volk)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
