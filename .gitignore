@@ -6,11 +6,16 @@ CMakeFiles/
 cmake_install.cmake
 _deps/
 
-# Note: Platform/GeneratedShaders/ is intentionally NOT ignored - it holds
+# Note: core/generated_shaders/ is intentionally NOT ignored - it holds
 # SPIR-V headers produced by the PC build's shader compiler (glslang isn't
 # built for Android cross-compiles, so that build just consumes whatever the
 # PC build most recently generated there). Re-run a PC build after editing
 # shaders/*.vert|frag to refresh them, then commit the updated headers.
+
+# Reference-only clone of the Khronos OpenXR-SDK-Source sample tree (not a
+# submodule, not built by CMakeLists.txt - see README). Kept locally, not
+# version-controlled.
+External/
 
 # Built application files
 *.apk

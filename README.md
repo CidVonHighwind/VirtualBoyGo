@@ -9,10 +9,11 @@ desktop debugging.
 
 ## Current status
 
-An independent project (own `CMakeLists.txt`, no dependency on the
-`External/OpenXR-SDK-Source` submodule - that's kept around purely as
-reference material from the exploration phase, see below). Confirmed working
-on both platforms, live on a Quest 3:
+An independent project (own `CMakeLists.txt`, no dependency on
+`External/OpenXR-SDK-Source` - that's a local, git-ignored clone kept purely
+as reference material from the exploration phase, see below; it's not
+version-controlled or required to build). Confirmed working on both
+platforms, live on a Quest 3:
 
 - OpenXR instance/system/session/swapchain lifecycle (`core/OpenXrApp`).
 - A Vulkan device created via `XR_KHR_vulkan_enable2`'s delegated-creation
@@ -54,9 +55,21 @@ shaders/                     GLSL sources (compiled to SPIR-V at PC build time)
 assets/                      shared between PC and Android (Gradle assets dir)
 tools/ShaderCompiler.cpp     glslang-based GLSL -> SPIR-V compiler, PC-only build tool
 android/                     Gradle wrapper project (externalNativeBuild -> root CMakeLists.txt)
-External/OpenXR-SDK-Source/  reference only, not built by the root CMakeLists.txt
-                             (still capitalized - a Windows file lock has so
-                             far blocked renaming this one to external/)
+External/OpenXR-SDK-Source/  local, git-ignored reference clone (not a submodule, not
+                             built by the root CMakeLists.txt) - see "Reference material" below
+```
+
+## Reference material (not version-controlled)
+
+`External/OpenXR-SDK-Source/` is a plain local clone of
+[KhronosGroup/OpenXR-SDK-Source](https://github.com/KhronosGroup/OpenXR-SDK-Source),
+kept around from the exploration phase (the `hello_xr` sample was used to
+de-risk the OpenXR/NDK/Gradle toolchain before writing this project's own
+code). It's git-ignored - not required to build, and not fetched by cloning
+this repo. Recreate it if you want it back:
+
+```
+git clone https://github.com/KhronosGroup/OpenXR-SDK-Source.git External/OpenXR-SDK-Source
 ```
 
 ## Building - PC
