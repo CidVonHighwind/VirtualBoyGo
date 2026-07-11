@@ -102,7 +102,7 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
                                                 static_cast<uint32_t>(kMenuHeight * m_menuScale), targetFormat);
 
     InitPages(ui);
-    m_currentPage = &m_mainPage;
+    m_currentPage = &m_romSelectPage; // TEMP unicode glyph test
 }
 
 void AppMenu::SetMenuScale(UiRenderer &ui, float scale)

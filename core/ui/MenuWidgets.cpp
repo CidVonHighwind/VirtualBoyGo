@@ -40,6 +40,10 @@ MenuLabel::MenuLabel(UiRenderer &ui, UiFontHandle font, const std::string &text,
 void MenuLabel::SetText(const std::string &newText)
 {
     m_text = newText;
+    // Bake any glyphs this text needs that aren't already in the atlas
+    // (e.g. non-ASCII characters) before measuring/drawing - safe to do here
+    // (not mid-frame), see UiFontManager::EnsureGlyphsForText.
+    m_ui->EnsureGlyphsForText(m_font, newText);
     // Center text within the label's container, same as the original.
     const float textWidth = m_ui->GetTextWidth(m_font, newText);
     PosX = m_containerX + m_containerWidth / 2.0f - textWidth / 2.0f;
@@ -83,6 +87,7 @@ MenuButton::MenuButton(UiRenderer &ui, UiFontHandle font, const std::string &tex
 void MenuButton::SetText(const std::string &newText)
 {
     Text = newText;
+    m_ui->EnsureGlyphsForText(m_font, newText); // see MenuLabel::SetText
     if (m_containerWidth > 0)
     {
         const float textWidth = m_ui->GetTextWidth(m_font, newText);
@@ -273,7 +278,7 @@ void Menu::Draw(UiRenderer &ui, int transitionDirX, int transitionDirY, float mo
 
 MenuList::MenuList(UiRenderer &ui, UiFontHandle font, float posX, float posY, float width, float height, float itemHeight,
                    const UiIconSet *icons)
-    : m_font(font), m_icons(icons), m_posX(posX), m_posY(posY), m_width(width), m_height(height)
+    : m_ui(&ui), m_font(font), m_icons(icons), m_posX(posX), m_posY(posY), m_width(width), m_height(height)
 {
     m_itemHeight = itemHeight;
     // Bake the per-row baseline offset so text sits centred within its slot.
@@ -287,6 +292,9 @@ void MenuList::AddEntry(const std::string &text,
                         std::function<void(MenuItem *)> right,
                         UiIconId icon)
 {
+    // Row text isn't known upfront (ROM file names, etc.) - bake whatever
+    // glyphs it needs now, not while drawing. See MenuLabel::SetText.
+    m_ui->EnsureGlyphsForText(m_font, text);
     m_entries.push_back({text, press, left, right, icon});
 }
 

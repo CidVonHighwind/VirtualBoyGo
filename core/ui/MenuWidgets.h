@@ -178,6 +178,7 @@ private:
     int maxVisible() const;
     bool needsScrollbar() const;
 
+    UiRenderer *m_ui;
     UiFontHandle m_font;
     const UiIconSet *m_icons;
     float m_posX, m_posY, m_width, m_height;

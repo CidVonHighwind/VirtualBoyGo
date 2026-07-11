@@ -1,4 +1,5 @@
 #include "UiRenderer.h"
+#include "UiTextUtils.h"
 #include "UiVulkanUtils.h"
 
 // STB_IMAGE_IMPLEMENTATION is defined once in VulkanRenderer.cpp (same
@@ -150,6 +151,11 @@ UiFontHandle UiRenderer::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixe
 void UiRenderer::RebakeFont(UiFontHandle font, const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale)
 {
     m_fontManager.RebakeFont(font, ttfBytes, pixelHeight, renderScale);
+}
+
+void UiRenderer::EnsureGlyphsForText(UiFontHandle font, const std::string &utf8Text)
+{
+    m_fontManager.EnsureGlyphsForText(font, utf8Text);
 }
 
 float UiRenderer::GetTextWidth(UiFontHandle font, const std::string &text) const
@@ -519,9 +525,10 @@ void UiRenderer::DrawText(UiFontHandle fontHandle, const std::string &text, floa
     const UiFontManager::Font &f = m_fontManager.Get(fontHandle);
 
     float cursorX = x;
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto it = f.characters.find(c);
+        const char32_t codepoint = UiDecodeUtf8(text, i);
+        auto it = f.characters.find(codepoint);
         if (it == f.characters.end())
             continue;
         const UiFontManager::Character &ch = it->second;

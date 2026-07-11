@@ -41,6 +41,10 @@ public:
     UiFontHandle LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale = 1.0f);
     // See UiFontManager::RebakeFont.
     void RebakeFont(UiFontHandle font, const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale = 1.0f);
+    // See UiFontManager::EnsureGlyphsForText - call this wherever text
+    // content is set (not while drawing) so arbitrary Unicode text (e.g. ROM
+    // file names) has baked glyphs by the time DrawText/GetTextWidth need them.
+    void EnsureGlyphsForText(UiFontHandle font, const std::string &utf8Text);
     float GetTextWidth(UiFontHandle font, const std::string &text) const;
     float GetFontPHeight(UiFontHandle font) const;
     float GetFontPStart(UiFontHandle font) const;

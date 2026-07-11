@@ -4,6 +4,14 @@ project(VirtualBoyGo LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# MSVC's default source/execution charset isn't UTF-8 - without this, UTF-8
+# string literals in source (e.g. any future non-ASCII text in this project)
+# get silently mangled at compile time before the UI's UTF-8-aware text
+# rendering (see UiFontManager::EnsureGlyphsForText) ever sees them.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 include(FetchContent)
 
 # --------------------------------------------------------------------------

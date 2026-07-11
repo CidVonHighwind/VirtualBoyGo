@@ -1,9 +1,8 @@
 #include "UiFontManager.h"
+#include "UiTextUtils.h"
 #include "UiVulkanUtils.h"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
+#include <algorithm>
 #include <cstring>
 #include <stdexcept>
 
@@ -14,6 +13,9 @@ namespace
         if (result != VK_SUCCESS)
             throw std::runtime_error(std::string("Vulkan call failed: ") + what + " (" + std::to_string(result) + ")");
     }
+
+    constexpr char32_t kInitialCodepointFirst = 32;
+    constexpr char32_t kInitialCodepointLast = 126; // printable ASCII - every literal string in this codebase
 } // namespace
 
 void UiFontManager::Initialize(VkDevice device, VkPhysicalDevice physicalDevice, VkQueue queue,
@@ -26,127 +28,138 @@ void UiFontManager::Initialize(VkDevice device, VkPhysicalDevice physicalDevice,
     m_commandBuffer = commandBuffer;
     m_descriptorPool = descriptorPool;
     m_descriptorSetLayout = descriptorSetLayout;
+
+    if (FT_Init_FreeType(&m_ftLibrary))
+        throw std::runtime_error("UiFontManager: FT_Init_FreeType failed");
 }
 
 void UiFontManager::Shutdown()
 {
-    for (Font &font : m_fonts)
+    for (auto &fontPtr : m_fonts)
     {
-        if (font.sampler != VK_NULL_HANDLE)
-            vkDestroySampler(m_device, font.sampler, nullptr);
-        if (font.view != VK_NULL_HANDLE)
-            vkDestroyImageView(m_device, font.view, nullptr);
-        if (font.image != VK_NULL_HANDLE)
-            vkDestroyImage(m_device, font.image, nullptr);
-        if (font.memory != VK_NULL_HANDLE)
-            vkFreeMemory(m_device, font.memory, nullptr);
+        DestroyFontImageResources(*fontPtr);
+        if (fontPtr->ftFace)
+            FT_Done_Face(fontPtr->ftFace);
     }
     m_fonts.clear();
-}
 
-void UiFontManager::BakeGlyphAtlas(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale,
-                                   Font &outFont, std::vector<uint8_t> &outAtlas, int &outTextureWidth,
-                                   int &outTextureHeight)
-{
-    FT_Library ft;
-    if (FT_Init_FreeType(&ft))
-        throw std::runtime_error("UiFontManager: FT_Init_FreeType failed");
-
-    FT_Face face;
-    if (FT_New_Memory_Face(ft, ttfBytes.data(), static_cast<FT_Long>(ttfBytes.size()), 0, &face))
+    if (m_ftLibrary)
     {
-        FT_Done_FreeType(ft);
-        throw std::runtime_error("UiFontManager: FT_New_Memory_Face failed");
-    }
-    FT_Set_Pixel_Sizes(face, 0, pixelHeight);
-
-    outFont.fontSize = pixelHeight;
-
-    const int textureWidth = 30 * pixelHeight;
-    const int textureHeight = 8 * pixelHeight;
-    outTextureWidth = textureWidth;
-    outTextureHeight = textureHeight;
-    outAtlas.assign(static_cast<size_t>(textureWidth) * textureHeight, 0);
-
-    int posX = 1;
-    int posY = 1;
-    int offsetYPhysical = 0; // accumulated in physical px, divided by renderScale once below
-
-    for (unsigned char c = 32; c < 192; ++c)
-    {
-        if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-            continue;
-
-        const FT_Bitmap &bitmap = face->glyph->bitmap;
-
-        float descent = 0.0f;
-        if (descent < static_cast<float>(bitmap.rows) - face->glyph->bitmap_top)
-            descent = static_cast<float>(bitmap.rows) - face->glyph->bitmap_top;
-
-        float ascentCalc = (face->glyph->bitmap_top < static_cast<int>(bitmap.rows))
-                               ? static_cast<float>(bitmap.rows)
-                               : static_cast<float>(face->glyph->bitmap_top);
-        float ascent = 0.0f;
-        if (ascent < ascentCalc - descent)
-            ascent = ascentCalc - descent;
-        if (offsetYPhysical < static_cast<int>(ascent))
-            offsetYPhysical = static_cast<int>(ascent);
-
-        if (posX + static_cast<int>(bitmap.width) > textureWidth)
-        {
-            posX = 0;
-            posY += pixelHeight + pixelHeight / 2;
-        }
-
-        for (unsigned int row = 0; row < bitmap.rows; ++row)
-        {
-            for (unsigned int col = 0; col < bitmap.width; ++col)
-            {
-                const int dstX = posX + static_cast<int>(col);
-                const int dstY = posY + static_cast<int>(row);
-                if (dstX < 0 || dstX >= textureWidth || dstY < 0 || dstY >= textureHeight)
-                    continue;
-                outAtlas[static_cast<size_t>(dstY) * textureWidth + dstX] = bitmap.buffer[row * bitmap.pitch + col];
-            }
-        }
-
-        Character character{};
-        character.u0 = static_cast<float>(posX) / textureWidth;
-        character.v0 = static_cast<float>(posY) / textureHeight;
-        character.u1 = static_cast<float>(posX + bitmap.width) / textureWidth;
-        character.v1 = static_cast<float>(posY + bitmap.rows) / textureHeight;
-        character.width = static_cast<float>(bitmap.width) / renderScale;
-        character.height = static_cast<float>(bitmap.rows) / renderScale;
-        character.bearingX = static_cast<float>(face->glyph->bitmap_left) / renderScale;
-        character.bearingY = static_cast<float>(face->glyph->bitmap_top) / renderScale;
-        character.advance = static_cast<float>(face->glyph->advance.x >> 6) / renderScale;
-        outFont.characters[static_cast<char>(c)] = character;
-
-        posX += static_cast<int>(bitmap.width) + 2;
-    }
-
-    FT_Done_Face(face);
-    FT_Done_FreeType(ft);
-
-    outFont.offsetY = static_cast<float>(offsetYPhysical) / renderScale;
-
-    auto pIt = outFont.characters.find('P');
-    if (pIt != outFont.characters.end())
-    {
-        outFont.pHeight = pIt->second.height;
-        outFont.pStart = outFont.offsetY - pIt->second.bearingY;
+        FT_Done_FreeType(m_ftLibrary);
+        m_ftLibrary = nullptr;
     }
 }
 
-void UiFontManager::UploadGlyphAtlas(Font &font, const std::vector<uint8_t> &atlas, int textureWidth,
-                                     int textureHeight)
+void UiFontManager::RasterizeAndPackGlyph(Font &font, char32_t codepoint)
 {
-    const VkDeviceSize imageSize = atlas.size();
+    if (font.characters.find(codepoint) != font.characters.end())
+        return;
+
+    // FT_Load_Char "succeeds" even for a codepoint this font has no glyph
+    // for - it silently falls back to glyph index 0 (.notdef), which can
+    // have a nonsensical advance width, wrecking the rest of the line's
+    // layout. Resolve the index ourselves first so a genuinely unsupported
+    // codepoint (e.g. CJK in a Latin-only font) degrades to an invisible
+    // zero-advance placeholder instead.
+    const FT_UInt glyphIndex = FT_Get_Char_Index(font.ftFace, codepoint);
+    if (glyphIndex == 0 || FT_Load_Glyph(font.ftFace, glyphIndex, FT_LOAD_RENDER))
+    {
+        // No glyph for this codepoint in this font - record a zero-size
+        // entry so callers don't re-attempt the (failing) lookup every time
+        // this codepoint shows up again.
+        font.characters[codepoint] = Character{};
+        return;
+    }
+
+    const FT_Bitmap &bitmap = font.ftFace->glyph->bitmap;
+
+    float descent = 0.0f;
+    if (descent < static_cast<float>(bitmap.rows) - font.ftFace->glyph->bitmap_top)
+        descent = static_cast<float>(bitmap.rows) - font.ftFace->glyph->bitmap_top;
+    float ascentCalc = (font.ftFace->glyph->bitmap_top < static_cast<int>(bitmap.rows))
+                           ? static_cast<float>(bitmap.rows)
+                           : static_cast<float>(font.ftFace->glyph->bitmap_top);
+    float ascent = 0.0f;
+    if (ascent < ascentCalc - descent)
+        ascent = ascentCalc - descent;
+    const float offsetYPhysical = ascent / font.renderScale;
+    if (font.offsetY < offsetYPhysical)
+        font.offsetY = offsetYPhysical;
+
+    // Shelf-pack: wrap to a new row if this glyph doesn't fit the current
+    // one, grow the atlas taller if it doesn't fit at all.
+    if (font.packX + static_cast<int>(bitmap.width) + 1 > font.atlasWidth)
+    {
+        font.packX = 1;
+        font.packY += font.packRowHeight + 2;
+        font.packRowHeight = 0;
+    }
+    if (font.packY + static_cast<int>(bitmap.rows) + 1 > font.atlasHeight)
+        GrowAtlasHeight(font, font.packY + static_cast<int>(bitmap.rows) + 1);
+
+    for (unsigned int row = 0; row < bitmap.rows; ++row)
+    {
+        for (unsigned int col = 0; col < bitmap.width; ++col)
+        {
+            const int dstX = font.packX + static_cast<int>(col);
+            const int dstY = font.packY + static_cast<int>(row);
+            if (dstX < 0 || dstX >= font.atlasWidth || dstY < 0 || dstY >= font.atlasHeight)
+                continue;
+            font.atlasPixels[static_cast<size_t>(dstY) * font.atlasWidth + dstX] =
+                bitmap.buffer[row * bitmap.pitch + col];
+        }
+    }
+
+    Character character{};
+    character.u0 = static_cast<float>(font.packX) / font.atlasWidth;
+    character.v0 = static_cast<float>(font.packY) / font.atlasHeight;
+    character.u1 = static_cast<float>(font.packX + bitmap.width) / font.atlasWidth;
+    character.v1 = static_cast<float>(font.packY + bitmap.rows) / font.atlasHeight;
+    character.width = static_cast<float>(bitmap.width) / font.renderScale;
+    character.height = static_cast<float>(bitmap.rows) / font.renderScale;
+    character.bearingX = static_cast<float>(font.ftFace->glyph->bitmap_left) / font.renderScale;
+    character.bearingY = static_cast<float>(font.ftFace->glyph->bitmap_top) / font.renderScale;
+    character.advance = static_cast<float>(font.ftFace->glyph->advance.x >> 6) / font.renderScale;
+    font.characters[codepoint] = character;
+
+    font.packX += static_cast<int>(bitmap.width) + 2;
+    font.packRowHeight = std::max(font.packRowHeight, static_cast<int>(bitmap.rows));
+}
+
+void UiFontManager::GrowAtlasHeight(Font &font, int minHeight)
+{
+    int newHeight = font.atlasHeight > 0 ? font.atlasHeight : 1;
+    while (newHeight < minHeight)
+        newHeight *= 2;
+
+    std::vector<uint8_t> newPixels(static_cast<size_t>(font.atlasWidth) * newHeight, 0);
+    for (int y = 0; y < font.atlasHeight; ++y)
+    {
+        std::memcpy(&newPixels[static_cast<size_t>(y) * font.atlasWidth],
+                    &font.atlasPixels[static_cast<size_t>(y) * font.atlasWidth], font.atlasWidth);
+    }
+
+    // Existing glyphs' pixel position doesn't move, but v0/v1 are normalized
+    // by atlasHeight, which just changed - rescale them to match.
+    const float ratio = static_cast<float>(font.atlasHeight) / static_cast<float>(newHeight);
+    for (auto &[codepoint, character] : font.characters)
+    {
+        character.v0 *= ratio;
+        character.v1 *= ratio;
+    }
+
+    font.atlasPixels = std::move(newPixels);
+    font.atlasHeight = newHeight;
+}
+
+void UiFontManager::UploadGlyphAtlas(Font &font)
+{
+    const VkDeviceSize imageSize = font.atlasPixels.size();
     constexpr VkFormat format = VK_FORMAT_R8_UNORM;
 
     font.image = UiUploadImage(m_device, m_physicalDevice, m_queue, m_commandBuffer,
-                               atlas.data(), imageSize,
-                               static_cast<uint32_t>(textureWidth), static_cast<uint32_t>(textureHeight),
+                               font.atlasPixels.data(), imageSize,
+                               static_cast<uint32_t>(font.atlasWidth), static_cast<uint32_t>(font.atlasHeight),
                                format, VK_IMAGE_USAGE_SAMPLED_BIT, font.memory);
 
     VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -183,13 +196,52 @@ void UiFontManager::DestroyFontImageResources(Font &font)
     font.memory = VK_NULL_HANDLE;
 }
 
+void UiFontManager::UpdateFontDescriptor(Font &font)
+{
+    VkDescriptorImageInfo imageDescInfo{};
+    imageDescInfo.sampler = font.sampler;
+    imageDescInfo.imageView = font.view;
+    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    write.dstSet = font.descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imageDescInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+}
+
 UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale)
 {
-    Font font;
-    std::vector<uint8_t> atlas;
-    int textureWidth = 0, textureHeight = 0;
-    BakeGlyphAtlas(ttfBytes, pixelHeight, renderScale, font, atlas, textureWidth, textureHeight);
-    UploadGlyphAtlas(font, atlas, textureWidth, textureHeight);
+    auto fontPtr = std::make_unique<Font>();
+    Font &font = *fontPtr;
+    font.fontSize = pixelHeight;
+    font.renderScale = renderScale;
+    font.ttfBytes = ttfBytes; // owned copy - FT_Face keeps a pointer into this
+
+    if (FT_New_Memory_Face(m_ftLibrary, font.ttfBytes.data(), static_cast<FT_Long>(font.ttfBytes.size()), 0,
+                           &font.ftFace))
+        throw std::runtime_error("UiFontManager: FT_New_Memory_Face failed");
+    FT_Set_Pixel_Sizes(font.ftFace, 0, pixelHeight);
+
+    font.atlasWidth = 30 * pixelHeight;
+    font.atlasHeight = 8 * pixelHeight;
+    font.atlasPixels.assign(static_cast<size_t>(font.atlasWidth) * font.atlasHeight, 0);
+    font.packX = 1;
+    font.packY = 1;
+
+    for (char32_t c = kInitialCodepointFirst; c <= kInitialCodepointLast; ++c)
+        RasterizeAndPackGlyph(font, c);
+
+    auto pIt = font.characters.find(U'P');
+    if (pIt != font.characters.end())
+    {
+        font.pHeight = pIt->second.height;
+        font.pStart = font.offsetY - pIt->second.bearingY;
+    }
+
+    UploadGlyphAtlas(font);
 
     VkDescriptorSetAllocateInfo setAllocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     setAllocInfo.descriptorPool = m_descriptorPool;
@@ -198,20 +250,9 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
     CheckVk(vkAllocateDescriptorSets(m_device, &setAllocInfo, &font.descriptorSet),
             "vkAllocateDescriptorSets (font atlas)");
 
-    VkDescriptorImageInfo imageDescInfo{};
-    imageDescInfo.sampler = font.sampler;
-    imageDescInfo.imageView = font.view;
-    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    UpdateFontDescriptor(font);
 
-    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    write.dstSet = font.descriptorSet;
-    write.dstBinding = 0;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &imageDescInfo;
-    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
-
-    m_fonts.push_back(std::move(font));
+    m_fonts.push_back(std::move(fontPtr));
     return UiFontHandle{static_cast<int>(m_fonts.size()) - 1};
 }
 
@@ -220,55 +261,105 @@ void UiFontManager::RebakeFont(UiFontHandle handle, const std::vector<uint8_t> &
 {
     if (!handle.IsValid())
         return;
+    Font &oldFont = *m_fonts[handle.id];
 
-    Font newFont;
-    std::vector<uint8_t> atlas;
-    int textureWidth = 0, textureHeight = 0;
-    BakeGlyphAtlas(ttfBytes, pixelHeight, renderScale, newFont, atlas, textureWidth, textureHeight);
-    UploadGlyphAtlas(newFont, atlas, textureWidth, textureHeight);
+    // Carry over every codepoint this font was ever asked for - not just the
+    // initial ASCII set - so glyphs added on demand (EnsureGlyphsForText)
+    // survive a rescale instead of quietly reverting to tofu.
+    std::vector<char32_t> codepoints;
+    codepoints.reserve(oldFont.characters.size());
+    for (const auto &[codepoint, character] : oldFont.characters)
+        codepoints.push_back(codepoint);
 
-    Font &font = m_fonts[handle.id];
-    const VkDescriptorSet descriptorSet = font.descriptorSet; // reused, not reallocated
-    DestroyFontImageResources(font);
+    auto newFontPtr = std::make_unique<Font>();
+    Font &newFont = *newFontPtr;
+    newFont.fontSize = pixelHeight;
+    newFont.renderScale = renderScale;
+    newFont.ttfBytes = ttfBytes;
+
+    if (FT_New_Memory_Face(m_ftLibrary, newFont.ttfBytes.data(), static_cast<FT_Long>(newFont.ttfBytes.size()), 0,
+                           &newFont.ftFace))
+        throw std::runtime_error("UiFontManager: FT_New_Memory_Face failed");
+    FT_Set_Pixel_Sizes(newFont.ftFace, 0, pixelHeight);
+
+    newFont.atlasWidth = 30 * pixelHeight;
+    newFont.atlasHeight = 8 * pixelHeight;
+    newFont.atlasPixels.assign(static_cast<size_t>(newFont.atlasWidth) * newFont.atlasHeight, 0);
+    newFont.packX = 1;
+    newFont.packY = 1;
+
+    for (char32_t c : codepoints)
+        RasterizeAndPackGlyph(newFont, c);
+
+    auto pIt = newFont.characters.find(U'P');
+    if (pIt != newFont.characters.end())
+    {
+        newFont.pHeight = pIt->second.height;
+        newFont.pStart = newFont.offsetY - pIt->second.bearingY;
+    }
+
+    UploadGlyphAtlas(newFont);
+
+    const VkDescriptorSet descriptorSet = oldFont.descriptorSet; // reused, not reallocated
+    DestroyFontImageResources(oldFont);
+    if (oldFont.ftFace)
+        FT_Done_Face(oldFont.ftFace);
 
     newFont.descriptorSet = descriptorSet;
-    font = std::move(newFont);
+    m_fonts[handle.id] = std::move(newFontPtr);
 
-    VkDescriptorImageInfo imageDescInfo{};
-    imageDescInfo.sampler = font.sampler;
-    imageDescInfo.imageView = font.view;
-    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    UpdateFontDescriptor(*m_fonts[handle.id]);
+}
 
-    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-    write.dstSet = font.descriptorSet;
-    write.dstBinding = 0;
-    write.descriptorCount = 1;
-    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write.pImageInfo = &imageDescInfo;
-    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+void UiFontManager::EnsureGlyphsForText(UiFontHandle handle, const std::string &utf8Text)
+{
+    if (!handle.IsValid())
+        return;
+    Font &font = *m_fonts[handle.id];
+
+    bool addedAny = false;
+    for (size_t i = 0; i < utf8Text.size();)
+    {
+        const char32_t codepoint = UiDecodeUtf8(utf8Text, i);
+        if (font.characters.find(codepoint) != font.characters.end())
+            continue;
+        RasterizeAndPackGlyph(font, codepoint);
+        addedAny = true;
+    }
+
+    if (!addedAny)
+        return;
+
+    // The atlas texture changed - rebuild it and re-point the (already
+    // allocated) descriptor set at the new image, same in-place-reuse
+    // pattern as RebakeFont.
+    DestroyFontImageResources(font);
+    UploadGlyphAtlas(font);
+    UpdateFontDescriptor(font);
 }
 
 float UiFontManager::GetTextWidth(UiFontHandle handle, const std::string &text) const
 {
     if (!handle.IsValid())
         return 0.0f;
-    const Font &f = m_fonts[handle.id];
+    const Font &f = *m_fonts[handle.id];
     float width = 0.0f;
-    for (char c : text)
+    for (size_t i = 0; i < text.size();)
     {
-        auto it = f.characters.find(c);
+        const char32_t codepoint = UiDecodeUtf8(text, i);
+        auto it = f.characters.find(codepoint);
         if (it != f.characters.end())
-            width += static_cast<float>(it->second.advance);
+            width += it->second.advance;
     }
     return width;
 }
 
 float UiFontManager::GetFontPHeight(UiFontHandle handle) const
 {
-    return handle.IsValid() ? m_fonts[handle.id].pHeight : 0.0f;
+    return handle.IsValid() ? m_fonts[handle.id]->pHeight : 0.0f;
 }
 
 float UiFontManager::GetFontPStart(UiFontHandle handle) const
 {
-    return handle.IsValid() ? m_fonts[handle.id].pStart : 0.0f;
+    return handle.IsValid() ? m_fonts[handle.id]->pStart : 0.0f;
 }
