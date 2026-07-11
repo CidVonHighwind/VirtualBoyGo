@@ -1,0 +1,53 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.nintendont.virtualboygo"
+    ndkVersion "23.2.8568313"
+
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.nintendont.virtualboygo"
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName "0.1.0"
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared"
+                cppFlags "-std=c++17"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "../../CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile "AndroidManifest.xml"
+            assets.srcDirs = ["../../assets"]
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}

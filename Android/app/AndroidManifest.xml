@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+        android:installLocation="auto">
+
+    <uses-feature android:glEsVersion="0x00030002" android:required="true" />
+    <uses-feature android:name="android.hardware.vr.headtracking" android:required="false" android:version="1" />
+
+    <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
+    <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
+
+    <queries>
+        <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
+        <intent>
+            <action android:name="org.khronos.openxr.OpenXRRuntimeService" />
+        </intent>
+        <intent>
+            <action android:name="org.khronos.openxr.OpenXRApiLayerService" />
+        </intent>
+    </queries>
+
+    <application
+            android:allowBackup="false"
+            android:label="VirtualBoyGo"
+            android:hasCode="false">
+
+        <meta-data android:name="com.oculus.supportedDevices" android:value="all" />
+
+        <activity
+                android:name="android.app.NativeActivity"
+                android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+                android:label="VirtualBoyGo"
+                android:launchMode="singleTask"
+                android:excludeFromRecents="false"
+                android:screenOrientation="landscape"
+                android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation|uiMode|density"
+                android:exported="true">
+            <meta-data android:name="android.app.lib_name" android:value="virtualboygo" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="org.khronos.openxr.intent.category.IMMERSIVE_HMD" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
