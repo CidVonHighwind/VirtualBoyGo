@@ -1,0 +1,177 @@
+#pragma once
+
+#include <volk.h>
+
+#include <openxr/openxr.h> // for XrColor4f
+
+#include "UiFontManager.h" // also provides UiFontHandle
+
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+// Opaque handle to a loaded background/game image (see LoadImage/DrawImage).
+struct UiImageHandle
+{
+    int id = -1;
+    bool IsValid() const { return id >= 0; }
+};
+
+// Vulkan replacement for FrontendGo's DrawHelper (solid-color quads) +
+// FontManager (FreeType-baked text). Ported from the original's call shape
+// (see MenuHelper.cpp's DrawTexture/RenderText calls) but rendering via
+// Vulkan pipelines instead of raw GL. Shares its Vulkan device/queue/command
+// buffer with VulkanRenderer (via its public getters) rather than owning a
+// second device - see VulkanRenderer::GetCommandPool/GetCommandBuffer.
+//
+// No textured icons in this pass (see rework plan) - DrawQuad is
+// solid-color only, matching TextureLoader's original white-1x1-texture
+// fallback used for button backgrounds.
+class UiRenderer
+{
+public:
+    void Initialize(VkDevice device, VkPhysicalDevice physicalDevice, VkQueue queue, uint32_t queueFamilyIndex,
+                    VkCommandPool commandPool, VkCommandBuffer commandBuffer);
+    void Shutdown();
+
+    // Bakes a glyph atlas via FreeType (ported from FontMaster.cpp's
+    // LoadFont) and uploads it as an R8 Vulkan texture.
+    UiFontHandle LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight);
+    float GetTextWidth(UiFontHandle font, const std::string &text) const;
+    int GetFontPHeight(UiFontHandle font) const;
+    int GetFontPStart(UiFontHandle font) const;
+
+    // Decodes an image file (JPEG/PNG via stb_image) and uploads it as an
+    // sRGB-format sampled texture with a LINEAR sampler, for pixel-perfect
+    // upscaling (e.g. a low-res emulated game screen) via DrawImage -
+    // ui_image.frag does its own texel-snapping in the shader
+    // (SamplePixelPerfectAA) rather than relying on NEAREST filtering, for
+    // softer/more stable edges under non-integer scaling or subpixel motion
+    // (e.g. VR head movement). Returns the image's native pixel size so the
+    // caller can do its own integer-scale/letterbox math.
+    UiImageHandle LoadImage(const std::vector<uint8_t> &fileBytes, uint32_t &outWidth, uint32_t &outHeight);
+
+    // Creates an empty, device-local color-attachment+sampled texture -
+    // render into it via BeginOffscreenFrame/EndFrame, then composite the
+    // finished result onto a real target with DrawImageRounded. format must
+    // match whatever format the real target(s) use (see EnsurePipelines -
+    // pipelines are tied to one format for the process lifetime).
+    UiImageHandle CreateRenderTexture(uint32_t width, uint32_t height, VkFormat format);
+
+    // Begins recording into the given target image (e.g. a quad
+    // composition-layer swapchain image). All Draw* calls happen between
+    // BeginFrame/EndFrame.
+    void BeginFrame(VkImage image, VkFormat format, uint32_t width, uint32_t height, const XrColor4f &clearColor);
+
+    // Like BeginFrame, but targets a texture created by CreateRenderTexture
+    // and leaves it in a shader-readable layout when the render pass ends
+    // (ready for DrawImageRounded), rather than a presentable/composable
+    // one. Close out with the ordinary EndFrame() - which render pass gets
+    // ended is implicit in what BeginFrame/BeginOffscreenFrame began.
+    void BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clearColor);
+
+    // Restricts subsequent Draw* calls to the given sub-rect of the target
+    // (in the target's own pixel space) and remaps their local coordinate
+    // space to treat that sub-rect's top-left as (0,0) - lets a
+    // fixed-resolution UI be drawn as a smaller inset panel within a larger
+    // target. Does not clear - whatever was already drawn into the target
+    // stays put outside this sub-rect, and blends normally inside it.
+    void SetViewportRegion(float x, float y, float w, float h);
+
+    // cornerRadiusPx > 0 rounds all four corners (antialiased); 0 (default)
+    // is a plain sharp-cornered rect.
+    void DrawQuad(float x, float y, float w, float h, const XrColor4f &color);
+    void DrawText(UiFontHandle font, const std::string &text, float x, float y, float scale, const XrColor4f &color);
+    // Stretches the whole image into the given destination rect (in target
+    // pixels). Pass an already integer-scaled rect for a pixel-perfect look
+    // (the sampler is NEAREST, so no blurring occurs either way).
+    void DrawImage(UiImageHandle image, float x, float y, float w, float h);
+    // Like DrawImage, but masks the sampled texture to rounded corners - the
+    // intended way to composite a whole pre-rendered buffer (e.g. an
+    // offscreen-rendered AppMenu) as a single rounded panel, instead of
+    // rounding each shape inside it separately.
+    void DrawImageRounded(UiImageHandle image, float x, float y, float w, float h, float cornerRadiusPx);
+    void EndFrame();
+
+private:
+    // Push-constant layout shared by all UI pipelines (vertex stage).
+    struct PushConstants
+    {
+        float posPx[2];
+        float sizePx[2];
+        float uvRect[4];
+        float color[4];
+        float screenSizePx[2];
+        float cornerRadiusPx; // only read by ui_image_rounded.frag
+    };
+
+private:
+    struct RenderTarget
+    {
+        VkImageView view{VK_NULL_HANDLE};
+        VkFramebuffer framebuffer{VK_NULL_HANDLE};
+    };
+
+    struct Image
+    {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        VkFormat format = VK_FORMAT_UNDEFINED;
+        VkImage image{VK_NULL_HANDLE};
+        VkDeviceMemory memory{VK_NULL_HANDLE};
+        VkImageView view{VK_NULL_HANDLE};
+        VkSampler sampler{VK_NULL_HANDLE};
+        VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
+    };
+
+    VkRenderPass GetOrCreateRenderPass(VkFormat format);
+    VkRenderPass GetOrCreateOffscreenRenderPass(VkFormat format);
+    void EnsurePipelines(VkFormat format);
+    RenderTarget &GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width, uint32_t height,
+                                          VkRenderPass renderPass);
+    void DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDescriptorSet descriptorSet, float x, float y,
+                      float w, float h, float u0, float v0, float u1, float v1, const XrColor4f &color,
+                      float cornerRadiusPx = 0.0f);
+
+    VkDevice m_device{VK_NULL_HANDLE};
+    VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
+    VkQueue m_queue{VK_NULL_HANDLE};
+    uint32_t m_queueFamilyIndex{0};
+    VkCommandPool m_commandPool{VK_NULL_HANDLE};     // not owned
+    VkCommandBuffer m_commandBuffer{VK_NULL_HANDLE}; // not owned
+
+    VkRenderPass m_renderPass{VK_NULL_HANDLE};
+    VkFormat m_renderPassFormat{VK_FORMAT_UNDEFINED};
+    // finalLayout = SHADER_READ_ONLY_OPTIMAL instead of m_renderPass's
+    // COLOR_ATTACHMENT_OPTIMAL - used only for BeginOffscreenFrame targets.
+    // Render-pass-compatible with m_renderPass when formats match, so the
+    // same pipelines (created against m_renderPass) work with either.
+    VkRenderPass m_offscreenRenderPass{VK_NULL_HANDLE};
+    VkFormat m_offscreenRenderPassFormat{VK_FORMAT_UNDEFINED};
+    std::unordered_map<VkImage, RenderTarget> m_renderTargets;
+
+    VkBuffer m_unitQuadVertexBuffer{VK_NULL_HANDLE};
+    VkDeviceMemory m_unitQuadVertexBufferMemory{VK_NULL_HANDLE};
+
+    VkPipelineLayout m_solidPipelineLayout{VK_NULL_HANDLE};
+    VkPipeline m_solidPipeline{VK_NULL_HANDLE};
+
+    // Shared by both the text pipeline (R8 glyph atlas) and the image
+    // pipeline (RGBA background/game images) - both are just a single
+    // combined-image-sampler at binding 0, so one descriptor set layout and
+    // one pipeline layout cover either.
+    VkDescriptorSetLayout m_textDescriptorSetLayout{VK_NULL_HANDLE};
+    VkPipelineLayout m_textPipelineLayout{VK_NULL_HANDLE};
+    VkPipeline m_textPipeline{VK_NULL_HANDLE};
+    VkPipeline m_imagePipeline{VK_NULL_HANDLE};
+    VkPipeline m_imageRoundedPipeline{VK_NULL_HANDLE};
+    VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
+
+    UiFontManager m_fontManager;
+    std::vector<Image> m_images;
+
+    // Per-frame state between BeginFrame/EndFrame.
+    float m_frameWidth{0};
+    float m_frameHeight{0};
+};

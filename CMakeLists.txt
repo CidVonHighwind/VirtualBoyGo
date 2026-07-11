@@ -35,6 +35,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(OpenXR-SDK)
 
+# Font glyph rasterization for the menu UI (core/ui/UiRenderer). Only needs
+# to run at font-load time (baking a glyph atlas), not per-frame.
+set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    freetype
+    GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+    GIT_TAG VER-2-13-2
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(freetype)
+
 # --------------------------------------------------------------------------
 # Shader compilation: GLSL -> SPIR-V via glslang's C++ API, driven by a tiny
 # build-time compiler tool (no system glslc/glslangValidator needed).
@@ -85,8 +100,14 @@ if(NOT ANDROID)
     vbgo_add_shader(CUBE_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/cube.frag)
     vbgo_add_shader(TEXTURED_QUAD_VERT_HEADER ${CMAKE_SOURCE_DIR}/shaders/textured_quad.vert)
     vbgo_add_shader(TEXTURED_QUAD_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/textured_quad.frag)
+    vbgo_add_shader(UI_VERT_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui.vert)
+    vbgo_add_shader(UI_SOLID_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_solid.frag)
+    vbgo_add_shader(UI_TEXT_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_text.frag)
+    vbgo_add_shader(UI_IMAGE_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image.frag)
+    vbgo_add_shader(UI_IMAGE_ROUNDED_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image_rounded.frag)
     add_custom_target(vbgo_shaders DEPENDS ${CUBE_VERT_HEADER} ${CUBE_FRAG_HEADER} ${TEXTURED_QUAD_VERT_HEADER}
-                                            ${TEXTURED_QUAD_FRAG_HEADER})
+                                            ${TEXTURED_QUAD_FRAG_HEADER} ${UI_VERT_HEADER} ${UI_SOLID_FRAG_HEADER}
+                                            ${UI_TEXT_FRAG_HEADER} ${UI_IMAGE_FRAG_HEADER} ${UI_IMAGE_ROUNDED_FRAG_HEADER})
 endif()
 
 # --------------------------------------------------------------------------
@@ -98,9 +119,17 @@ add_library(vbgo_app STATIC
     core/OpenXrApp.cpp
     core/VulkanRenderer.cpp
     core/AssetLoader.cpp
+    core/XrInput.cpp
+    core/Emulator.cpp
+    core/ui/UiRenderer.cpp
+    core/ui/UiRendererPipelines.cpp
+    core/ui/UiFontManager.cpp
+    core/ui/UiVulkanUtils.cpp
+    core/ui/MenuWidgets.cpp
+    core/ui/AppMenu.cpp
 )
 target_include_directories(vbgo_app PUBLIC core)
-target_link_libraries(vbgo_app PUBLIC openxr_loader volk)
+target_link_libraries(vbgo_app PUBLIC openxr_loader volk freetype)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
     add_dependencies(vbgo_app vbgo_shaders)
@@ -133,6 +162,14 @@ else()
         platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
+    # MSVC's incremental linker has been observed to silently keep a stale
+    # .exe (identical byte-for-byte) across rebuilds when only an upstream
+    # static lib's contents changed, without erroring - forcing a full
+    # relink every time trades a bit of link speed for actually picking up
+    # changes, which matters a lot for the F5 edit-build-run loop.
+    if(MSVC)
+        target_link_options(VirtualBoyGoPC PRIVATE "/INCREMENTAL:NO")
+    endif()
 
     if(TARGET openxr_loader AND WIN32)
         get_target_property(OPENXR_LOADER_TYPE openxr_loader TYPE)
@@ -150,6 +187,10 @@ else()
         TARGET VirtualBoyGoPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/fonts"
     )
 
     # --------------------------------------------------------------------
@@ -174,10 +215,17 @@ else()
         platform/pc2d/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC2D PRIVATE vbgo_app glfw)
+    if(MSVC)
+        target_link_options(VirtualBoyGoPC2D PRIVATE "/INCREMENTAL:NO")
+    endif()
 
     add_custom_command(
         TARGET VirtualBoyGoPC2D POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/fonts"
     )
 endif()

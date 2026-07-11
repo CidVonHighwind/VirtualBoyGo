@@ -848,3 +848,98 @@ void VulkanRenderer::RenderTexturedQuad(VkImage image, int64_t swapchainFormat, 
     CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (quad)");
     vkQueueWaitIdle(m_queue);
 }
+
+void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels) {
+    if (mipLevels <= 1) return;
+
+    vkResetCommandBuffer(m_commandBuffer, 0);
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    CheckVk(vkBeginCommandBuffer(m_commandBuffer, &beginInfo), "vkBeginCommandBuffer (mipmaps)");
+
+    int32_t mipWidth = static_cast<int32_t>(width);
+    int32_t mipHeight = static_cast<int32_t>(height);
+
+    for (uint32_t level = 1; level < mipLevels; ++level) {
+        VkImageMemoryBarrier toSrc{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        // Mip 0 arrives in COLOR_ATTACHMENT_OPTIMAL (whatever rendered it -
+        // e.g. UiRenderer::EndFrame - leaves it there); every mip after that
+        // was itself just written as a blit destination in the previous
+        // loop iteration.
+        toSrc.oldLayout = (level == 1) ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        toSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toSrc.image = image;
+        toSrc.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, level - 1, 1, 0, 1};
+        toSrc.srcAccessMask = (level == 1) ? VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_TRANSFER_WRITE_BIT;
+        toSrc.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer,
+                             (level == 1) ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &toSrc);
+
+        VkImageMemoryBarrier toDst{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        toDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        toDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        toDst.image = image;
+        toDst.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, level, 1, 0, 1};
+        toDst.srcAccessMask = 0;
+        toDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &toDst);
+
+        const int32_t nextWidth = mipWidth > 1 ? mipWidth / 2 : 1;
+        const int32_t nextHeight = mipHeight > 1 ? mipHeight / 2 : 1;
+
+        VkImageBlit blit{};
+        blit.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level - 1, 0, 1};
+        blit.srcOffsets[0] = {0, 0, 0};
+        blit.srcOffsets[1] = {mipWidth, mipHeight, 1};
+        blit.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, 0, 1};
+        blit.dstOffsets[0] = {0, 0, 0};
+        blit.dstOffsets[1] = {nextWidth, nextHeight, 1};
+        vkCmdBlitImage(m_commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+        // Done reading mip level-1 as a blit source - leave it in the same
+        // layout the top mip normally sits in, since XR composition layer
+        // swapchains aren't given any other explicit final-layout contract.
+        VkImageMemoryBarrier doneWithSrc{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        doneWithSrc.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        doneWithSrc.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        doneWithSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        doneWithSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        doneWithSrc.image = image;
+        doneWithSrc.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, level - 1, 1, 0, 1};
+        doneWithSrc.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        doneWithSrc.dstAccessMask = 0;
+        vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &doneWithSrc);
+
+        mipWidth = nextWidth;
+        mipHeight = nextHeight;
+    }
+
+    // Last mip level is still in TRANSFER_DST_OPTIMAL (never read from) -
+    // bring it in line with the rest.
+    VkImageMemoryBarrier lastMip{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    lastMip.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    lastMip.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    lastMip.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    lastMip.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    lastMip.image = image;
+    lastMip.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, mipLevels - 1, 1, 0, 1};
+    lastMip.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    lastMip.dstAccessMask = 0;
+    vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &lastMip);
+
+    CheckVk(vkEndCommandBuffer(m_commandBuffer), "vkEndCommandBuffer (mipmaps)");
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (mipmaps)");
+    vkQueueWaitIdle(m_queue);
+}

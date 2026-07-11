@@ -1,8 +1,10 @@
 #include "OpenXrApp.h"
-#include "AssetLoader.h"
 
 #include <openxr/openxr_platform.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <cstring>
 #include <stdexcept>
 
@@ -14,6 +16,15 @@ void CheckXr(XrResult result, const char* what) {
     }
 }
 
+// Full mip chain (down to 1x1) - the compositor's own resampling of a quad
+// composition layer onto the eye buffers is a step entirely outside our
+// rendering, and without mips that resampling aliases/shimmers whenever the
+// layer is minified (viewed smaller than native resolution, e.g. far away),
+// no matter how carefully mip 0 itself was drawn.
+uint32_t ComputeMipLevels(uint32_t width, uint32_t height) {
+    return static_cast<uint32_t>(std::floor(std::log2(static_cast<float>(std::max(width, height))))) + 1;
+}
+
 }  // namespace
 
 void OpenXrApp::Initialize(const InitInfo& info) {
@@ -21,13 +32,20 @@ void OpenXrApp::Initialize(const InitInfo& info) {
     InitializeSystem();
     m_renderer.CreateDevice(m_instance, m_systemId);
 
-    const std::vector<uint8_t> imageBytes = LoadAssetBytes("test_image.jpg");
-    if (!imageBytes.empty()) {
-        m_testImageLoaded = m_renderer.LoadTestImage(imageBytes, m_testImageWidth, m_testImageHeight);
-    }
+    // UiRenderer/Emulator only need the Vulkan device (not the XR session),
+    // and CreateSwapchains needs the emulator's screen size to size the
+    // quad swapchain, so both must run before InitializeSession/
+    // CreateSwapchains.
+    m_uiRenderer.Initialize(m_renderer.GetDevice(), m_renderer.GetPhysicalDevice(), m_renderer.GetQueue(),
+                            m_renderer.GetQueueFamilyIndex(), m_renderer.GetCommandPool(), m_renderer.GetCommandBuffer());
+    m_emulator.Initialize(m_uiRenderer);
 
     InitializeSession();
     CreateSwapchains();
+
+    m_appMenu.Initialize(m_uiRenderer, static_cast<VkFormat>(m_colorFormat));
+
+    m_input.Initialize(m_instance, m_session);
 }
 
 void OpenXrApp::CreateInstance(const InitInfo& info) {
@@ -112,30 +130,61 @@ void OpenXrApp::CreateSwapchains() {
                 "xrEnumerateSwapchainImages");
     }
 
-    // Dedicated swapchain for the quad composition layer test - sized to
-    // match the loaded test image (falls back to a square if it's missing)
-    // so it renders at native resolution instead of being scaled.
-    m_quadSwapchain.width = m_testImageLoaded ? static_cast<int32_t>(m_testImageWidth) : 512;
-    m_quadSwapchain.height = m_testImageLoaded ? static_cast<int32_t>(m_testImageHeight) : 512;
+    // Dedicated swapchain for the emulator screen's quad composition layer,
+    // sized to the emulator's screen (at a fixed pixel-perfect upscale) so
+    // it renders 1:1 instead of being scaled. Falls back to the menu's own
+    // size if no screen is loaded.
+    m_screenSwapchain.width =
+        m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenWidth() * Emulator::kScale) : AppMenu::kMenuWidth;
+    m_screenSwapchain.height =
+        m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenHeight() * Emulator::kScale) : AppMenu::kMenuHeight;
+    m_screenSwapchain.mipLevels =
+        ComputeMipLevels(static_cast<uint32_t>(m_screenSwapchain.width), static_cast<uint32_t>(m_screenSwapchain.height));
 
-    XrSwapchainCreateInfo quadSwapchainInfo{XR_TYPE_SWAPCHAIN_CREATE_INFO};
-    quadSwapchainInfo.arraySize = 1;
-    quadSwapchainInfo.format = m_colorFormat;
-    quadSwapchainInfo.width = m_quadSwapchain.width;
-    quadSwapchainInfo.height = m_quadSwapchain.height;
-    quadSwapchainInfo.mipCount = 1;
-    quadSwapchainInfo.faceCount = 1;
-    quadSwapchainInfo.sampleCount = 1;
-    quadSwapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-    CheckXr(xrCreateSwapchain(m_session, &quadSwapchainInfo, &m_quadSwapchain.handle), "xrCreateSwapchain (quad)");
+    XrSwapchainCreateInfo screenSwapchainInfo{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+    screenSwapchainInfo.arraySize = 1;
+    screenSwapchainInfo.format = m_colorFormat;
+    screenSwapchainInfo.width = m_screenSwapchain.width;
+    screenSwapchainInfo.height = m_screenSwapchain.height;
+    screenSwapchainInfo.mipCount = m_screenSwapchain.mipLevels;
+    screenSwapchainInfo.faceCount = 1;
+    screenSwapchainInfo.sampleCount = 1;
+    screenSwapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+    CheckXr(xrCreateSwapchain(m_session, &screenSwapchainInfo, &m_screenSwapchain.handle), "xrCreateSwapchain (screen)");
 
-    uint32_t quadImageCount = 0;
-    CheckXr(xrEnumerateSwapchainImages(m_quadSwapchain.handle, 0, &quadImageCount, nullptr),
-            "xrEnumerateSwapchainImages (quad count)");
-    m_quadSwapchain.images.resize(quadImageCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
-    CheckXr(xrEnumerateSwapchainImages(m_quadSwapchain.handle, quadImageCount, &quadImageCount,
-                                       reinterpret_cast<XrSwapchainImageBaseHeader*>(m_quadSwapchain.images.data())),
-            "xrEnumerateSwapchainImages (quad)");
+    uint32_t screenImageCount = 0;
+    CheckXr(xrEnumerateSwapchainImages(m_screenSwapchain.handle, 0, &screenImageCount, nullptr),
+            "xrEnumerateSwapchainImages (screen count)");
+    m_screenSwapchain.images.resize(screenImageCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
+    CheckXr(xrEnumerateSwapchainImages(m_screenSwapchain.handle, screenImageCount, &screenImageCount,
+                                       reinterpret_cast<XrSwapchainImageBaseHeader*>(m_screenSwapchain.images.data())),
+            "xrEnumerateSwapchainImages (screen)");
+
+    // Dedicated swapchain for the menu's own quad composition layer - see
+    // OpenXrApp.h's member comment for why this is separate from the screen.
+    m_menuSwapchain.width = AppMenu::kMenuWidth;
+    m_menuSwapchain.height = AppMenu::kMenuHeight;
+    m_menuSwapchain.mipLevels =
+        ComputeMipLevels(static_cast<uint32_t>(m_menuSwapchain.width), static_cast<uint32_t>(m_menuSwapchain.height));
+
+    XrSwapchainCreateInfo menuSwapchainInfo{XR_TYPE_SWAPCHAIN_CREATE_INFO};
+    menuSwapchainInfo.arraySize = 1;
+    menuSwapchainInfo.format = m_colorFormat;
+    menuSwapchainInfo.width = m_menuSwapchain.width;
+    menuSwapchainInfo.height = m_menuSwapchain.height;
+    menuSwapchainInfo.mipCount = m_menuSwapchain.mipLevels;
+    menuSwapchainInfo.faceCount = 1;
+    menuSwapchainInfo.sampleCount = 1;
+    menuSwapchainInfo.usageFlags = XR_SWAPCHAIN_USAGE_SAMPLED_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+    CheckXr(xrCreateSwapchain(m_session, &menuSwapchainInfo, &m_menuSwapchain.handle), "xrCreateSwapchain (menu)");
+
+    uint32_t menuImageCount = 0;
+    CheckXr(xrEnumerateSwapchainImages(m_menuSwapchain.handle, 0, &menuImageCount, nullptr),
+            "xrEnumerateSwapchainImages (menu count)");
+    m_menuSwapchain.images.resize(menuImageCount, {XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
+    CheckXr(xrEnumerateSwapchainImages(m_menuSwapchain.handle, menuImageCount, &menuImageCount,
+                                       reinterpret_cast<XrSwapchainImageBaseHeader*>(m_menuSwapchain.images.data())),
+            "xrEnumerateSwapchainImages (menu)");
 }
 
 void OpenXrApp::HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop,
@@ -189,61 +238,109 @@ void OpenXrApp::PollEvents(bool& exitRenderLoop, bool& requestRestart) {
     }
 }
 
-bool OpenXrApp::RenderQuadLayer(XrCompositionLayerQuad& quadLayer) {
-    if (m_quadSwapchain.handle == XR_NULL_HANDLE) {
+namespace {
+// Distance from the viewer to the screen layer, and how much closer (in
+// meters) the menu layer floats in front of it - gives the menu a real
+// depth cue instead of sitting flush on the same plane as the screen.
+constexpr float kScreenDistanceMeters = 2.2f;
+constexpr float kMenuForwardOffsetMeters = 0.05f;
+}  // namespace
+
+bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad& quadLayer) {
+    if (m_screenSwapchain.handle == XR_NULL_HANDLE) {
         return false;
     }
 
     XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
     uint32_t imageIndex = 0;
-    CheckXr(xrAcquireSwapchainImage(m_quadSwapchain.handle, &acquireInfo, &imageIndex), "xrAcquireSwapchainImage (quad)");
+    CheckXr(xrAcquireSwapchainImage(m_screenSwapchain.handle, &acquireInfo, &imageIndex), "xrAcquireSwapchainImage (screen)");
 
     XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
     waitInfo.timeout = XR_INFINITE_DURATION;
-    CheckXr(xrWaitSwapchainImage(m_quadSwapchain.handle, &waitInfo), "xrWaitSwapchainImage (quad)");
+    CheckXr(xrWaitSwapchainImage(m_screenSwapchain.handle, &waitInfo), "xrWaitSwapchainImage (screen)");
 
-    if (m_testImageLoaded) {
-        m_renderer.RenderTexturedQuad(m_quadSwapchain.images[imageIndex].image, m_colorFormat,
-                                      static_cast<uint32_t>(m_quadSwapchain.width),
-                                      static_cast<uint32_t>(m_quadSwapchain.height));
-    } else {
-        // Fallback (image failed to load): a fixed, front-facing "camera" so
-        // RenderEye still draws *something* distinct into this swapchain.
-        XrPosef fakeEyePose{};
-        fakeEyePose.orientation.w = 1.0f;
-        XrFovf fakeFov{-0.6f, 0.6f, 0.6f, -0.6f};
-
-        std::vector<DrawCube> cubes;
-        DrawCube cube{};
-        cube.pose.orientation.w = 1.0f;
-        cube.pose.position = {0.0f, 0.0f, -1.0f};
-        cube.scale = {0.4f, 0.4f, 0.4f};
-        cubes.push_back(cube);
-
-        m_renderer.RenderEye(m_quadSwapchain.images[imageIndex].image, m_colorFormat,
-                             static_cast<uint32_t>(m_quadSwapchain.width), static_cast<uint32_t>(m_quadSwapchain.height),
-                             fakeEyePose, fakeFov, cubes);
+    m_uiRenderer.BeginFrame(m_screenSwapchain.images[imageIndex].image, static_cast<VkFormat>(m_colorFormat),
+                            static_cast<uint32_t>(m_screenSwapchain.width), static_cast<uint32_t>(m_screenSwapchain.height),
+                            m_appMenu.GetBackgroundColor());
+    if (m_emulator.HasScreen()) {
+        m_emulator.DrawScreen(m_uiRenderer, 0.0f, 0.0f, static_cast<float>(m_screenSwapchain.width),
+                              static_cast<float>(m_screenSwapchain.height));
     }
+    m_uiRenderer.EndFrame();
+    m_renderer.GenerateMipmaps(m_screenSwapchain.images[imageIndex].image, static_cast<uint32_t>(m_screenSwapchain.width),
+                               static_cast<uint32_t>(m_screenSwapchain.height), m_screenSwapchain.mipLevels);
 
     XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
-    CheckXr(xrReleaseSwapchainImage(m_quadSwapchain.handle, &releaseInfo), "xrReleaseSwapchainImage (quad)");
+    CheckXr(xrReleaseSwapchainImage(m_screenSwapchain.handle, &releaseInfo), "xrReleaseSwapchainImage (screen)");
 
-    // Sized bigger and further out so a high-res image is comfortably
-    // viewable, keeping the swapchain's native aspect ratio.
-    const float aspect =
-        m_quadSwapchain.height != 0 ? static_cast<float>(m_quadSwapchain.width) / static_cast<float>(m_quadSwapchain.height) : 1.0f;
+    // Sized so the screen is comfortably viewable, keeping the swapchain's
+    // native aspect ratio.
+    const float aspect = m_screenSwapchain.height != 0
+                             ? static_cast<float>(m_screenSwapchain.width) / static_cast<float>(m_screenSwapchain.height)
+                             : 1.0f;
     const float quadHeight = 1.2f;
 
     quadLayer.layerFlags = 0;
     quadLayer.space = m_appSpace;
     quadLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
-    quadLayer.subImage.swapchain = m_quadSwapchain.handle;
+    quadLayer.subImage.swapchain = m_screenSwapchain.handle;
     quadLayer.subImage.imageRect.offset = {0, 0};
-    quadLayer.subImage.imageRect.extent = {m_quadSwapchain.width, m_quadSwapchain.height};
+    quadLayer.subImage.imageRect.extent = {m_screenSwapchain.width, m_screenSwapchain.height};
     quadLayer.subImage.imageArrayIndex = 0;
     quadLayer.pose.orientation.w = 1.0f;
-    quadLayer.pose.position = {0.0f, 0.0f, -2.2f};
+    quadLayer.pose.position = {0.0f, 0.0f, -kScreenDistanceMeters};
     quadLayer.size = {quadHeight * aspect, quadHeight};
+    return true;
+}
+
+bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad& quadLayer) {
+    if (m_menuSwapchain.handle == XR_NULL_HANDLE) {
+        return false;
+    }
+
+    XrSwapchainImageAcquireInfo acquireInfo{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
+    uint32_t imageIndex = 0;
+    CheckXr(xrAcquireSwapchainImage(m_menuSwapchain.handle, &acquireInfo, &imageIndex), "xrAcquireSwapchainImage (menu)");
+
+    XrSwapchainImageWaitInfo waitInfo{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
+    waitInfo.timeout = XR_INFINITE_DURATION;
+    CheckXr(xrWaitSwapchainImage(m_menuSwapchain.handle, &waitInfo), "xrWaitSwapchainImage (menu)");
+
+    m_appMenu.RenderToBuffer(m_uiRenderer);
+
+    // Fully transparent clear - only the rounded menu panel itself should
+    // be opaque, so the compositor blends the rest of this layer through to
+    // the screen layer behind it (see this layer's UNPREMULTIPLIED_ALPHA/
+    // BLEND_TEXTURE_SOURCE_ALPHA flags below).
+    m_uiRenderer.BeginFrame(m_menuSwapchain.images[imageIndex].image, static_cast<VkFormat>(m_colorFormat),
+                            static_cast<uint32_t>(m_menuSwapchain.width), static_cast<uint32_t>(m_menuSwapchain.height),
+                            XrColor4f{0.0f, 0.0f, 0.0f, 0.0f});
+    m_appMenu.Draw(m_uiRenderer, 0.0f, 0.0f);
+    m_uiRenderer.EndFrame();
+    m_renderer.GenerateMipmaps(m_menuSwapchain.images[imageIndex].image, static_cast<uint32_t>(m_menuSwapchain.width),
+                               static_cast<uint32_t>(m_menuSwapchain.height), m_menuSwapchain.mipLevels);
+
+    XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
+    CheckXr(xrReleaseSwapchainImage(m_menuSwapchain.handle, &releaseInfo), "xrReleaseSwapchainImage (menu)");
+
+    // Same meters-per-pixel scale as the screen layer, so the menu doesn't
+    // appear to change size just for being on its own swapchain now.
+    const float screenQuadHeight = 1.2f;
+    const float metersPerPixel =
+        m_screenSwapchain.height != 0 ? screenQuadHeight / static_cast<float>(m_screenSwapchain.height) : 1.0f;
+
+    quadLayer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT | XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
+    quadLayer.space = m_appSpace;
+    quadLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
+    quadLayer.subImage.swapchain = m_menuSwapchain.handle;
+    quadLayer.subImage.imageRect.offset = {0, 0};
+    quadLayer.subImage.imageRect.extent = {m_menuSwapchain.width, m_menuSwapchain.height};
+    quadLayer.subImage.imageArrayIndex = 0;
+    quadLayer.pose.orientation.w = 1.0f;
+    // Same X/Y as the screen layer (both centered on the view axis) but
+    // closer to the viewer - that's what actually reads as "in front of".
+    quadLayer.pose.position = {0.0f, 0.0f, -(kScreenDistanceMeters - kMenuForwardOffsetMeters)};
+    quadLayer.size = {AppMenu::kMenuWidth * metersPerPixel, AppMenu::kMenuHeight * metersPerPixel};
     return true;
 }
 
@@ -254,6 +351,16 @@ void OpenXrApp::RenderFrame() {
 
     XrFrameBeginInfo frameBeginInfo{XR_TYPE_FRAME_BEGIN_INFO};
     CheckXr(xrBeginFrame(m_session, &frameBeginInfo), "xrBeginFrame");
+
+    static auto lastFrameTime = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    const float deltaSeconds = std::chrono::duration<float>(now - lastFrameTime).count();
+    lastFrameTime = now;
+
+    std::memcpy(m_lastButtonStates, m_buttonStates, sizeof(m_buttonStates));
+    m_input.Sync(m_session);
+    m_input.GetButtonStates(m_buttonStates);
+    m_appMenu.Update(m_buttonStates, m_lastButtonStates, deltaSeconds);
 
     std::vector<XrCompositionLayerBaseHeader*> layers;
     XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
@@ -313,9 +420,15 @@ void OpenXrApp::RenderFrame() {
         }
     }
 
-    XrCompositionLayerQuad quadLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
-    if (RenderQuadLayer(quadLayer)) {
-        layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&quadLayer));
+    // Screen first, menu second - the compositor blends layers back-to-front
+    // in submission order, and the menu should end up in front.
+    XrCompositionLayerQuad screenLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
+    if (RenderScreenLayer(screenLayer)) {
+        layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&screenLayer));
+    }
+    XrCompositionLayerQuad menuLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
+    if (RenderMenuLayer(menuLayer)) {
+        layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader*>(&menuLayer));
     }
 
     XrFrameEndInfo frameEndInfo{XR_TYPE_FRAME_END_INFO};
@@ -335,11 +448,15 @@ void OpenXrApp::Shutdown() {
     for (Swapchain& sc : m_swapchains) {
         if (sc.handle != XR_NULL_HANDLE) xrDestroySwapchain(sc.handle);
     }
-    if (m_quadSwapchain.handle != XR_NULL_HANDLE) xrDestroySwapchain(m_quadSwapchain.handle);
-    m_quadSwapchain.handle = XR_NULL_HANDLE;
+    if (m_screenSwapchain.handle != XR_NULL_HANDLE) xrDestroySwapchain(m_screenSwapchain.handle);
+    if (m_menuSwapchain.handle != XR_NULL_HANDLE) xrDestroySwapchain(m_menuSwapchain.handle);
+    m_screenSwapchain.handle = XR_NULL_HANDLE;
+    m_menuSwapchain.handle = XR_NULL_HANDLE;
     m_swapchains.clear();
     if (m_appSpace != XR_NULL_HANDLE) xrDestroySpace(m_appSpace);
+    m_input.Shutdown();
     if (m_session != XR_NULL_HANDLE) xrDestroySession(m_session);
+    m_uiRenderer.Shutdown();
     m_renderer.Shutdown();
     if (m_instance != XR_NULL_HANDLE) xrDestroyInstance(m_instance);
     m_appSpace = XR_NULL_HANDLE;

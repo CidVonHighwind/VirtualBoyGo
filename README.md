@@ -93,12 +93,53 @@ means the headset isn't currently connected, not a code bug.
 Requires Android SDK (compileSdk 34, build-tools 34.0.0) + NDK 23.2.8568313 +
 CMake 3.22.1 (e.g. via `sdkmanager`).
 
+### Setup
+
+Set your SDK path in `android/local.properties` (forward slashes, even on Windows):
+
+```
+sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk
+```
+
+Or set the `ANDROID_HOME` environment variable instead.
+
+### Build & install (USB)
+
 ```
 cd android
-echo "sdk.dir=/path/to/Android/Sdk" > local.properties   # forward slashes, even on Windows
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Run
+
+```
 adb shell am start -n com.nintendont.virtualboygo/android.app.NativeActivity
+```
+
+### Wi-Fi ADB (wireless debugging)
+
+**One-time pairing** (Android 11+ / Quest system build 39+):
+
+On the headset go to **Settings → Developer → Wireless debugging → Pair device with pairing code**, then:
+
+```
+adb pair <headset-ip>:<pairing-port>   # use the IP and port shown on headset
+```
+
+**Connect for this session** (after pairing):
+
+```
+adb connect <headset-ip>:5555
+adb devices                            # confirm the device shows as "device"
+```
+
+Then use the same `adb install` / `adb shell am start` commands above over Wi-Fi. The connection drops when the headset sleeps; run `adb connect` again to reconnect.
+
+To switch back to USB:
+
+```
+adb disconnect
 ```
 
 If you change a shader (`shaders/*.vert|frag`), rebuild the **PC** target

@@ -45,6 +45,11 @@ class VulkanRenderer {
     VkDevice GetDevice() const { return m_device; }
     VkQueue GetQueue() const { return m_queue; }
     uint32_t GetQueueFamilyIndex() const { return m_queueFamilyIndex; }
+    // Shared with UiRenderer, which reuses this device's single command
+    // buffer for its own (synchronous, blocking) draw submissions rather
+    // than owning a second pool/buffer.
+    VkCommandPool GetCommandPool() const { return m_commandPool; }
+    VkCommandBuffer GetCommandBuffer() const { return m_commandBuffer; }
 
     int64_t SelectSwapchainFormat(const std::vector<int64_t>& runtimeFormats) const;
 
@@ -61,6 +66,18 @@ class VulkanRenderer {
     // (as opposed to RenderEye's colored-cube path used for the main eye
     // buffers).
     void RenderTexturedQuad(VkImage image, int64_t swapchainFormat, uint32_t width, uint32_t height);
+
+    // Blits mip 0 (already rendered - e.g. by UiRenderer::BeginFrame/
+    // EndFrame - and left in COLOR_ATTACHMENT_OPTIMAL) down into the rest
+    // of the image's mip chain. The OpenXR compositor does its own
+    // resampling of composition-layer swapchains onto the eye buffers, a
+    // step entirely outside our own rendering - without a mip chain, that
+    // resampling aliases/shimmers whenever the layer is minified (viewed
+    // smaller than its native resolution, e.g. far away), regardless of how
+    // carefully we sampled while drawing mip 0 ourselves. mipLevels must
+    // match what the image was actually created with (XrSwapchainCreateInfo
+    // ::mipCount) - see OpenXrApp::ComputeMipLevels.
+    void GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels);
 
    private:
     struct RenderTarget {
