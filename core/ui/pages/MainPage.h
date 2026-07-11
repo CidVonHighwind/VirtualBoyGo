@@ -11,5 +11,5 @@ public:
     MenuPage *romSelectPage = nullptr;
     MenuPage *settingsPage = nullptr;
 
-    void Init(UiRenderer &ui, UiFontHandle menuFont) override;
+    void Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons) override;
 };

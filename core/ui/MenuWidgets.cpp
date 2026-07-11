@@ -271,8 +271,9 @@ void Menu::Draw(UiRenderer &ui, int transitionDirX, int transitionDirY, float mo
 
 // ---- MenuList ----
 
-MenuList::MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int width, int height, int itemHeight)
-    : m_font(font), m_posX(posX), m_posY(posY), m_width(width), m_height(height)
+MenuList::MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int width, int height, int itemHeight,
+                   const UiIconSet *icons)
+    : m_font(font), m_icons(icons), m_posX(posX), m_posY(posY), m_width(width), m_height(height)
 {
     m_itemHeight = itemHeight;
     // Bake the per-row baseline offset so text sits centred within its slot.
@@ -283,9 +284,10 @@ MenuList::MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int wi
 void MenuList::AddEntry(const std::string &text,
                         std::function<void(MenuItem *)> press,
                         std::function<void(MenuItem *)> left,
-                        std::function<void(MenuItem *)> right)
+                        std::function<void(MenuItem *)> right,
+                        UiIconId icon)
 {
-    m_entries.push_back({text, press, left, right});
+    m_entries.push_back({text, press, left, right, icon});
 }
 
 int MenuList::maxVisible() const { return m_height / m_itemHeight; }
@@ -379,15 +381,24 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     for (int i = 0; i < visible && (m_firstVisible + i) < (int)m_entries.size(); ++i)
     {
         const int idx = m_firstVisible + i;
+        const Entry &entry = m_entries[idx];
         const bool sel = (idx == m_selectedIndex);
         const float x = m_posX + offsetX + (sel ? 5.0f : 0.0f);
-        const float y = baseY + i * m_itemHeight + m_textRowOffset;
+        const float rowY = baseY + i * m_itemHeight;
+        const float y = rowY + m_textRowOffset;
+        const float textX = (m_icons && entry.icon != UiIconId::None) ? x + kIconSize + kIconTextGap : x;
 
         XrColor4f c = sel ? SelectionColor : Color;
         c.a *= alpha;
         XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
-        ui.DrawText(m_font, m_entries[idx].text, x + 1, y + 1, 1.0f, shadow);
-        ui.DrawText(m_font, m_entries[idx].text, x, y, 1.0f, c);
+        ui.DrawText(m_font, entry.text, textX + 1, y + 1, 1.0f, shadow);
+        ui.DrawText(m_font, entry.text, textX, y, 1.0f, c);
+
+        if (m_icons && entry.icon != UiIconId::None)
+        {
+            const float iconY = rowY + (m_itemHeight - kIconSize) / 2.0f;
+            m_icons->Draw(ui, entry.icon, x, iconY, static_cast<float>(kIconSize), alpha);
+        }
     }
 
     if (needsScrollbar())

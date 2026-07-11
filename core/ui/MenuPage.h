@@ -12,7 +12,7 @@
 //
 // Usage:
 //   page.Navigate = [&](MenuPage* target, int dir) { StartTransition(target, dir); };
-//   page.Init(ui, menuFont, titleFont);
+//   page.Init(ui, menuFont, icons);
 //   page.Update(btn, lastBtn, dt);
 //   page.Draw(ui, transitionDirX, moveProgress, moveDist, fadeProgress);
 class MenuPage
@@ -20,8 +20,8 @@ class MenuPage
 public:
     virtual ~MenuPage() = default;
 
-    // Called once after fonts are loaded and Navigate is set.
-    virtual void Init(UiRenderer &ui, UiFontHandle menuFont) = 0;
+    // Called once after fonts/icons are loaded and Navigate is set.
+    virtual void Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons) = 0;
 
     // Navigate to another page. Set by AppMenu before Init().
     // dir: 1 = slide next page in from right, -1 = from left.

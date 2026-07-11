@@ -29,4 +29,8 @@ void main() {
     // already linearizes on read, and the sRGB swapchain target re-encodes
     // on write - the two conversions cancel out correctly on their own.
     outColor = SamplePixelPerfectAA(uImage, vUV);
+    // vColor.a lets callers fade a drawn region (e.g. UiIconSet icons during
+    // a page transition) without touching the source pixels' own colour -
+    // DrawImage/DrawImageRounded always pass a=1, so this is a no-op there.
+    outColor.a *= vColor.a;
 }

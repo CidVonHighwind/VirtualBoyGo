@@ -53,5 +53,6 @@ private:
 
     UiFontHandle m_titleFont;
     UiFontHandle m_menuFont;
+    UiIconSet m_icons;
     UiImageHandle m_offscreenTexture;
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ButtonMapping.h"
+#include "UiIconSet.h"
 #include "UiRenderer.h"
 
 #include <openxr/openxr.h> // for XrColor4f
@@ -15,9 +16,12 @@
 // state machine (Menu::Update/MoveSelection/ButtonPressed) is carried over
 // near-verbatim (it only ever touched the abstract uint[3] button-bitmask
 // model, never VrApi/GL directly). The draw methods are rewritten against
-// UiRenderer instead of DrawHelper/FontManager. Icons (MenuImage) and the
-// list widget (MenuList<T>, dead/unfinished code in the original - its draw
-// methods were declared but never defined) are dropped for this pass.
+// UiRenderer instead of DrawHelper/FontManager. The original's standalone
+// MenuImage widget and its list widget (MenuList<T>, dead/unfinished code -
+// its draw methods were declared but never defined) are dropped; MenuList
+// below is a new fixed-rect scrolling list, not a port. Its rows can carry
+// an optional UiIconId (see AddEntry) - the closest equivalent of the
+// original's per-MenuButton IconId.
 class MenuItem
 {
 public:
@@ -141,7 +145,9 @@ class MenuList : public MenuItem
 {
 public:
     // posX/posY/width/height define the bounding rect the list fills.
-    MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int width, int height, int itemHeight);
+    // icons may be null for pages that don't pass any entries an icon.
+    MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int width, int height, int itemHeight,
+             const UiIconSet *icons = nullptr);
 
     struct Entry
     {
@@ -149,12 +155,14 @@ public:
         std::function<void(MenuItem *)> pressFunction;
         std::function<void(MenuItem *)> leftFunction;
         std::function<void(MenuItem *)> rightFunction;
+        UiIconId icon = UiIconId::None;
     };
 
     void AddEntry(const std::string &text,
                   std::function<void(MenuItem *)> press = nullptr,
                   std::function<void(MenuItem *)> left = nullptr,
-                  std::function<void(MenuItem *)> right = nullptr);
+                  std::function<void(MenuItem *)> right = nullptr,
+                  UiIconId icon = UiIconId::None);
 
     int GetSelectedIndex() const { return m_selectedIndex; }
 
@@ -171,8 +179,11 @@ private:
     bool needsScrollbar() const;
 
     UiFontHandle m_font;
+    const UiIconSet *m_icons;
     int m_posX, m_posY, m_width, m_height;
     int m_itemHeight;
+    static constexpr int kIconSize = 20;
+    static constexpr int kIconTextGap = 8;
     int m_selectedIndex = 0;
     int m_firstVisible = 0;
     int m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init

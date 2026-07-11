@@ -22,6 +22,7 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
     m_titleFont = ui.LoadFont(headerFontBytes, kHeaderFontSize);
     m_menuFont = ui.LoadFont(menuFontBytes, kMenuFontSize);
+    m_icons.Load(ui);
     m_offscreenTexture = ui.CreateRenderTexture(kMenuWidth, kMenuHeight, targetFormat);
 
     InitPages(ui);
@@ -61,12 +62,12 @@ void AppMenu::InitPages(UiRenderer &ui)
     m_moveScreenPage.settingsPage = &m_settingsPage;
 
     // Init all pages
-    m_mainPage.Init(ui, m_menuFont);
-    m_settingsPage.Init(ui, m_menuFont);
-    m_romSelectPage.Init(ui, m_menuFont);
-    m_menuButtonMapPage.Init(ui, m_menuFont);
-    m_emulatorButtonMapPage.Init(ui, m_menuFont);
-    m_moveScreenPage.Init(ui, m_menuFont);
+    m_mainPage.Init(ui, m_menuFont, m_icons);
+    m_settingsPage.Init(ui, m_menuFont, m_icons);
+    m_romSelectPage.Init(ui, m_menuFont, m_icons);
+    m_menuButtonMapPage.Init(ui, m_menuFont, m_icons);
+    m_emulatorButtonMapPage.Init(ui, m_menuFont, m_icons);
+    m_moveScreenPage.Init(ui, m_menuFont, m_icons);
 }
 
 // -----------------------------------------------------------------------

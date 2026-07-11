@@ -88,6 +88,12 @@ public:
     // pixels). Pass an already integer-scaled rect for a pixel-perfect look
     // (the sampler is NEAREST, so no blurring occurs either way).
     void DrawImage(UiImageHandle image, float x, float y, float w, float h);
+    // Like DrawImage, but samples only the given sub-rect of the image (UVs
+    // in 0..1 image space) - for drawing one icon out of a shared atlas
+    // texture instead of the whole image. Only alpha is applied (see
+    // ui_image.frag) - rgb is unused for icons, which are already coloured.
+    void DrawImageRegion(UiImageHandle image, float x, float y, float w, float h,
+                         float u0, float v0, float u1, float v1, float alpha = 1.0f);
     // Like DrawImage, but masks the sampled texture to rounded corners - the
     // intended way to composite a whole pre-rendered buffer (e.g. an
     // offscreen-rendered AppMenu) as a single rounded panel, instead of

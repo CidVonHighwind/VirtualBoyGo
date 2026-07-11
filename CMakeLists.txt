@@ -125,6 +125,7 @@ add_library(vbgo_app STATIC
     core/ui/UiRendererPipelines.cpp
     core/ui/UiFontManager.cpp
     core/ui/UiVulkanUtils.cpp
+    core/ui/UiIconSet.cpp
     core/ui/pages/MainPage.cpp
     core/ui/pages/SettingsPage.cpp
     core/ui/pages/RomSelectPage.cpp
@@ -197,6 +198,8 @@ else()
                 "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC>
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/assets/icons" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/icons"
     )
 
     # --------------------------------------------------------------------
@@ -233,5 +236,7 @@ else()
                 "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/fonts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/assets/icons" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/icons"
     )
 endif()
