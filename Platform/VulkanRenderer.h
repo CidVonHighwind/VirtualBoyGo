@@ -28,9 +28,23 @@ struct DrawCube {
 class VulkanRenderer {
    public:
     void CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId);
+
+    // Windowed (no OpenXR) device creation, for the 2D desktop debug build.
+    // VulkanRenderer stays windowing-library-agnostic: the caller creates
+    // the actual window/surface (e.g. via GLFW) and passes the surface in
+    // just to pick a physical device/queue that can present to it.
+    VkInstance CreateInstanceStandalone(const std::vector<const char*>& instanceExtensions);
+    void CreateDeviceForSurface(VkSurfaceKHR surface);
+
     void Shutdown();
 
     XrGraphicsBindingVulkan2KHR GetGraphicsBinding() const;
+
+    VkInstance GetInstance() const { return m_instance; }
+    VkPhysicalDevice GetPhysicalDevice() const { return m_physicalDevice; }
+    VkDevice GetDevice() const { return m_device; }
+    VkQueue GetQueue() const { return m_queue; }
+    uint32_t GetQueueFamilyIndex() const { return m_queueFamilyIndex; }
 
     int64_t SelectSwapchainFormat(const std::vector<int64_t>& runtimeFormats) const;
 
@@ -54,6 +68,7 @@ class VulkanRenderer {
         VkFramebuffer framebuffer{VK_NULL_HANDLE};
     };
 
+    void FinishDeviceSetup();
     void CreatePipelineIfNeeded(VkFormat colorFormat);
     void CreateTexturedQuadPipelineIfNeeded(VkFormat colorFormat);
     RenderTarget& GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width, uint32_t height);

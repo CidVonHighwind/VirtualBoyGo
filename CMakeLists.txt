@@ -150,4 +150,33 @@ else()
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC>
     )
+
+    # --------------------------------------------------------------------
+    # Flat desktop window, no headset/OpenXR runtime needed at all - the
+    # fast local-iteration debug build. Reuses the same VulkanRenderer
+    # content-drawing code (RenderTexturedQuad) as the composition-layer
+    # quad on the headset builds, just presented into a normal window
+    # swapchain instead of an OpenXR session.
+    # --------------------------------------------------------------------
+    set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY https://github.com/glfw/glfw.git
+        GIT_TAG 3.4
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(glfw)
+
+    add_executable(VirtualBoyGoPC2D
+        Platform/PC2D/Main.cpp
+    )
+    target_link_libraries(VirtualBoyGoPC2D PRIVATE vbgo_app glfw)
+
+    add_custom_command(
+        TARGET VirtualBoyGoPC2D POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
+    )
 endif()

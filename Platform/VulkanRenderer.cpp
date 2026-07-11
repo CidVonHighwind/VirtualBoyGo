@@ -135,7 +135,77 @@ void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) 
     CheckVk(vkResult, "vkCreateDevice (via xrCreateVulkanDeviceKHR)");
 
     volkLoadDevice(m_device);
+    FinishDeviceSetup();
+}
 
+VkInstance VulkanRenderer::CreateInstanceStandalone(const std::vector<const char*>& instanceExtensions) {
+    CheckVk(volkInitialize(), "volkInitialize");
+
+    VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+    appInfo.pApplicationName = "VirtualBoyGo";
+    appInfo.applicationVersion = 1;
+    appInfo.pEngineName = "VirtualBoyGo";
+    appInfo.engineVersion = 1;
+    appInfo.apiVersion = VK_API_VERSION_1_1;
+
+    VkInstanceCreateInfo instanceCreateInfo{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+    instanceCreateInfo.pApplicationInfo = &appInfo;
+    instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size());
+    instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.empty() ? nullptr : instanceExtensions.data();
+
+    CheckVk(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance), "vkCreateInstance (standalone)");
+    volkLoadInstance(m_instance);
+    return m_instance;
+}
+
+void VulkanRenderer::CreateDeviceForSurface(VkSurfaceKHR surface) {
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
+    if (devices.empty()) {
+        throw std::runtime_error("VulkanRenderer: no Vulkan physical devices found");
+    }
+
+    for (VkPhysicalDevice candidate : devices) {
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(candidate, &queueFamilyCount, nullptr);
+        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(candidate, &queueFamilyCount, queueFamilies.data());
+        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+            VkBool32 presentSupport = VK_FALSE;
+            vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface, &presentSupport);
+            if ((queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && presentSupport) {
+                m_physicalDevice = candidate;
+                m_queueFamilyIndex = i;
+                break;
+            }
+        }
+        if (m_physicalDevice != VK_NULL_HANDLE) break;
+    }
+    if (m_physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("VulkanRenderer: no Vulkan device with graphics+present support for this surface");
+    }
+
+    const float queuePriority = 1.0f;
+    VkDeviceQueueCreateInfo queueCreateInfo{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};
+    queueCreateInfo.queueFamilyIndex = m_queueFamilyIndex;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    VkDeviceCreateInfo deviceCreateInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
+    deviceCreateInfo.queueCreateInfoCount = 1;
+    deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+    deviceCreateInfo.enabledExtensionCount = 1;
+    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions;
+    CheckVk(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device), "vkCreateDevice (standalone)");
+
+    volkLoadDevice(m_device);
+    FinishDeviceSetup();
+}
+
+void VulkanRenderer::FinishDeviceSetup() {
     vkGetDeviceQueue(m_device, m_queueFamilyIndex, 0, &m_queue);
 
     VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};

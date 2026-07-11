@@ -24,6 +24,11 @@ on both platforms, live on a Quest 3:
   eye buffers are plain black; the debug cube only shows up as a fallback if
   the test image fails to load.
 
+A third build target, `VirtualBoyGoPC2D`, renders the same content (via
+`VulkanRenderer::RenderTexturedQuad`) into a plain GLFW window instead of an
+OpenXR session - no headset or runtime needed at all, for fast local
+iteration.
+
 Not started yet: porting `FrontendGo`'s menu/UI or the actual emulator core
 into this shell.
 
@@ -41,7 +46,8 @@ Platform/
   GeneratedShaders/          SPIR-V headers, produced by the PC build's
                              shader compiler and committed (Android's
                              cross-compile can't build/run glslang itself)
-  PC/Main.cpp                desktop entry point
+  PC/Main.cpp                desktop entry point (OpenXR, streamed to headset)
+  PC2D/Main.cpp               flat GLFW window entry point (no headset needed)
   Android/AndroidMain.cpp    NativeActivity entry point
 shaders/                     GLSL sources (compiled to SPIR-V at PC build time)
 assets/                      shared between PC and Android (Gradle assets dir)
@@ -82,3 +88,12 @@ If you change a shader (`shaders/*.vert|frag`), rebuild the **PC** target
 first to refresh the committed headers in `Platform/GeneratedShaders/` before
 building Android - the Android cross-compile doesn't build the shader
 compiler itself.
+
+## Building - PC, 2D debug (no headset)
+
+Same CMake project - configuring the PC build (above) also produces this
+target. No OpenXR runtime or headset required at all:
+
+```
+build-pc\Debug\VirtualBoyGoPC2D.exe
+```
