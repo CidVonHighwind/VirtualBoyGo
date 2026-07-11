@@ -20,3 +20,9 @@ inline constexpr int kListHeight = kMenuHeight - kMenuContentY - kBottomHeight -
 
 inline constexpr XrColor4f kMenuTextColor = {0.8f, 0.8f, 0.8f, 1.0f};
 inline constexpr XrColor4f kMenuSelectionColor = {0.9f, 0.1f, 0.1f, 1.0f};
+
+// Shared secondary/small-print font (battery %, version string) - smaller
+// than kMenuFontSize since it's decorative/informational, not a menu row.
+inline constexpr int kSmallFontSize = 16;
+inline constexpr XrColor4f kMenuVersionColor = {0.6f, 0.6f, 0.6f, 1.0f};
+inline constexpr const char *kVersionString = "v2.0.0-dev";

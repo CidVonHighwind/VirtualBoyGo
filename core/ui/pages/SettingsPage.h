@@ -11,5 +11,5 @@ public:
     MenuPage *emulatorButtonMapPage = nullptr;
     MenuPage *moveScreenPage = nullptr;
 
-    void Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons) override;
+    void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 };

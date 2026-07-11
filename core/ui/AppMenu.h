@@ -34,6 +34,16 @@ public:
 
     XrColor4f GetBackgroundColor() const;
 
+    // Battery indicator drawn top-right of the header, ported from
+    // FrontendGo's MenuGo::DrawMenu (the coloured fill block + "N%" text).
+    // percent: 0-100 shows it: any value outside that range (default -1)
+    // hides it entirely - no platform in this rework can read a real
+    // battery level yet, so callers opt in explicitly instead of the
+    // indicator silently showing a stale/fake reading. Nothing calls this
+    // on the OpenXR path (desktop VR or Android) today, so it stays hidden
+    // there; the flat 2D debug build cycles a fake value through it instead.
+    void SetBatteryPercent(int percent) { m_batteryPercent = percent; }
+
 private:
     void InitPages(UiRenderer &ui);
     void StartTransition(MenuPage *target, int dir);
@@ -52,7 +62,9 @@ private:
     int m_transitionDir = 1;
 
     UiFontHandle m_titleFont;
-    UiFontHandle m_menuFont;
     UiIconSet m_icons;
+    UiMenuResources m_resources; // menuFont/smallFont/&m_icons - see UiMenuResources.h
     UiImageHandle m_offscreenTexture;
+
+    int m_batteryPercent = -1;
 };

@@ -8,5 +8,5 @@ class RomSelectPage : public MenuPage
 public:
     MenuPage *mainPage = nullptr;
 
-    void Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons) override;
+    void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 };

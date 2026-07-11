@@ -7,5 +7,5 @@ class MenuButtonMapPage : public MenuPage
 public:
     MenuPage *settingsPage = nullptr;
 
-    void Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons) override;
+    void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 };

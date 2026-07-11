@@ -20,6 +20,7 @@
 #include "third_party/stb_image.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
@@ -181,6 +182,12 @@ int main()
         uint32_t lastButtonStates[3]{};
         auto lastFrameTime = std::chrono::steady_clock::now();
 
+        // No real battery to read on desktop - cycle a fake percentage
+        // through the indicator instead, mostly so the battery block/text
+        // rendering itself gets exercised without a headset. One full
+        // 0-100 sweep every 10 seconds.
+        float batteryCycleSeconds = 0.0f;
+
         while (!glfwWindowShouldClose(window))
         {
             glfwPollEvents();
@@ -192,6 +199,9 @@ int main()
             std::memcpy(lastButtonStates, buttonStates, sizeof(buttonStates));
             PollKeyboardButtonState(window, buttonStates);
             appMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
+
+            batteryCycleSeconds += deltaSeconds;
+            appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));
             appMenu.RenderToBuffer(uiRenderer);
 
             vkResetFences(renderer.GetDevice(), 1, &acquireFence);

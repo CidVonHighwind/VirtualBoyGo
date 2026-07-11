@@ -2,9 +2,10 @@
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
-void MainPage::Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons)
+void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
-    auto list = std::make_shared<MenuList>(ui, menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight, kMenuItemSize, &icons);
+    auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
+                                           kMenuItemSize, resources.icons);
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 

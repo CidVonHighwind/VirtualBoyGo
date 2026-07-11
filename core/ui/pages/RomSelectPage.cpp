@@ -2,10 +2,11 @@
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
-void RomSelectPage::Init(UiRenderer &ui, UiFontHandle menuFont, const UiIconSet &icons)
+void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
-    (void)icons; // no icon-bearing entries yet - still a placeholder page
-    auto list = std::make_shared<MenuList>(ui, menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight, kMenuItemSize);
+    // No icon-bearing entries yet - still a placeholder page.
+    auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
+                                           kMenuItemSize);
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 

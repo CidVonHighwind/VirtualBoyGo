@@ -2,6 +2,8 @@
 #include "AssetLoader.h"
 
 #include <cmath>
+#include <cstdio>
+#include <ctime>
 
 namespace
 {
@@ -11,6 +13,61 @@ namespace
     constexpr XrColor4f kHeaderTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
     constexpr XrColor4f kHeaderTextBackColor = {0.0f, 0.0f, 0.0f, 0.45f};
     constexpr int kHeaderFontSize = 65;
+
+    // Clock + battery indicator, ported from FrontendGo's Menu.cpp
+    // (SetTimeString/BatteryColors/DrawMenu's battery block) - two rows
+    // stacked in the header's top-right corner, both right-aligned to the
+    // same margin. The clock needs no platform hook (std::time works
+    // everywhere); the battery does (see AppMenu::SetBatteryPercent).
+    constexpr float kHeaderRightMargin = 15.0f;
+    constexpr float kTimeRowCenterY = kHeaderHeight / 2.0f - 11.0f;
+    constexpr float kBatteryRowCenterY = kHeaderHeight / 2.0f + 11.0f;
+
+    constexpr int kBatteryBlockWidth = 10;
+    constexpr int kBatteryBlockHeight = 16;
+    constexpr int kBatteryPadding = 2;
+    constexpr float kBatteryCornerRadiusPx = 3.0f;
+    constexpr XrColor4f kBatteryBackgroundColor = {0.25f, 0.25f, 0.25f, 1.0f};
+    // The gradient walks red -> orange -> yellow -> green as the level
+    // rises; two flat plateaus (indices 3-4 and 5-6) are intentional,
+    // matching the original.
+    constexpr int kBatteryColorCount = 5;
+    constexpr XrColor4f kBatteryColors[] = {
+        {0.745f, 0.114f, 0.176f, 1.0f},
+        {0.92f,  0.361f, 0.176f, 1.0f},
+        {0.976f, 0.69f,  0.255f, 1.0f},
+        {0.545f, 0.769f, 0.247f, 1.0f},
+        {0.545f, 0.769f, 0.247f, 1.0f},
+        {0.0f,   0.78f,  0.078f, 1.0f},
+        {0.0f,   0.78f,  0.078f, 1.0f},
+    };
+
+    XrColor4f Lerp(const XrColor4f &a, const XrColor4f &b, float t)
+    {
+        return {a.r * (1 - t) + b.r * t, a.g * (1 - t) + b.g * t, a.b * (1 - t) + b.b * t, a.a * (1 - t) + b.a * t};
+    }
+
+    XrColor4f BatteryColorForPercent(int percent)
+    {
+        const float step = 100.0f / kBatteryColorCount;
+        const float colorState = std::fmod(static_cast<float>(percent), step) / step;
+        const int currentColor = static_cast<int>(percent / step);
+        return Lerp(kBatteryColors[currentColor], kBatteryColors[currentColor + 1], colorState);
+    }
+
+    std::string CurrentTimeString()
+    {
+        const std::time_t t = std::time(nullptr);
+        std::tm tmv{};
+#if defined(_WIN32)
+        localtime_s(&tmv, &t);
+#else
+        localtime_r(&t, &tmv);
+#endif
+        char buf[6]; // "HH:MM\0"
+        std::snprintf(buf, sizeof(buf), "%02d:%02d", tmv.tm_hour, tmv.tm_min);
+        return buf;
+    }
 } // namespace
 
 // -----------------------------------------------------------------------
@@ -20,9 +77,12 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
 {
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
+    const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
     m_titleFont = ui.LoadFont(headerFontBytes, kHeaderFontSize);
-    m_menuFont = ui.LoadFont(menuFontBytes, kMenuFontSize);
     m_icons.Load(ui);
+    m_resources.menuFont = ui.LoadFont(menuFontBytes, kMenuFontSize);
+    m_resources.smallFont = ui.LoadFont(smallFontBytes, kSmallFontSize);
+    m_resources.icons = &m_icons;
     m_offscreenTexture = ui.CreateRenderTexture(kMenuWidth, kMenuHeight, targetFormat);
 
     InitPages(ui);
@@ -62,12 +122,12 @@ void AppMenu::InitPages(UiRenderer &ui)
     m_moveScreenPage.settingsPage = &m_settingsPage;
 
     // Init all pages
-    m_mainPage.Init(ui, m_menuFont, m_icons);
-    m_settingsPage.Init(ui, m_menuFont, m_icons);
-    m_romSelectPage.Init(ui, m_menuFont, m_icons);
-    m_menuButtonMapPage.Init(ui, m_menuFont, m_icons);
-    m_emulatorButtonMapPage.Init(ui, m_menuFont, m_icons);
-    m_moveScreenPage.Init(ui, m_menuFont, m_icons);
+    m_mainPage.Init(ui, m_resources);
+    m_settingsPage.Init(ui, m_resources);
+    m_romSelectPage.Init(ui, m_resources);
+    m_menuButtonMapPage.Init(ui, m_resources);
+    m_emulatorButtonMapPage.Init(ui, m_resources);
+    m_moveScreenPage.Init(ui, m_resources);
 }
 
 // -----------------------------------------------------------------------
@@ -120,6 +180,38 @@ void AppMenu::RenderContent(UiRenderer &ui)
     const float headerTextX = (kMenuWidth - ui.GetTextWidth(m_titleFont, "VirtualBoyGo")) / 2.0f;
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX + 1, static_cast<float>(headerTextY) + 1, 1.0f, kHeaderTextBackColor);
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX, static_cast<float>(headerTextY), 1.0f, kHeaderTextColor);
+
+    // Clock - always shown, needs no platform hook (std::time works
+    // everywhere, unlike battery level).
+    {
+        const std::string timeText = CurrentTimeString();
+        const float timeWidth = ui.GetTextWidth(m_resources.smallFont, timeText);
+        const float timeTextY = kTimeRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
+                                ui.GetFontPStart(m_resources.smallFont);
+        ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth, timeTextY, 1.0f,
+                    kMenuTextColor);
+    }
+
+    if (m_batteryPercent >= 0 && m_batteryPercent <= 100)
+    {
+        const float blockX = kMenuWidth - kHeaderRightMargin - kBatteryBlockWidth;
+        const float blockY = kBatteryRowCenterY - kBatteryBlockHeight / 2.0f;
+
+        ui.DrawQuadRounded(blockX - kBatteryPadding, blockY - kBatteryPadding,
+                           kBatteryBlockWidth + kBatteryPadding * 2, kBatteryBlockHeight + kBatteryPadding * 2,
+                           kBatteryBackgroundColor, kBatteryCornerRadiusPx);
+
+        const float fillHeight = m_batteryPercent / 100.0f * kBatteryBlockHeight;
+        ui.DrawQuadRounded(blockX, blockY + (kBatteryBlockHeight - fillHeight), kBatteryBlockWidth, fillHeight,
+                           BatteryColorForPercent(m_batteryPercent), kBatteryCornerRadiusPx);
+
+        const std::string batteryText = std::to_string(m_batteryPercent) + "%";
+        const float textWidth = ui.GetTextWidth(m_resources.smallFont, batteryText);
+        const float textY = kBatteryRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
+                            ui.GetFontPStart(m_resources.smallFont);
+        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 6 - textWidth, textY, 1.0f,
+                    kMenuTextColor);
+    }
 
     // Draw current page + next page (sliding in/out).
     // Matches the reference (FrontendGo MenuGo::DrawMenu):
