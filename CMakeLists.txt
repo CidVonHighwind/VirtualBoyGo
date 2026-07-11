@@ -42,12 +42,12 @@ FetchContent_MakeAvailable(OpenXR-SDK)
 # Only built for the host (PC) configuration - the compiler is a build tool
 # that must run on the machine doing the build, not on the target (Android
 # cross-compiles produce ARM64 binaries that can't run during their own
-# build). The generated headers land in the committed Platform/GeneratedShaders/
+# build). The generated headers land in the committed platform/generated_shaders/
 # directory, so an Android build just consumes whatever the PC build most
 # recently produced instead of re-running the compiler itself. Re-run a PC
 # configure/build after changing shaders/*.vert|frag to refresh them.
 # --------------------------------------------------------------------------
-set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/Platform/GeneratedShaders")
+set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/platform/generated_shaders")
 
 if(NOT ANDROID)
     set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
@@ -94,11 +94,11 @@ endif()
 # Shared between the Android (.so) and PC (.exe) entry points.
 # --------------------------------------------------------------------------
 add_library(vbgo_app STATIC
-    Platform/OpenXrApp.cpp
-    Platform/VulkanRenderer.cpp
-    Platform/AssetLoader.cpp
+    platform/OpenXrApp.cpp
+    platform/VulkanRenderer.cpp
+    platform/AssetLoader.cpp
 )
-target_include_directories(vbgo_app PUBLIC Platform ${VBGO_GENERATED_SHADER_DIR}/..)
+target_include_directories(vbgo_app PUBLIC platform ${VBGO_GENERATED_SHADER_DIR}/..)
 target_link_libraries(vbgo_app PUBLIC openxr_loader volk)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
@@ -114,7 +114,7 @@ if(ANDROID)
     find_library(LOG_LIB log)
 
     add_library(virtualboygo SHARED
-        Platform/Android/AndroidMain.cpp
+        platform/android/AndroidMain.cpp
     )
     target_link_libraries(virtualboygo PRIVATE vbgo_app android_native_app_glue ${ANDROID_LIB} ${LOG_LIB})
     target_include_directories(virtualboygo PRIVATE ${ANDROID_NDK}/sources/android/native_app_glue)
@@ -129,7 +129,7 @@ if(ANDROID)
     target_include_directories(android_native_app_glue PUBLIC ${ANDROID_NDK}/sources/android/native_app_glue)
 else()
     add_executable(VirtualBoyGoPC
-        Platform/PC/Main.cpp
+        platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
 
@@ -170,7 +170,7 @@ else()
     FetchContent_MakeAvailable(glfw)
 
     add_executable(VirtualBoyGoPC2D
-        Platform/PC2D/Main.cpp
+        platform/pc2d/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC2D PRIVATE vbgo_app glfw)
 

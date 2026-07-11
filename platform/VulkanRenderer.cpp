@@ -2,15 +2,15 @@
 
 #include "XrMath.h"
 
-#include "GeneratedShaders/cube.vert.h"
-#include "GeneratedShaders/cube.frag.h"
-#include "GeneratedShaders/textured_quad.vert.h"
-#include "GeneratedShaders/textured_quad.frag.h"
+#include "generated_shaders/cube.vert.h"
+#include "generated_shaders/cube.frag.h"
+#include "generated_shaders/textured_quad.vert.h"
+#include "generated_shaders/textured_quad.frag.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_JPEG
 #define STBI_ONLY_PNG
-#include "ThirdParty/stb_image.h"
+#include "third_party/stb_image.h"
 
 #include <array>
 #include <cstring>

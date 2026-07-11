@@ -14,9 +14,9 @@ An independent project (own `CMakeLists.txt`, no dependency on the
 reference material from the exploration phase, see below). Confirmed working
 on both platforms, live on a Quest 3:
 
-- OpenXR instance/system/session/swapchain lifecycle (`Platform/OpenXrApp`).
+- OpenXR instance/system/session/swapchain lifecycle (`platform/OpenXrApp`).
 - A Vulkan device created via `XR_KHR_vulkan_enable2`'s delegated-creation
-  path, plus a minimal render pipeline (`Platform/VulkanRenderer`).
+  path, plus a minimal render pipeline (`platform/VulkanRenderer`).
 - A **quad composition layer** rendering a real decoded JPEG
   (`assets/test_image.jpg`) as a floating panel - this is the important
   piece, since it's the OpenXR analogue of the old VrApi `ovrLayerCylinder2`
@@ -37,22 +37,25 @@ into this shell.
 ```
 CMakeLists.txt              root build - FetchContent for volk, Vulkan-Headers,
                              OpenXR-SDK (loader), glslang (shader compiler)
-Platform/
+platform/
   OpenXrApp.cpp/.h           instance/system/session/swapchain/event loop
   VulkanRenderer.cpp/.h      Vulkan device/pipelines/rendering
   XrMath.h                   small self-contained matrix math
   AssetLoader.cpp/.h         cross-platform file loading (APK assets / PC files)
-  ThirdParty/stb_image.h     vendored image decoder (JPEG/PNG)
-  GeneratedShaders/          SPIR-V headers, produced by the PC build's
+  third_party/stb_image.h    vendored image decoder (JPEG/PNG)
+  generated_shaders/         SPIR-V headers, produced by the PC build's
                              shader compiler and committed (Android's
                              cross-compile can't build/run glslang itself)
-  PC/Main.cpp                desktop entry point (OpenXR, streamed to headset)
-  PC2D/Main.cpp               flat GLFW window entry point (no headset needed)
-  Android/AndroidMain.cpp    NativeActivity entry point
+  pc/Main.cpp                desktop entry point (OpenXR, streamed to headset)
+  pc2d/Main.cpp               flat GLFW window entry point (no headset needed)
+  android/AndroidMain.cpp    NativeActivity entry point
 shaders/                     GLSL sources (compiled to SPIR-V at PC build time)
 assets/                      shared between PC and Android (Gradle assets dir)
-Android/                     Gradle wrapper project (externalNativeBuild -> root CMakeLists.txt)
+tools/ShaderCompiler.cpp     glslang-based GLSL -> SPIR-V compiler, PC-only build tool
+android/                     Gradle wrapper project (externalNativeBuild -> root CMakeLists.txt)
 External/OpenXR-SDK-Source/  reference only, not built by the root CMakeLists.txt
+                             (still capitalized - a Windows file lock has so
+                             far blocked renaming this one to external/)
 ```
 
 ## Building - PC
@@ -77,7 +80,7 @@ Requires Android SDK (compileSdk 34, build-tools 34.0.0) + NDK 23.2.8568313 +
 CMake 3.22.1 (e.g. via `sdkmanager`).
 
 ```
-cd Android
+cd android
 echo "sdk.dir=/path/to/Android/Sdk" > local.properties   # forward slashes, even on Windows
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -85,8 +88,8 @@ adb shell am start -n com.nintendont.virtualboygo/android.app.NativeActivity
 ```
 
 If you change a shader (`shaders/*.vert|frag`), rebuild the **PC** target
-first to refresh the committed headers in `Platform/GeneratedShaders/` before
-building Android - the Android cross-compile doesn't build the shader
+first to refresh the committed headers in `platform/generated_shaders/`
+before building Android - the Android cross-compile doesn't build the shader
 compiler itself.
 
 ## Building - PC, 2D debug (no headset)
