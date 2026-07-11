@@ -145,10 +145,10 @@ void OpenXrApp::CreateSwapchains()
     // sized to the emulator's screen (at a fixed pixel-perfect upscale) so
     // it renders 1:1 instead of being scaled. Falls back to the menu's own
     // size if no screen is loaded.
-    m_screenSwapchain.width =
-        m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenWidth() * Emulator::kScale) : kMenuWidth;
-    m_screenSwapchain.height =
-        m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenHeight() * Emulator::kScale) : kMenuHeight;
+    m_screenSwapchain.width = m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenWidth() * Emulator::kScale)
+                                                     : static_cast<int32_t>(kMenuWidth * kMenuScale);
+    m_screenSwapchain.height = m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenHeight() * Emulator::kScale)
+                                                      : static_cast<int32_t>(kMenuHeight * kMenuScale);
     m_screenSwapchain.mipLevels =
         ComputeMipLevels(static_cast<uint32_t>(m_screenSwapchain.width), static_cast<uint32_t>(m_screenSwapchain.height));
 
@@ -173,8 +173,12 @@ void OpenXrApp::CreateSwapchains()
 
     // Dedicated swapchain for the menu's own quad composition layer - see
     // OpenXrApp.h's member comment for why this is separate from the screen.
-    m_menuSwapchain.width = kMenuWidth;
-    m_menuSwapchain.height = kMenuHeight;
+    // kMenuWidth/kMenuHeight are logical units (see AppMenuLayout.h) -
+    // AppMenu::Draw composites its offscreen texture at kMenuWidth*kMenuScale
+    // physical pixels, so this swapchain has to match that, not the raw
+    // logical size.
+    m_menuSwapchain.width = static_cast<int32_t>(kMenuWidth * kMenuScale);
+    m_menuSwapchain.height = static_cast<int32_t>(kMenuHeight * kMenuScale);
     m_menuSwapchain.mipLevels =
         ComputeMipLevels(static_cast<uint32_t>(m_menuSwapchain.width), static_cast<uint32_t>(m_menuSwapchain.height));
 
@@ -363,7 +367,11 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     // Same X/Y as the screen layer (both centered on the view axis) but
     // closer to the viewer - that's what actually reads as "in front of".
     quadLayer.pose.position = {0.0f, 0.0f, -(kScreenDistanceMeters - kMenuForwardOffsetMeters)};
-    quadLayer.size = {kMenuWidth * metersPerPixel, kMenuHeight * metersPerPixel};
+    // metersPerPixel is calibrated against actual swapchain pixels, so use
+    // the swapchain's own (physical) size here, not the logical kMenuWidth/
+    // kMenuHeight - otherwise the panel would render at half its intended
+    // real-world size in the headset.
+    quadLayer.size = {m_menuSwapchain.width * metersPerPixel, m_menuSwapchain.height * metersPerPixel};
     return true;
 }
 

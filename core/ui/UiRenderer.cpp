@@ -142,9 +142,14 @@ void UiRenderer::Shutdown()
 
 // --- Font pass-through ---
 
-UiFontHandle UiRenderer::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight)
+UiFontHandle UiRenderer::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale)
 {
-    return m_fontManager.LoadFont(ttfBytes, pixelHeight);
+    return m_fontManager.LoadFont(ttfBytes, pixelHeight, renderScale);
+}
+
+void UiRenderer::RebakeFont(UiFontHandle font, const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale)
+{
+    m_fontManager.RebakeFont(font, ttfBytes, pixelHeight, renderScale);
 }
 
 float UiRenderer::GetTextWidth(UiFontHandle font, const std::string &text) const
@@ -152,8 +157,8 @@ float UiRenderer::GetTextWidth(UiFontHandle font, const std::string &text) const
     return m_fontManager.GetTextWidth(font, text);
 }
 
-int UiRenderer::GetFontPHeight(UiFontHandle font) const { return m_fontManager.GetFontPHeight(font); }
-int UiRenderer::GetFontPStart(UiFontHandle font) const { return m_fontManager.GetFontPStart(font); }
+float UiRenderer::GetFontPHeight(UiFontHandle font) const { return m_fontManager.GetFontPHeight(font); }
+float UiRenderer::GetFontPStart(UiFontHandle font) const { return m_fontManager.GetFontPStart(font); }
 
 // --- Image loading ---
 
@@ -225,12 +230,11 @@ UiImageHandle UiRenderer::LoadImage(const std::vector<uint8_t> &fileBytes, uint3
     return UiImageHandle{static_cast<int>(m_images.size()) - 1};
 }
 
-UiImageHandle UiRenderer::CreateRenderTexture(uint32_t width, uint32_t height, VkFormat format)
+void UiRenderer::CreateImageResources(Image &img, uint32_t width, uint32_t height, VkFormat format)
 {
-    Image image;
-    image.width = width;
-    image.height = height;
-    image.format = format;
+    img.width = width;
+    img.height = height;
+    img.format = format;
 
     VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -243,23 +247,23 @@ UiImageHandle UiRenderer::CreateRenderTexture(uint32_t width, uint32_t height, V
     imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    CheckVk(vkCreateImage(m_device, &imageInfo, nullptr, &image.image), "vkCreateImage (render texture)");
+    CheckVk(vkCreateImage(m_device, &imageInfo, nullptr, &img.image), "vkCreateImage (render texture)");
 
     VkMemoryRequirements memReq;
-    vkGetImageMemoryRequirements(m_device, image.image, &memReq);
+    vkGetImageMemoryRequirements(m_device, img.image, &memReq);
     VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
     allocInfo.allocationSize = memReq.size;
     allocInfo.memoryTypeIndex =
         UiFindMemoryType(m_physicalDevice, memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    CheckVk(vkAllocateMemory(m_device, &allocInfo, nullptr, &image.memory), "vkAllocateMemory (render texture)");
-    vkBindImageMemory(m_device, image.image, image.memory, 0);
+    CheckVk(vkAllocateMemory(m_device, &allocInfo, nullptr, &img.memory), "vkAllocateMemory (render texture)");
+    vkBindImageMemory(m_device, img.image, img.memory, 0);
 
     VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
-    viewInfo.image = image.image;
+    viewInfo.image = img.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = format;
     viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    CheckVk(vkCreateImageView(m_device, &viewInfo, nullptr, &image.view), "vkCreateImageView (render texture)");
+    CheckVk(vkCreateImageView(m_device, &viewInfo, nullptr, &img.view), "vkCreateImageView (render texture)");
 
     VkSamplerCreateInfo samplerInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -268,7 +272,38 @@ UiImageHandle UiRenderer::CreateRenderTexture(uint32_t width, uint32_t height, V
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.maxLod = 1.0f;
-    CheckVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &image.sampler), "vkCreateSampler (render texture)");
+    CheckVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &img.sampler), "vkCreateSampler (render texture)");
+}
+
+void UiRenderer::DestroyImageResources(Image &img)
+{
+    auto rtIt = m_renderTargets.find(img.image);
+    if (rtIt != m_renderTargets.end())
+    {
+        vkDestroyFramebuffer(m_device, rtIt->second.framebuffer, nullptr);
+        vkDestroyImageView(m_device, rtIt->second.view, nullptr);
+        m_renderTargets.erase(rtIt);
+    }
+
+    if (img.sampler != VK_NULL_HANDLE)
+        vkDestroySampler(m_device, img.sampler, nullptr);
+    if (img.view != VK_NULL_HANDLE)
+        vkDestroyImageView(m_device, img.view, nullptr);
+    if (img.image != VK_NULL_HANDLE)
+        vkDestroyImage(m_device, img.image, nullptr);
+    if (img.memory != VK_NULL_HANDLE)
+        vkFreeMemory(m_device, img.memory, nullptr);
+
+    img.image = VK_NULL_HANDLE;
+    img.view = VK_NULL_HANDLE;
+    img.sampler = VK_NULL_HANDLE;
+    img.memory = VK_NULL_HANDLE;
+}
+
+UiImageHandle UiRenderer::CreateRenderTexture(uint32_t width, uint32_t height, VkFormat format)
+{
+    Image image;
+    CreateImageResources(image, width, height, format);
 
     VkDescriptorSetAllocateInfo setAllocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     setAllocInfo.descriptorPool = m_descriptorPool;
@@ -292,6 +327,35 @@ UiImageHandle UiRenderer::CreateRenderTexture(uint32_t width, uint32_t height, V
 
     m_images.push_back(image);
     return UiImageHandle{static_cast<int>(m_images.size()) - 1};
+}
+
+void UiRenderer::ResizeRenderTexture(UiImageHandle handle, uint32_t width, uint32_t height)
+{
+    if (!handle.IsValid())
+        return;
+    Image &img = m_images[handle.id];
+    if (img.width == width && img.height == height)
+        return;
+
+    const VkFormat format = img.format;
+    const VkDescriptorSet descriptorSet = img.descriptorSet; // reused, not reallocated
+
+    DestroyImageResources(img);
+    CreateImageResources(img, width, height, format);
+    img.descriptorSet = descriptorSet;
+
+    VkDescriptorImageInfo imageDescInfo{};
+    imageDescInfo.sampler = img.sampler;
+    imageDescInfo.imageView = img.view;
+    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    write.dstSet = img.descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imageDescInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
 }
 
 // --- Frame management ---
@@ -329,7 +393,8 @@ void UiRenderer::BeginFrame(VkImage image, VkFormat format, uint32_t width, uint
     vkCmdBindVertexBuffers(m_commandBuffer, 0, 1, &m_unitQuadVertexBuffer, &offset);
 }
 
-void UiRenderer::BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clearColor)
+void UiRenderer::BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clearColor,
+                                     float logicalWidth, float logicalHeight)
 {
     if (!target.IsValid())
         return;
@@ -339,8 +404,11 @@ void UiRenderer::BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clea
     GetOrCreateOffscreenRenderPass(img.format);
     RenderTarget &rt = GetOrCreateRenderTarget(img.image, img.format, img.width, img.height, m_offscreenRenderPass);
 
-    m_frameWidth = static_cast<float>(img.width);
-    m_frameHeight = static_cast<float>(img.height);
+    // The NDC divisor can be smaller than the physical target (see the
+    // logicalWidth/logicalHeight doc comment in the header) - the viewport
+    // below still covers the whole physical image either way.
+    m_frameWidth = logicalWidth > 0.0f ? logicalWidth : static_cast<float>(img.width);
+    m_frameHeight = logicalHeight > 0.0f ? logicalHeight : static_cast<float>(img.height);
 
     vkResetCommandBuffer(m_commandBuffer, 0);
     VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -389,6 +457,16 @@ void UiRenderer::EndFrame()
     submitInfo.pCommandBuffers = &m_commandBuffer;
     CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (ui frame)");
     vkQueueWaitIdle(m_queue);
+}
+
+void UiRenderer::InvalidateRenderTargets()
+{
+    for (auto &[image, target] : m_renderTargets)
+    {
+        vkDestroyFramebuffer(m_device, target.framebuffer, nullptr);
+        vkDestroyImageView(m_device, target.view, nullptr);
+    }
+    m_renderTargets.clear();
 }
 
 // --- Draw calls ---

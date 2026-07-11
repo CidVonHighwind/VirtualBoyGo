@@ -28,7 +28,7 @@ public:
     bool Selectable = false;
     bool Selected = false;
     bool Visible = true;
-    int PosX = 100, PosY = 100;
+    float PosX = 100, PosY = 100;
 
     float ScrollDelay = 0.3f;
     float ScrollTimeV = 0.075f;
@@ -84,13 +84,13 @@ public:
 
     void Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaSeconds);
 
-    void Draw(UiRenderer &ui, int transitionDirX, int transitionDirY, float moveProgress, int moveDist, float fadeProgress);
+    void Draw(UiRenderer &ui, int transitionDirX, int transitionDirY, float moveProgress, float moveDist, float fadeProgress);
 };
 
 class MenuLabel : public MenuItem
 {
 public:
-    MenuLabel(UiRenderer &ui, UiFontHandle font, const std::string &text, int posX, int posY, int width, int height,
+    MenuLabel(UiRenderer &ui, UiFontHandle font, const std::string &text, float posX, float posY, float width, float height,
               XrColor4f color);
 
     void SetText(const std::string &newText);
@@ -100,7 +100,7 @@ public:
 private:
     UiRenderer *m_ui;
     UiFontHandle m_font;
-    int m_containerX, m_containerY, m_containerWidth, m_containerHeight;
+    float m_containerX, m_containerY, m_containerWidth, m_containerHeight;
     std::string m_text;
 };
 
@@ -109,14 +109,14 @@ class MenuButton : public MenuItem
 public:
     std::string Text;
 
-    MenuButton(UiRenderer &ui, UiFontHandle font, const std::string &text, int posX, int posY, int width, int height,
+    MenuButton(UiRenderer &ui, UiFontHandle font, const std::string &text, float posX, float posY, float width, float height,
                std::function<void(MenuItem *item)> pressFunction, std::function<void(MenuItem *item)> leftFunction = nullptr,
                std::function<void(MenuItem *item)> rightFunction = nullptr);
 
     // Left-aligned, no vertical/horizontal centering - matches the
     // original's main-menu-page constructor (MenuHelper.cpp's 5-posarg
     // MenuButton ctor), used for plain top-to-bottom stacked menu lists.
-    MenuButton(UiRenderer &ui, UiFontHandle font, const std::string &text, int posX, int posY,
+    MenuButton(UiRenderer &ui, UiFontHandle font, const std::string &text, float posX, float posY,
                std::function<void(MenuItem *item)> pressFunction, std::function<void(MenuItem *item)> leftFunction = nullptr,
                std::function<void(MenuItem *item)> rightFunction = nullptr);
 
@@ -134,8 +134,8 @@ private:
     std::function<void(MenuItem *item)> m_pressFunction;
     std::function<void(MenuItem *item)> m_leftFunction;
     std::function<void(MenuItem *item)> m_rightFunction;
-    int m_containerWidth = 0;
-    int m_offsetX = 0;
+    float m_containerWidth = 0;
+    float m_offsetX = 0;
 };
 
 // A vertically scrollable list that fills a fixed content rect. Handles its
@@ -146,7 +146,7 @@ class MenuList : public MenuItem
 public:
     // posX/posY/width/height define the bounding rect the list fills.
     // icons may be null for pages that don't pass any entries an icon.
-    MenuList(UiRenderer &ui, UiFontHandle font, int posX, int posY, int width, int height, int itemHeight,
+    MenuList(UiRenderer &ui, UiFontHandle font, float posX, float posY, float width, float height, float itemHeight,
              const UiIconSet *icons = nullptr);
 
     struct Entry
@@ -180,15 +180,15 @@ private:
 
     UiFontHandle m_font;
     const UiIconSet *m_icons;
-    int m_posX, m_posY, m_width, m_height;
-    int m_itemHeight;
-    static constexpr int kIconSize = 20;
-    static constexpr int kIconTextGap = 8;
+    float m_posX, m_posY, m_width, m_height;
+    float m_itemHeight;
+    static constexpr float kIconSize = 10.0f;
+    static constexpr float kIconTextGap = 4.0f;
     int m_selectedIndex = 0;
     int m_firstVisible = 0;
-    int m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init
+    float m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init
     std::vector<Entry> m_entries;
 
-    static constexpr int kScrollbarWidth = 4;
-    static constexpr int kScrollbarGap = 4;
+    static constexpr float kScrollbarWidth = 2.0f;
+    static constexpr float kScrollbarGap = 2.0f;
 };

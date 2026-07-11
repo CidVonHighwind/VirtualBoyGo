@@ -33,7 +33,7 @@ public:
         m_menu.Update(buttonState, lastButtonState, deltaSeconds);
     }
 
-    void Draw(UiRenderer &ui, int transitionDirX, float moveProgress, int moveDist, float fadeProgress)
+    void Draw(UiRenderer &ui, int transitionDirX, float moveProgress, float moveDist, float fadeProgress)
     {
         m_menu.Draw(ui, transitionDirX, 0, moveProgress, moveDist, fadeProgress);
     }

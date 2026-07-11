@@ -12,21 +12,26 @@ namespace
     constexpr XrColor4f kOverlayColor = {0.35f, 0.35f, 0.35f, 0.98f};
     constexpr XrColor4f kHeaderTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
     constexpr XrColor4f kHeaderTextBackColor = {0.0f, 0.0f, 0.0f, 0.45f};
-    constexpr int kHeaderFontSize = 65;
+    // Font pixel sizes are inherently integer (FreeType rasterizes whole
+    // pixels only) - 65/2 doesn't land on a whole number like the other
+    // logical-space constants do, so this one is just rounded. Still
+    // rasterizes crisp: this is a font *size* fed to FreeType, unrelated to
+    // kMenuScale's physical-vs-logical pixel mapping.
+    constexpr int kHeaderFontSize = 33;
 
     // Clock + battery indicator, ported from FrontendGo's Menu.cpp
     // (SetTimeString/BatteryColors/DrawMenu's battery block) - two rows
     // stacked in the header's top-right corner, both right-aligned to the
     // same margin. The clock needs no platform hook (std::time works
     // everywhere); the battery does (see AppMenu::SetBatteryPercent).
-    constexpr float kHeaderRightMargin = 15.0f;
-    constexpr float kTimeRowCenterY = kHeaderHeight / 2.0f - 11.0f;
-    constexpr float kBatteryRowCenterY = kHeaderHeight / 2.0f + 11.0f;
+    constexpr float kHeaderRightMargin = 7.5f;
+    constexpr float kTimeRowCenterY = kHeaderHeight / 2.0f - 5.5f;
+    constexpr float kBatteryRowCenterY = kHeaderHeight / 2.0f + 5.5f;
 
-    constexpr int kBatteryBlockWidth = 10;
-    constexpr int kBatteryBlockHeight = 16;
-    constexpr int kBatteryPadding = 2;
-    constexpr float kBatteryCornerRadiusPx = 3.0f;
+    constexpr float kBatteryBlockWidth = 5.0f;
+    constexpr float kBatteryBlockHeight = 8.0f;
+    constexpr float kBatteryPadding = 1.0f;
+    constexpr float kBatteryCornerRadiusPx = 1.5f;
     constexpr XrColor4f kBatteryBackgroundColor = {0.25f, 0.25f, 0.25f, 1.0f};
     // The gradient walks red -> orange -> yellow -> green as the level
     // rises; two flat plateaus (indices 3-4 and 5-6) are intentional,
@@ -78,15 +83,43 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
     const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
-    m_titleFont = ui.LoadFont(headerFontBytes, kHeaderFontSize);
+    // Bake glyphs at physical resolution (kMenuScale x the logical size) for
+    // crisp text - see UiFontManager::LoadFont's renderScale doc comment.
+    // kMenuFontSize/kSmallFontSize x 2 lands back on their pre-rework
+    // physical sizes (22px/16px) exactly; kHeaderFontSize x 2 = 66 (was 65,
+    // off by the 1px already lost rounding 65 to a logical size earlier).
+    m_titleFont = ui.LoadFont(headerFontBytes, static_cast<int>(kHeaderFontSize * m_menuScale), m_menuScale);
     m_icons.Load(ui);
-    m_resources.menuFont = ui.LoadFont(menuFontBytes, kMenuFontSize);
-    m_resources.smallFont = ui.LoadFont(smallFontBytes, kSmallFontSize);
+    m_resources.menuFont = ui.LoadFont(menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
+    m_resources.smallFont = ui.LoadFont(smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);
     m_resources.icons = &m_icons;
-    m_offscreenTexture = ui.CreateRenderTexture(kMenuWidth, kMenuHeight, targetFormat);
+    // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
+    // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution
+    // texture via BeginOffscreenFrame's logicalWidth/logicalHeight, so the
+    // menu rasterizes crisp at m_menuScale regardless of how small the
+    // logical layout numbers are.
+    m_offscreenTexture = ui.CreateRenderTexture(static_cast<uint32_t>(kMenuWidth * m_menuScale),
+                                                static_cast<uint32_t>(kMenuHeight * m_menuScale), targetFormat);
 
     InitPages(ui);
     m_currentPage = &m_mainPage;
+}
+
+void AppMenu::SetMenuScale(UiRenderer &ui, float scale)
+{
+    if (scale == m_menuScale)
+        return;
+    m_menuScale = scale;
+
+    ui.ResizeRenderTexture(m_offscreenTexture, static_cast<uint32_t>(kMenuWidth * m_menuScale),
+                           static_cast<uint32_t>(kMenuHeight * m_menuScale));
+
+    const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
+    const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
+    const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
+    ui.RebakeFont(m_titleFont, headerFontBytes, static_cast<int>(kHeaderFontSize * m_menuScale), m_menuScale);
+    ui.RebakeFont(m_resources.menuFont, menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
+    ui.RebakeFont(m_resources.smallFont, smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);
 }
 
 void AppMenu::InitPages(UiRenderer &ui)
@@ -176,10 +209,10 @@ void AppMenu::RenderContent(UiRenderer &ui)
     ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kOverlayColor);
 
     // Centred header title
-    const int headerTextY = kHeaderHeight / 2 - ui.GetFontPHeight(m_titleFont) / 2 - ui.GetFontPStart(m_titleFont);
+    const float headerTextY = kHeaderHeight / 2.0f - ui.GetFontPHeight(m_titleFont) / 2.0f - ui.GetFontPStart(m_titleFont);
     const float headerTextX = (kMenuWidth - ui.GetTextWidth(m_titleFont, "VirtualBoyGo")) / 2.0f;
-    ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX + 1, static_cast<float>(headerTextY) + 1, 1.0f, kHeaderTextBackColor);
-    ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX, static_cast<float>(headerTextY), 1.0f, kHeaderTextColor);
+    ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX + 0.5f, headerTextY + 0.5f, 1.0f, kHeaderTextBackColor);
+    ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX, headerTextY, 1.0f, kHeaderTextColor);
 
     // Clock - always shown, needs no platform hook (std::time works
     // everywhere, unlike battery level).
@@ -209,7 +242,7 @@ void AppMenu::RenderContent(UiRenderer &ui)
         const float textWidth = ui.GetTextWidth(m_resources.smallFont, batteryText);
         const float textY = kBatteryRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
                             ui.GetFontPStart(m_resources.smallFont);
-        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 6 - textWidth, textY, 1.0f,
+        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 3.0f - textWidth, textY, 1.0f,
                     kMenuTextColor);
     }
 
@@ -217,12 +250,12 @@ void AppMenu::RenderContent(UiRenderer &ui)
     // Matches the reference (FrontendGo MenuGo::DrawMenu):
     //   - current page starts at its natural position (offset 0) and slides away
     //   - next page starts displaced by dist and slides in to offset 0
-    //   - dist is small (75px) so neither page ever leaves the visible area
+    //   - dist is small so neither page ever leaves the visible area
     if (m_transitionState > 0.0f && m_nextPage)
     {
         const float rawProgress = m_transitionState; // 1.0 -> 0.0
         const float eased = std::sinf(rawProgress * (3.14159265f / 2.0f));
-        const int dist = 75;
+        const float dist = kTransitionSlideDistance;
 
         // Current page: offset ramps from 0 up to dist (slides away)
         m_currentPage->Draw(ui, -m_transitionDir, 1.0f - eased, dist, rawProgress);
@@ -237,12 +270,20 @@ void AppMenu::RenderContent(UiRenderer &ui)
 
 void AppMenu::RenderToBuffer(UiRenderer &ui)
 {
-    ui.BeginOffscreenFrame(m_offscreenTexture, XrColor4f{0.0f, 0.0f, 0.0f, 0.0f});
+    ui.BeginOffscreenFrame(m_offscreenTexture, XrColor4f{0.0f, 0.0f, 0.0f, 0.0f}, kMenuWidth, kMenuHeight);
     RenderContent(ui);
     ui.EndFrame();
 }
 
 void AppMenu::Draw(UiRenderer &ui, float x, float y)
 {
-    ui.DrawImageRounded(m_offscreenTexture, x, y, kMenuWidth, kMenuHeight, kPanelCornerRadiusPx);
+    // 1:1 - m_offscreenTexture is already the full kMenuWidth*m_menuScale
+    // physical size, so no scaling happens at composite time (see Initialize).
+    // kPanelCornerRadiusPx itself DOES need scaling here though, unlike the
+    // battery/scrollbar corner radii - this draw call composites onto the
+    // real (physical) target, not into the logical-space offscreen buffer,
+    // so nothing else scales it up automatically the way BeginOffscreenFrame's
+    // logicalWidth/logicalHeight trick does for everything drawn inside RenderContent.
+    ui.DrawImageRounded(m_offscreenTexture, x, y, kMenuWidth * m_menuScale, kMenuHeight * m_menuScale,
+                        kPanelCornerRadiusPx * m_menuScale);
 }

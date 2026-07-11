@@ -19,6 +19,7 @@
 // defined once in VulkanRenderer.cpp, same vbgo_app link unit).
 #include "third_party/stb_image.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -83,11 +84,14 @@ int main()
         std::fprintf(stderr, "VirtualBoyGo 2D: game_image.png not found next to the exe\n");
     }
     // Window is sized to exactly fit the upscaled game screen; the menu is
-    // a smaller fixed-size (AppMenu::kMenuWidth/kMenuHeight) panel composited
-    // (rounded corners and all) at a centered offset within it, not the
-    // window's full size.
-    const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale : kMenuWidth;
-    const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale : kMenuHeight;
+    // a smaller fixed-size (kMenuWidth*kMenuScale x kMenuHeight*kMenuScale
+    // physical pixels - kMenuWidth/kMenuHeight alone are logical units, see
+    // AppMenuLayout.h) panel composited (rounded corners and all) at a
+    // centered offset within it, not the window's full size.
+    const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale
+                                                      : static_cast<int>(kMenuWidth * kMenuScale);
+    const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale
+                                                        : static_cast<int>(kMenuHeight * kMenuScale);
 
     if (!glfwInit())
     {
@@ -95,7 +99,7 @@ int main()
         return 1;
     }
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
     GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "VirtualBoyGo (2D debug)", nullptr, nullptr);
     if (!window)
@@ -140,38 +144,61 @@ int main()
             }
         }
 
-        int fbWidth = 0, fbHeight = 0;
-        glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
-        const VkExtent2D extent{static_cast<uint32_t>(fbWidth), static_cast<uint32_t>(fbHeight)};
+        VkExtent2D extent{};
+        std::vector<VkImage> swapchainImages;
 
-        VkSwapchainCreateInfoKHR swapchainInfo{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
-        swapchainInfo.surface = surface;
-        swapchainInfo.minImageCount = 2;
-        swapchainInfo.imageFormat = chosen.format;
-        swapchainInfo.imageColorSpace = chosen.colorSpace;
-        swapchainInfo.imageExtent = extent;
-        swapchainInfo.imageArrayLayers = 1;
-        swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        swapchainInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-        swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        swapchainInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-        swapchainInfo.clipped = VK_TRUE;
-        CheckVk(vkCreateSwapchainKHR(renderer.GetDevice(), &swapchainInfo, nullptr, &swapchain), "vkCreateSwapchainKHR");
+        // (Re)creates the swapchain at the window's current framebuffer
+        // size - called once up front and again whenever that size changes
+        // (see the resize check in the render loop below).
+        auto recreateSwapchain = [&]()
+        {
+            int fbWidth = 0, fbHeight = 0;
+            glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+            extent = {static_cast<uint32_t>(fbWidth), static_cast<uint32_t>(fbHeight)};
 
-        uint32_t imageCount = 0;
-        vkGetSwapchainImagesKHR(renderer.GetDevice(), swapchain, &imageCount, nullptr);
-        std::vector<VkImage> swapchainImages(imageCount);
-        vkGetSwapchainImagesKHR(renderer.GetDevice(), swapchain, &imageCount, swapchainImages.data());
+            vkDeviceWaitIdle(renderer.GetDevice());
+
+            VkSwapchainCreateInfoKHR swapchainInfo{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
+            swapchainInfo.surface = surface;
+            swapchainInfo.minImageCount = 2;
+            swapchainInfo.imageFormat = chosen.format;
+            swapchainInfo.imageColorSpace = chosen.colorSpace;
+            swapchainInfo.imageExtent = extent;
+            swapchainInfo.imageArrayLayers = 1;
+            swapchainInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+            swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            swapchainInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+            swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+            swapchainInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+            swapchainInfo.clipped = VK_TRUE;
+            swapchainInfo.oldSwapchain = swapchain;
+
+            VkSwapchainKHR newSwapchain = VK_NULL_HANDLE;
+            CheckVk(vkCreateSwapchainKHR(renderer.GetDevice(), &swapchainInfo, nullptr, &newSwapchain),
+                    "vkCreateSwapchainKHR");
+            if (swapchain != VK_NULL_HANDLE)
+                vkDestroySwapchainKHR(renderer.GetDevice(), swapchain, nullptr);
+            swapchain = newSwapchain;
+
+            // The old swapchain's images (and UiRenderer's per-image
+            // framebuffer cache for them) are now invalid - a new swapchain
+            // image can be handed back the same VkImage handle value, which
+            // would otherwise hit a stale cache entry pointing at a
+            // destroyed framebuffer/view (empty no-op before the first call,
+            // since uiRenderer isn't initialized yet at that point).
+            uiRenderer.InvalidateRenderTargets();
+
+            uint32_t imageCount = 0;
+            vkGetSwapchainImagesKHR(renderer.GetDevice(), swapchain, &imageCount, nullptr);
+            swapchainImages.resize(imageCount);
+            vkGetSwapchainImagesKHR(renderer.GetDevice(), swapchain, &imageCount, swapchainImages.data());
+        };
+        recreateSwapchain();
 
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
                               renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
         emulator.Initialize(uiRenderer);
         appMenu.Initialize(uiRenderer, chosen.format);
-
-        // Menu panel is centered within the (larger) window.
-        const float menuX = (static_cast<float>(windowWidth) - kMenuWidth) / 2.0f;
-        const float menuY = (static_cast<float>(windowHeight) - kMenuHeight) / 2.0f;
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");
@@ -192,6 +219,22 @@ int main()
         {
             glfwPollEvents();
 
+            // Minimized (0x0 framebuffer) - a zero-extent swapchain is
+            // invalid, so just wait for the window to become usable again
+            // instead of spinning a render loop that can't present anything.
+            int fbWidth = 0, fbHeight = 0;
+            glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+            if (fbWidth == 0 || fbHeight == 0)
+            {
+                glfwWaitEvents();
+                continue;
+            }
+
+            // Recreate the swapchain when the window has actually been
+            // resized (cheap check - only rebuilds on an actual size change).
+            if (static_cast<uint32_t>(fbWidth) != extent.width || static_cast<uint32_t>(fbHeight) != extent.height)
+                recreateSwapchain();
+
             const auto now = std::chrono::steady_clock::now();
             const float deltaSeconds = std::chrono::duration<float>(now - lastFrameTime).count();
             lastFrameTime = now;
@@ -202,18 +245,31 @@ int main()
 
             batteryCycleSeconds += deltaSeconds;
             appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));
+
+            // The menu renders at the largest integer logical-to-physical
+            // scale (see AppMenuLayout.h's kMenuScale) that still fits the
+            // current window, so it's always as big as possible without
+            // ever needing to upscale (and blur) its offscreen texture.
+            const int scaleX = static_cast<int>(fbWidth / kMenuWidth);
+            const int scaleY = static_cast<int>(fbHeight / kMenuHeight);
+            const float menuScale = static_cast<float>(std::max(1, std::min(scaleX, scaleY)));
+            appMenu.SetMenuScale(uiRenderer, menuScale);
+            const float menuX = (static_cast<float>(fbWidth) - kMenuWidth * menuScale) / 2.0f;
+            const float menuY = (static_cast<float>(fbHeight) - kMenuHeight * menuScale) / 2.0f;
+
             appMenu.RenderToBuffer(uiRenderer);
 
             vkResetFences(renderer.GetDevice(), 1, &acquireFence);
             uint32_t imageIndex = 0;
             const VkResult acquireResult = vkAcquireNextImageKHR(renderer.GetDevice(), swapchain, UINT64_MAX,
                                                                  VK_NULL_HANDLE, acquireFence, &imageIndex);
-            if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
+            if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                // e.g. VK_ERROR_OUT_OF_DATE_KHR - window resize isn't handled
-                // in this first version (fixed-size, non-resizable window).
+                recreateSwapchain();
                 continue;
             }
+            if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
+                continue;
             vkWaitForFences(renderer.GetDevice(), 1, &acquireFence, VK_TRUE, UINT64_MAX);
 
             // UiRenderer::EndFrame blocks internally (vkQueueWaitIdle) until
@@ -232,7 +288,9 @@ int main()
             presentInfo.swapchainCount = 1;
             presentInfo.pSwapchains = &swapchain;
             presentInfo.pImageIndices = &imageIndex;
-            vkQueuePresentKHR(renderer.GetQueue(), &presentInfo);
+            const VkResult presentResult = vkQueuePresentKHR(renderer.GetQueue(), &presentInfo);
+            if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+                recreateSwapchain();
         }
 
         vkDeviceWaitIdle(renderer.GetDevice());

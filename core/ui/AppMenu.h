@@ -34,6 +34,15 @@ public:
 
     XrColor4f GetBackgroundColor() const;
 
+    // Changes the logical-to-physical scale (see AppMenuLayout.h's
+    // kMenuScale doc comment) at runtime - e.g. a resizable window
+    // recomputing the largest integer scale that still fits every frame.
+    // No-op if scale already matches (cheap to call unconditionally every
+    // frame); otherwise re-renders the offscreen texture and re-bakes fonts
+    // at the new physical resolution so text stays crisp at any size.
+    void SetMenuScale(UiRenderer &ui, float scale);
+    float GetMenuScale() const { return m_menuScale; }
+
     // Battery indicator drawn top-right of the header, ported from
     // FrontendGo's MenuGo::DrawMenu (the coloured fill block + "N%" text).
     // percent: 0-100 shows it: any value outside that range (default -1)
@@ -65,6 +74,7 @@ private:
     UiIconSet m_icons;
     UiMenuResources m_resources; // menuFont/smallFont/&m_icons - see UiMenuResources.h
     UiImageHandle m_offscreenTexture;
+    float m_menuScale = kMenuScale; // see SetMenuScale
 
     int m_batteryPercent = -1;
 };

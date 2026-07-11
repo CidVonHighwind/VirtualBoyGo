@@ -44,7 +44,9 @@ void UiFontManager::Shutdown()
     m_fonts.clear();
 }
 
-UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight)
+void UiFontManager::BakeGlyphAtlas(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale,
+                                   Font &outFont, std::vector<uint8_t> &outAtlas, int &outTextureWidth,
+                                   int &outTextureHeight)
 {
     FT_Library ft;
     if (FT_Init_FreeType(&ft))
@@ -58,15 +60,17 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
     }
     FT_Set_Pixel_Sizes(face, 0, pixelHeight);
 
-    Font font;
-    font.fontSize = pixelHeight;
+    outFont.fontSize = pixelHeight;
 
     const int textureWidth = 30 * pixelHeight;
     const int textureHeight = 8 * pixelHeight;
-    std::vector<uint8_t> atlas(static_cast<size_t>(textureWidth) * textureHeight, 0);
+    outTextureWidth = textureWidth;
+    outTextureHeight = textureHeight;
+    outAtlas.assign(static_cast<size_t>(textureWidth) * textureHeight, 0);
 
     int posX = 1;
     int posY = 1;
+    int offsetYPhysical = 0; // accumulated in physical px, divided by renderScale once below
 
     for (unsigned char c = 32; c < 192; ++c)
     {
@@ -85,8 +89,8 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
         float ascent = 0.0f;
         if (ascent < ascentCalc - descent)
             ascent = ascentCalc - descent;
-        if (font.offsetY < static_cast<int>(ascent))
-            font.offsetY = static_cast<int>(ascent);
+        if (offsetYPhysical < static_cast<int>(ascent))
+            offsetYPhysical = static_cast<int>(ascent);
 
         if (posX + static_cast<int>(bitmap.width) > textureWidth)
         {
@@ -102,7 +106,7 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
                 const int dstY = posY + static_cast<int>(row);
                 if (dstX < 0 || dstX >= textureWidth || dstY < 0 || dstY >= textureHeight)
                     continue;
-                atlas[static_cast<size_t>(dstY) * textureWidth + dstX] = bitmap.buffer[row * bitmap.pitch + col];
+                outAtlas[static_cast<size_t>(dstY) * textureWidth + dstX] = bitmap.buffer[row * bitmap.pitch + col];
             }
         }
 
@@ -111,12 +115,12 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
         character.v0 = static_cast<float>(posY) / textureHeight;
         character.u1 = static_cast<float>(posX + bitmap.width) / textureWidth;
         character.v1 = static_cast<float>(posY + bitmap.rows) / textureHeight;
-        character.width = static_cast<int>(bitmap.width);
-        character.height = static_cast<int>(bitmap.rows);
-        character.bearingX = face->glyph->bitmap_left;
-        character.bearingY = face->glyph->bitmap_top;
-        character.advance = static_cast<int>(face->glyph->advance.x >> 6);
-        font.characters[static_cast<char>(c)] = character;
+        character.width = static_cast<float>(bitmap.width) / renderScale;
+        character.height = static_cast<float>(bitmap.rows) / renderScale;
+        character.bearingX = static_cast<float>(face->glyph->bitmap_left) / renderScale;
+        character.bearingY = static_cast<float>(face->glyph->bitmap_top) / renderScale;
+        character.advance = static_cast<float>(face->glyph->advance.x >> 6) / renderScale;
+        outFont.characters[static_cast<char>(c)] = character;
 
         posX += static_cast<int>(bitmap.width) + 2;
     }
@@ -124,14 +128,19 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
     FT_Done_Face(face);
     FT_Done_FreeType(ft);
 
-    auto pIt = font.characters.find('P');
-    if (pIt != font.characters.end())
-    {
-        font.pHeight = pIt->second.height;
-        font.pStart = font.offsetY - pIt->second.bearingY;
-    }
+    outFont.offsetY = static_cast<float>(offsetYPhysical) / renderScale;
 
-    // --- Upload atlas as R8_UNORM device-local texture ---
+    auto pIt = outFont.characters.find('P');
+    if (pIt != outFont.characters.end())
+    {
+        outFont.pHeight = pIt->second.height;
+        outFont.pStart = outFont.offsetY - pIt->second.bearingY;
+    }
+}
+
+void UiFontManager::UploadGlyphAtlas(Font &font, const std::vector<uint8_t> &atlas, int textureWidth,
+                                     int textureHeight)
+{
     const VkDeviceSize imageSize = atlas.size();
     constexpr VkFormat format = VK_FORMAT_R8_UNORM;
 
@@ -155,6 +164,32 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.maxLod = 1.0f;
     CheckVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &font.sampler), "vkCreateSampler (font atlas)");
+}
+
+void UiFontManager::DestroyFontImageResources(Font &font)
+{
+    if (font.sampler != VK_NULL_HANDLE)
+        vkDestroySampler(m_device, font.sampler, nullptr);
+    if (font.view != VK_NULL_HANDLE)
+        vkDestroyImageView(m_device, font.view, nullptr);
+    if (font.image != VK_NULL_HANDLE)
+        vkDestroyImage(m_device, font.image, nullptr);
+    if (font.memory != VK_NULL_HANDLE)
+        vkFreeMemory(m_device, font.memory, nullptr);
+
+    font.image = VK_NULL_HANDLE;
+    font.view = VK_NULL_HANDLE;
+    font.sampler = VK_NULL_HANDLE;
+    font.memory = VK_NULL_HANDLE;
+}
+
+UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int pixelHeight, float renderScale)
+{
+    Font font;
+    std::vector<uint8_t> atlas;
+    int textureWidth = 0, textureHeight = 0;
+    BakeGlyphAtlas(ttfBytes, pixelHeight, renderScale, font, atlas, textureWidth, textureHeight);
+    UploadGlyphAtlas(font, atlas, textureWidth, textureHeight);
 
     VkDescriptorSetAllocateInfo setAllocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     setAllocInfo.descriptorPool = m_descriptorPool;
@@ -180,6 +215,39 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
     return UiFontHandle{static_cast<int>(m_fonts.size()) - 1};
 }
 
+void UiFontManager::RebakeFont(UiFontHandle handle, const std::vector<uint8_t> &ttfBytes, int pixelHeight,
+                               float renderScale)
+{
+    if (!handle.IsValid())
+        return;
+
+    Font newFont;
+    std::vector<uint8_t> atlas;
+    int textureWidth = 0, textureHeight = 0;
+    BakeGlyphAtlas(ttfBytes, pixelHeight, renderScale, newFont, atlas, textureWidth, textureHeight);
+    UploadGlyphAtlas(newFont, atlas, textureWidth, textureHeight);
+
+    Font &font = m_fonts[handle.id];
+    const VkDescriptorSet descriptorSet = font.descriptorSet; // reused, not reallocated
+    DestroyFontImageResources(font);
+
+    newFont.descriptorSet = descriptorSet;
+    font = std::move(newFont);
+
+    VkDescriptorImageInfo imageDescInfo{};
+    imageDescInfo.sampler = font.sampler;
+    imageDescInfo.imageView = font.view;
+    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    write.dstSet = font.descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imageDescInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+}
+
 float UiFontManager::GetTextWidth(UiFontHandle handle, const std::string &text) const
 {
     if (!handle.IsValid())
@@ -195,12 +263,12 @@ float UiFontManager::GetTextWidth(UiFontHandle handle, const std::string &text) 
     return width;
 }
 
-int UiFontManager::GetFontPHeight(UiFontHandle handle) const
+float UiFontManager::GetFontPHeight(UiFontHandle handle) const
 {
-    return handle.IsValid() ? m_fonts[handle.id].pHeight : 0;
+    return handle.IsValid() ? m_fonts[handle.id].pHeight : 0.0f;
 }
 
-int UiFontManager::GetFontPStart(UiFontHandle handle) const
+float UiFontManager::GetFontPStart(UiFontHandle handle) const
 {
-    return handle.IsValid() ? m_fonts[handle.id].pStart : 0;
+    return handle.IsValid() ? m_fonts[handle.id].pStart : 0.0f;
 }

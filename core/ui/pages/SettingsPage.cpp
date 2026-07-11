@@ -26,11 +26,11 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     // MenuLabel centers text within its box, so measure the actual text
     // width and size the box to match - that's what makes it right-aligned
     // against kMenuContentX instead of just centered somewhere near it.
-    const int versionWidth = static_cast<int>(ui.GetTextWidth(resources.smallFont, kVersionString)) + 1;
-    constexpr int kVersionHeight = 16;
+    const float versionWidth = ui.GetTextWidth(resources.smallFont, kVersionString) + 0.5f;
+    constexpr float kVersionHeight = 8.0f;
     auto versionLabel = std::make_shared<MenuLabel>(
         ui, resources.smallFont, kVersionString,
-        kMenuWidth - 10 - versionWidth, kMenuHeight - kBottomHeight - kVersionHeight - 8,
+        kMenuWidth - 5.0f - versionWidth, kMenuHeight - kBottomHeight - kVersionHeight - 4.0f,
         versionWidth, kVersionHeight, kMenuVersionColor);
     m_menu.MenuItems.push_back(versionLabel);
 
