@@ -82,6 +82,7 @@ public:
     // cornerRadiusPx > 0 rounds all four corners (antialiased); 0 (default)
     // is a plain sharp-cornered rect.
     void DrawQuad(float x, float y, float w, float h, const XrColor4f &color);
+    void DrawQuadRounded(float x, float y, float w, float h, const XrColor4f &color, float cornerRadiusPx);
     void DrawText(UiFontHandle font, const std::string &text, float x, float y, float scale, const XrColor4f &color);
     // Stretches the whole image into the given destination rect (in target
     // pixels). Pass an already integer-scaled rect for a pixel-perfect look

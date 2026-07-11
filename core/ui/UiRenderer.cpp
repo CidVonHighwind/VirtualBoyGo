@@ -428,6 +428,11 @@ void UiRenderer::DrawQuad(float x, float y, float w, float h, const XrColor4f &c
     DrawUnitQuad(m_solidPipeline, m_solidPipelineLayout, VK_NULL_HANDLE, x, y, w, h, 0, 0, 1, 1, color, 0.0f);
 }
 
+void UiRenderer::DrawQuadRounded(float x, float y, float w, float h, const XrColor4f &color, float cornerRadiusPx)
+{
+    DrawUnitQuad(m_solidPipeline, m_solidPipelineLayout, VK_NULL_HANDLE, x, y, w, h, 0, 0, 1, 1, color, cornerRadiusPx);
+}
+
 void UiRenderer::DrawText(UiFontHandle fontHandle, const std::string &text, float x, float y, float scale,
                           const XrColor4f &color)
 {

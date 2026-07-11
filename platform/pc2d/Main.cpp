@@ -26,32 +26,43 @@
 #include <string>
 #include <vector>
 
-namespace {
+namespace
+{
 
-void CheckVk(VkResult result, const char* what) {
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(std::string("Vulkan call failed: ") + what + " (" + std::to_string(result) + ")");
+    void CheckVk(VkResult result, const char *what)
+    {
+        if (result != VK_SUCCESS)
+        {
+            throw std::runtime_error(std::string("Vulkan call failed: ") + what + " (" + std::to_string(result) + ")");
+        }
     }
-}
 
-void PollKeyboardButtonState(GLFWwindow* window, uint32_t buttonStates[3]) {
-    using namespace ButtonMapper;
-    buttonStates[DeviceGamepad] = 0;
-    buttonStates[DeviceLeftTouch] = 0;
-    buttonStates[DeviceRightTouch] = 0;
+    void PollKeyboardButtonState(GLFWwindow *window, uint32_t buttonStates[3])
+    {
+        using namespace ButtonMapper;
+        buttonStates[DeviceGamepad] = 0;
+        buttonStates[DeviceLeftTouch] = 0;
+        buttonStates[DeviceRightTouch] = 0;
 
-    uint32_t& bits = buttonStates[DeviceRightTouch];
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_Up];
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_Down];
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_Left];
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_Right];
-    if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_A];
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) bits |= ButtonMapping[EmuButton_B];
-}
+        uint32_t &bits = buttonStates[DeviceRightTouch];
+        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_Up];
+        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_Down];
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_Left];
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_Right];
+        if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_A];
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            bits |= ButtonMapping[EmuButton_B];
+    }
 
-}  // namespace
+} // namespace
 
-int main() {
+int main()
+{
     // Peek the game image's dimensions up front (pure file IO, no Vulkan
     // device needed yet) so its native resolution can size the window
     // before glfwCreateWindow - the window must exist before the Vulkan
@@ -60,29 +71,34 @@ int main() {
     // re-reads/re-decodes the same file itself once the device exists.
     const std::vector<uint8_t> gameImageBytes = LoadAssetBytes("game_image.png");
     int gameImageNativeWidth = 0, gameImageNativeHeight = 0;
-    if (!gameImageBytes.empty()) {
+    if (!gameImageBytes.empty())
+    {
         int comp = 0;
         stbi_info_from_memory(gameImageBytes.data(), static_cast<int>(gameImageBytes.size()), &gameImageNativeWidth,
                               &gameImageNativeHeight, &comp);
-    } else {
+    }
+    else
+    {
         std::fprintf(stderr, "VirtualBoyGo 2D: game_image.png not found next to the exe\n");
     }
     // Window is sized to exactly fit the upscaled game screen; the menu is
     // a smaller fixed-size (AppMenu::kMenuWidth/kMenuHeight) panel composited
     // (rounded corners and all) at a centered offset within it, not the
     // window's full size.
-    const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale : AppMenu::kMenuWidth;
-    const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale : AppMenu::kMenuHeight;
+    const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale : kMenuWidth;
+    const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale : kMenuHeight;
 
-    if (!glfwInit()) {
+    if (!glfwInit())
+    {
         std::fprintf(stderr, "VirtualBoyGo 2D: glfwInit failed\n");
         return 1;
     }
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "VirtualBoyGo (2D debug)", nullptr, nullptr);
-    if (!window) {
+    GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "VirtualBoyGo (2D debug)", nullptr, nullptr);
+    if (!window)
+    {
         std::fprintf(stderr, "VirtualBoyGo 2D: glfwCreateWindow failed\n");
         glfwTerminate();
         return 1;
@@ -97,10 +113,11 @@ int main() {
     VkFence acquireFence = VK_NULL_HANDLE;
     int exitCode = 0;
 
-    try {
+    try
+    {
         uint32_t glfwExtCount = 0;
-        const char** glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
-        const std::vector<const char*> instanceExtensions(glfwExts, glfwExts + glfwExtCount);
+        const char **glfwExts = glfwGetRequiredInstanceExtensions(&glfwExtCount);
+        const std::vector<const char *> instanceExtensions(glfwExts, glfwExts + glfwExtCount);
 
         VkInstance instance = renderer.CreateInstanceStandalone(instanceExtensions);
         CheckVk(glfwCreateWindowSurface(instance, window, nullptr, &surface), "glfwCreateWindowSurface");
@@ -113,8 +130,10 @@ int main() {
         std::vector<VkSurfaceFormatKHR> formats(formatCount);
         vkGetPhysicalDeviceSurfaceFormatsKHR(renderer.GetPhysicalDevice(), surface, &formatCount, formats.data());
         VkSurfaceFormatKHR chosen = formats.empty() ? VkSurfaceFormatKHR{VK_FORMAT_B8G8R8A8_SRGB} : formats[0];
-        for (const auto& f : formats) {
-            if (f.format == VK_FORMAT_B8G8R8A8_SRGB || f.format == VK_FORMAT_R8G8B8A8_SRGB) {
+        for (const auto &f : formats)
+        {
+            if (f.format == VK_FORMAT_B8G8R8A8_SRGB || f.format == VK_FORMAT_R8G8B8A8_SRGB)
+            {
                 chosen = f;
                 break;
             }
@@ -145,13 +164,13 @@ int main() {
         vkGetSwapchainImagesKHR(renderer.GetDevice(), swapchain, &imageCount, swapchainImages.data());
 
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
-                             renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
+                              renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
         emulator.Initialize(uiRenderer);
         appMenu.Initialize(uiRenderer, chosen.format);
 
         // Menu panel is centered within the (larger) window.
-        const float menuX = (static_cast<float>(windowWidth) - AppMenu::kMenuWidth) / 2.0f;
-        const float menuY = (static_cast<float>(windowHeight) - AppMenu::kMenuHeight) / 2.0f;
+        const float menuX = (static_cast<float>(windowWidth) - kMenuWidth) / 2.0f;
+        const float menuY = (static_cast<float>(windowHeight) - kMenuHeight) / 2.0f;
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");
@@ -162,7 +181,8 @@ int main() {
         uint32_t lastButtonStates[3]{};
         auto lastFrameTime = std::chrono::steady_clock::now();
 
-        while (!glfwWindowShouldClose(window)) {
+        while (!glfwWindowShouldClose(window))
+        {
             glfwPollEvents();
 
             const auto now = std::chrono::steady_clock::now();
@@ -178,7 +198,8 @@ int main() {
             uint32_t imageIndex = 0;
             const VkResult acquireResult = vkAcquireNextImageKHR(renderer.GetDevice(), swapchain, UINT64_MAX,
                                                                  VK_NULL_HANDLE, acquireFence, &imageIndex);
-            if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR) {
+            if (acquireResult != VK_SUCCESS && acquireResult != VK_SUBOPTIMAL_KHR)
+            {
                 // e.g. VK_ERROR_OUT_OF_DATE_KHR - window resize isn't handled
                 // in this first version (fixed-size, non-resizable window).
                 continue;
@@ -190,7 +211,8 @@ int main() {
             // without a rendering-finished semaphore.
             uiRenderer.BeginFrame(swapchainImages[imageIndex], chosen.format, extent.width, extent.height,
                                   appMenu.GetBackgroundColor());
-            if (emulator.HasScreen()) {
+            if (emulator.HasScreen())
+            {
                 emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height));
             }
             appMenu.Draw(uiRenderer, menuX, menuY);
@@ -204,17 +226,22 @@ int main() {
         }
 
         vkDeviceWaitIdle(renderer.GetDevice());
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
         std::fprintf(stderr, "VirtualBoyGo 2D: %s\n", ex.what());
         exitCode = 1;
     }
 
-    if (acquireFence != VK_NULL_HANDLE) vkDestroyFence(renderer.GetDevice(), acquireFence, nullptr);
-    if (swapchain != VK_NULL_HANDLE) vkDestroySwapchainKHR(renderer.GetDevice(), swapchain, nullptr);
+    if (acquireFence != VK_NULL_HANDLE)
+        vkDestroyFence(renderer.GetDevice(), acquireFence, nullptr);
+    if (swapchain != VK_NULL_HANDLE)
+        vkDestroySwapchainKHR(renderer.GetDevice(), swapchain, nullptr);
     // Surface must be destroyed before the instance - renderer.Shutdown()
     // destroys the instance, so this has to happen first. uiRenderer also
     // owns Vulkan resources backed by renderer's device, so it must go first.
-    if (surface != VK_NULL_HANDLE) vkDestroySurfaceKHR(renderer.GetInstance(), surface, nullptr);
+    if (surface != VK_NULL_HANDLE)
+        vkDestroySurfaceKHR(renderer.GetInstance(), surface, nullptr);
     uiRenderer.Shutdown();
     renderer.Shutdown();
 

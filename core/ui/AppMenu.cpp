@@ -1,34 +1,20 @@
 #include "AppMenu.h"
 #include "AssetLoader.h"
 
+#include <cmath>
+
 namespace
 {
-    // Opaque - just the base canvas clear before anything else is drawn
-    // (the game layer, when present, gets drawn on top of this and covers
-    // most/all of it; any letterboxed edges show this color).
-    constexpr XrColor4f kClearColor{0.0f, 0.0f, 0.0f, 1.0f};
-
-    // Matches the original's Global.h colors 1:1 (MenuBackgroundColor,
-    // MenuBackgroundOverlayHeader/Light, headerTextColor, textColor,
-    // textSelectionColor). Drawn as a real blended quad (not the frame's
-    // clear) so alpha < 1 actually shows whatever's underneath - the game
-    // layer on PC2D, or just kClearColor elsewhere.
-    constexpr float lightGray = 0.35f;
-    constexpr float darkGray = 0.2f;
-    constexpr XrColor4f kBodyColor{darkGray, darkGray, darkGray, 0.975f};
-    constexpr XrColor4f kOverlayColor{lightGray, lightGray, lightGray, 0.98f};
-
-    constexpr XrColor4f kHeaderTextColor{0.9f, 0.1f, 0.1f, 1.0f};
-    constexpr XrColor4f kHeaderTextBackColor{0.0f, 0.0f, 0.0f, 0.45f};
-
-    constexpr XrColor4f kMenuTextColor{0.8f, 0.8f, 0.8f, 1.0f};
-    constexpr XrColor4f kMenuSelectionColor{0.9f, 0.1f, 0.1f, 1.0f};
-
-    // Matches the original's fontHeader (VirtualLogo.ttf) and fontMenu
-    // (Roboto-Regular.ttf) sizes.
+    constexpr XrColor4f kClearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+    constexpr XrColor4f kBodyColor = {0.2f, 0.2f, 0.2f, 0.975f};
+    constexpr XrColor4f kOverlayColor = {0.35f, 0.35f, 0.35f, 0.98f};
+    constexpr XrColor4f kHeaderTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
+    constexpr XrColor4f kHeaderTextBackColor = {0.0f, 0.0f, 0.0f, 0.45f};
     constexpr int kHeaderFontSize = 65;
-    constexpr int kMenuFontSize = 24;
 } // namespace
+
+// -----------------------------------------------------------------------
+// Initialise
 
 void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
 {
@@ -37,56 +23,123 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
     m_titleFont = ui.LoadFont(headerFontBytes, kHeaderFontSize);
     m_menuFont = ui.LoadFont(menuFontBytes, kMenuFontSize);
     m_offscreenTexture = ui.CreateRenderTexture(kMenuWidth, kMenuHeight, targetFormat);
-    SetUpMenu(ui);
-    m_mainMenu.Init();
+
+    InitPages(ui);
+    m_currentPage = &m_mainPage;
 }
 
-void AppMenu::SetUpMenu(UiRenderer &ui)
+void AppMenu::InitPages(UiRenderer &ui)
 {
-    // Placeholder buttons - no emulator/ROM logic exists yet, so these are
-    // inert for this pass. Matches the original's main-menu-page layout
-    // (SetUpMenu in Menu.cpp): left-aligned at (20, HEADER_HEIGHT + 20),
-    // stacked by menuItemSize = fontMenu.FontSize + 4 apart.
-    const int posX = 20;
-    const int menuItemSize = kMenuFontSize + 4;
-    int posY = kHeaderHeight + 20;
-
-    auto addButton = [&](const std::string &text)
+    // Wire Navigate callbacks for all pages before calling Init() on any.
+    auto wireNavigate = [&](MenuPage &page)
     {
-        auto button = std::make_shared<MenuButton>(ui, m_menuFont, text, posX, posY, nullptr);
-        button->Color = kMenuTextColor;
-        button->SelectionColor = kMenuSelectionColor;
-        m_mainMenu.MenuItems.push_back(button);
-        posY += menuItemSize;
+        page.Navigate = [this](MenuPage *target, int dir)
+        {
+            StartTransition(target, dir);
+        };
     };
 
-    addButton("Resume");
-    addButton("Load ROM");
-    addButton("Settings");
-    addButton("Exit");
+    wireNavigate(m_mainPage);
+    wireNavigate(m_settingsPage);
+    wireNavigate(m_romSelectPage);
+    wireNavigate(m_menuButtonMapPage);
+    wireNavigate(m_emulatorButtonMapPage);
+    wireNavigate(m_moveScreenPage);
+
+    // Cross-page links
+    m_mainPage.romSelectPage = &m_romSelectPage;
+    m_mainPage.settingsPage = &m_settingsPage;
+
+    m_settingsPage.mainPage = &m_mainPage;
+    m_settingsPage.menuButtonMapPage = &m_menuButtonMapPage;
+    m_settingsPage.emulatorButtonMapPage = &m_emulatorButtonMapPage;
+    m_settingsPage.moveScreenPage = &m_moveScreenPage;
+
+    m_romSelectPage.mainPage = &m_mainPage;
+    m_menuButtonMapPage.settingsPage = &m_settingsPage;
+    m_emulatorButtonMapPage.settingsPage = &m_settingsPage;
+    m_moveScreenPage.settingsPage = &m_settingsPage;
+
+    // Init all pages
+    m_mainPage.Init(ui, m_menuFont);
+    m_settingsPage.Init(ui, m_menuFont);
+    m_romSelectPage.Init(ui, m_menuFont);
+    m_menuButtonMapPage.Init(ui, m_menuFont);
+    m_emulatorButtonMapPage.Init(ui, m_menuFont);
+    m_moveScreenPage.Init(ui, m_menuFont);
 }
 
-XrColor4f AppMenu::GetBackgroundColor() const { return kClearColor; }
+// -----------------------------------------------------------------------
+// Navigation
+
+void AppMenu::StartTransition(MenuPage *target, int dir)
+{
+    if (!target || m_nextPage)
+        return; // ignore if already transitioning
+    m_nextPage = target;
+    m_transitionDir = dir;
+    m_transitionState = 1.0f;
+}
+
+// -----------------------------------------------------------------------
+// Update
 
 void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds)
 {
-    m_mainMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
+    if (m_transitionState > 0.0f)
+    {
+        m_transitionState -= deltaSeconds / kTransitionSpeed;
+        if (m_transitionState <= 0.0f)
+        {
+            m_transitionState = 0.0f;
+            m_currentPage = m_nextPage;
+            m_nextPage = nullptr;
+        }
+        return; // don't process input during transition
+    }
+
+    if (m_currentPage)
+        m_currentPage->Update(buttonStates, lastButtonStates, deltaSeconds);
 }
+
+// -----------------------------------------------------------------------
+// Rendering
+
+XrColor4f AppMenu::GetBackgroundColor() const { return kClearColor; }
 
 void AppMenu::RenderContent(UiRenderer &ui)
 {
-    // Plain sharp-cornered shapes throughout - rounding happens once, at
-    // the whole-buffer level, in Draw()'s compositing step below.
+    // Background regions
     ui.DrawQuad(0, 0, kMenuWidth, kHeaderHeight, kOverlayColor);
     ui.DrawQuad(0, kHeaderHeight, kMenuWidth, kMenuHeight - kHeaderHeight - kBottomHeight, kBodyColor);
     ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kOverlayColor);
 
+    // Centred header title
     const int headerTextY = kHeaderHeight / 2 - ui.GetFontPHeight(m_titleFont) / 2 - ui.GetFontPStart(m_titleFont);
     const float headerTextX = (kMenuWidth - ui.GetTextWidth(m_titleFont, "VirtualBoyGo")) / 2.0f;
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX + 1, static_cast<float>(headerTextY) + 1, 1.0f, kHeaderTextBackColor);
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX, static_cast<float>(headerTextY), 1.0f, kHeaderTextColor);
 
-    m_mainMenu.Draw(ui, 0, 0, 0, 0, 1.0f);
+    // Draw current page + next page (sliding in/out).
+    // Matches the reference (FrontendGo MenuGo::DrawMenu):
+    //   - current page starts at its natural position (offset 0) and slides away
+    //   - next page starts displaced by dist and slides in to offset 0
+    //   - dist is small (75px) so neither page ever leaves the visible area
+    if (m_transitionState > 0.0f && m_nextPage)
+    {
+        const float rawProgress = m_transitionState; // 1.0 -> 0.0
+        const float eased = std::sinf(rawProgress * (3.14159265f / 2.0f));
+        const int dist = 75;
+
+        // Current page: offset ramps from 0 up to dist (slides away)
+        m_currentPage->Draw(ui, -m_transitionDir, 1.0f - eased, dist, rawProgress);
+        // Next page: offset ramps from dist down to 0 (slides in)
+        m_nextPage->Draw(ui, m_transitionDir, eased, dist, 1.0f - rawProgress);
+    }
+    else if (m_currentPage)
+    {
+        m_currentPage->Draw(ui, 0, 0.0f, 0, 1.0f);
+    }
 }
 
 void AppMenu::RenderToBuffer(UiRenderer &ui)
