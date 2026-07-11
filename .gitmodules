@@ -1,0 +1,3 @@
+[submodule "External/OpenXR-SDK-Source"]
+	path = External/OpenXR-SDK-Source
+	url = https://github.com/KhronosGroup/OpenXR-SDK-Source.git

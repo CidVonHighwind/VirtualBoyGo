@@ -1,50 +1,27 @@
-# VirtualBoyGo
-A Virtual Boy emulator for the Oculus Quest based on the Mednafen Virtual Boy emulator.
+# VirtualBoyGo (Rework branch)
 
-The emulator can be downloaded from SideQuest: https://sidequestvr.com/app/125/virtualboygo
+This branch is a from-scratch rework of VirtualBoyGo targeting **OpenXR**
+instead of the legacy, Quest-only Oculus VrApi/SampleFramework stack used on
+`master`. The goal is a single OpenXR-based app that runs on Quest, Frame,
+and other Android VR headsets, plus a PC build for fast desktop debugging.
 
-The font used in the emulator header is from https://www.planetvb.com/modules/newbb/viewtopic.php?post_id=10801#forumpost10801
+## Current status
 
-| ![0](images/0.jpg)	| ![0](images/1.jpg)	|
-| --------------------- | --------------------- |
-| ![0](images/2.jpg)	| ![1](images/3.jpg)	|
+Starting point only: the [Khronos `hello_xr` sample](https://github.com/KhronosGroup/OpenXR-SDK-Source/tree/main/src/tests/hello_xr),
+pulled in unmodified via the `External/OpenXR-SDK-Source` submodule, proven
+to build and install on Quest. No VirtualBoyGo/FrontendGo application logic
+has been ported over yet - that's the next step, integrating the emulator
+core and menu/UI (`FrontendGo`) into this OpenXR app shell.
 
-## Compiling
+## Building the OpenXR test app (Quest)
 
-- download the "Mobile SDK 33.0 (API 1.50)" https://developer.oculus.com/downloads/package/oculus-mobile-sdk
+Requires Android SDK (compileSdk 34, build-tools 34.0.0) + NDK 23.2.8568313 +
+CMake 3.22.1 installed (e.g. via `sdkmanager`).
 
-- create a folder named VBGo inside the "ovr_sdk_mobile_1.50.0" folder
-
-- clone this repo into the VBGo folder
-
-- clone https://github.com/CidVonHighwind/FrontendGo into the VBGo folder
-
-- clone https://github.com/CidVonHighwind/BeetleVBLibretroGo into the VBGo folder
-
-- open "ovr_sdk_mobile_1.50.0/cflags.mk"
-
-  - remove or comment out "LOCAL_CFLAGS	+= -Werror" and "LOCAL_CFLAGS	+= -Wshadow"
-
-  - add this at the end of the file:
-
-    LOCAL_CFLAGS += -Wno-sign-compare
-    LOCAL_CFLAGS += -Wno-format
-    LOCAL_CFLAGS += -Wno-unused-variable
-    LOCAL_CFLAGS += -Wno-unused-function
-    LOCAL_CFLAGS += -Wno-ignored-qualifiers
-    LOCAL_CFLAGS += -Wno-sign-compare
-    LOCAL_CFLAGS += -Wno-dangling-else
-    LOCAL_CFLAGS += -Wno-deprecated-declarations
-    LOCAL_CFLAGS += -frtti
-
-- download "FreeType 2.10.0" https://download.savannah.gnu.org/releases/freetype/ and copy the "include" and the "src" folder into the newly created "ovr_sdk_mobile_1.50.0/VBGo/FreeType/" folder
-- Copy "Android.mk" and "Application.mk" from the "FrontendGo/freetype mk" into "ovr_sdk_mobile_1.50.0/VBGo/FreeType/"
-
-- download "gli 0.8.2.0" https://github.com/g-truc/gli/releases and copy the gli folder (the one next to doc, test, util, etc.) into "ovr_sdk_mobile_1.50.0/VBGo/"
-
-- download "glm 0.9.8.0" https://github.com/g-truc/glm/releases/tag/0.9.8.0 and copy the glm folder (the one next to doc, test, util, etc.) into "ovr_sdk_mobile_1.50.0/VBGo/"
-
-- the VBGo folder should now look like this:
- ![0](images/folder.png)
-
-- in Android Studio open ovr_sdk_mobile_1.50.0/VirtualBoyGo/Projects/Android
+```
+git submodule update --init --recursive
+cd External/OpenXR-SDK-Source/src/tests/hello_xr
+echo "sdk.dir=/path/to/Android/Sdk" > local.properties   # forward slashes, even on Windows
+./gradlew assembleOpenGLESDebug
+adb install -r build/outputs/apk/OpenGLES/debug/hello_xr-OpenGLES-debug.apk
+```
