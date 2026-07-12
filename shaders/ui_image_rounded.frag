@@ -4,6 +4,7 @@ layout(location = 0) in vec2 vUV;
 layout(location = 1) in vec4 vColor;
 layout(location = 2) in vec2 vSizePx;
 layout(location = 3) in float vCornerRadiusPx;
+layout(location = 4) in float vPixelScale;
 layout(location = 0) out vec4 outColor;
 
 layout(binding = 0) uniform sampler2D uImage;
@@ -21,6 +22,9 @@ void main() {
     vec4 texColor = texture(uImage, vUV);
     vec2 localPx = vUV * vSizePx;
     float dist = RoundedBoxSDF(localPx - vSizePx * 0.5, vSizePx * 0.5, vCornerRadiusPx);
-    float shapeAlpha = 1.0 - smoothstep(-1.0, 1.0, dist);
+    // See ui_solid.frag - dist is in logical units, so the ~1-physical-pixel
+    // AA band has to be scaled by vPixelScale to stay 1 physical pixel wide.
+    float aaWidth = 1.0 / vPixelScale;
+    float shapeAlpha = 1.0 - smoothstep(-aaWidth, aaWidth, dist);
     outColor = vec4(texColor.rgb, texColor.a * shapeAlpha);
 }

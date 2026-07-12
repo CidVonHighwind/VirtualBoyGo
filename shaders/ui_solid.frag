@@ -4,6 +4,7 @@ layout(location = 0) in vec2 vUV;
 layout(location = 1) in vec4 vColor;
 layout(location = 2) in vec2 vSizePx;
 layout(location = 3) in float vCornerRadiusPx;
+layout(location = 4) in float vPixelScale;
 layout(location = 0) out vec4 outColor;
 
 // Rounded-box SDF (Inigo Quilez's formula) - degenerates to a plain
@@ -22,8 +23,12 @@ void main() {
     } else {
         vec2 localPx = vUV * vSizePx;
         float dist = RoundedBoxSDF(localPx - vSizePx * 0.5, vSizePx * 0.5, vCornerRadiusPx);
-        // ~1px antialiased edge falloff.
-        shapeAlpha = 1.0 - smoothstep(-1.0, 1.0, dist);
+        // ~1 physical pixel antialiased edge falloff - dist is in logical
+        // units, so the band's logical-unit width has to shrink as
+        // vPixelScale grows to stay 1 physical pixel wide (see PushConstants'
+        // pixelScale comment).
+        float aaWidth = 1.0 / vPixelScale;
+        shapeAlpha = 1.0 - smoothstep(-aaWidth, aaWidth, dist);
     }
 
     // vColor is authored in gamma (sRGB) space, but this pipeline renders

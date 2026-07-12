@@ -32,6 +32,7 @@ namespace
     constexpr float kBatteryBlockHeight = 8.0f;
     constexpr float kBatteryPadding = 1.0f;
     constexpr float kBatteryCornerRadiusPx = 1.5f;
+    constexpr float kBatteryCornerInsideRadiusPx = 1.0f;
     constexpr XrColor4f kBatteryBackgroundColor = {0.25f, 0.25f, 0.25f, 1.0f};
     // The gradient walks red -> orange -> yellow -> green as the level
     // rises; two flat plateaus (indices 3-4 and 5-6) are intentional,
@@ -235,7 +236,7 @@ void AppMenu::RenderContent(UiRenderer &ui)
 
         const float fillHeight = m_batteryPercent / 100.0f * kBatteryBlockHeight;
         ui.DrawQuadRounded(blockX, blockY + (kBatteryBlockHeight - fillHeight), kBatteryBlockWidth, fillHeight,
-                           BatteryColorForPercent(m_batteryPercent), kBatteryCornerRadiusPx);
+                           BatteryColorForPercent(m_batteryPercent), kBatteryCornerInsideRadiusPx);
 
         const std::string batteryText = std::to_string(m_batteryPercent) + "%";
         const float textWidth = ui.GetTextWidth(m_resources.smallFont, batteryText);

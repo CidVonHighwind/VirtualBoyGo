@@ -149,6 +149,15 @@ private:
         float color[4];
         float screenSizePx[2];
         float cornerRadiusPx; // only read by ui_image_rounded.frag
+        // Physical pixels per logical unit (m_pixelScale) - ui_solid.frag and
+        // ui_image_rounded.frag's rounded-corner SDF antialiasing band is
+        // authored as a fixed width in *physical* pixels, but dist is
+        // computed in logical units (vSizePx), so it needs this to convert.
+        // Without it, the AA band is 1 logical unit wide instead of 1
+        // physical pixel, which is fine at scale 1 but gets visibly blurrier
+        // as m_menuScale grows (a scale-4 corner would blur across 4
+        // physical pixels instead of 1).
+        float pixelScale;
     };
 
 private:
@@ -229,11 +238,10 @@ private:
     float m_frameWidth{0};
     float m_frameHeight{0};
     // Physical pixels per logical unit for the current frame (1.0 outside
-    // BeginOffscreenFrame's logical/physical split - see DrawText's use of
-    // this for why it matters: a text quad positioned at a fractional
-    // physical pixel makes the GPU's bilinear atlas sampling blend a glyph's
-    // edge texels with the atlas's blank padding, softening/clipping that
-    // edge - most visible on descenders. Snapping to the physical pixel
-    // grid before drawing avoids that regardless of scale.
+    // BeginOffscreenFrame's logical/physical split). DrawUnitQuad uses this
+    // to snap every quad's edges to the physical pixel grid - a fractional
+    // physical-pixel edge makes bilinear texture sampling (text glyphs,
+    // images) blend the edge texel with whatever's next to it in the atlas,
+    // typically blank padding, softening/clipping that edge.
     float m_pixelScale{1.0f};
 };

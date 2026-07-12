@@ -495,11 +495,24 @@ void UiRenderer::DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDe
     if (descriptorSet != VK_NULL_HANDLE)
         vkCmdBindDescriptorSets(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &descriptorSet, 0, nullptr);
 
+    // Snap both edges to the physical pixel grid, not just the origin -
+    // rounding x/y alone while leaving w/h untouched would still leave the
+    // far edge (x+w, y+h) fractional, and independently rounding w/h would
+    // make adjacent quads (e.g. consecutive list rows) drift apart instead
+    // of sharing an edge. A fractional physical-pixel edge is otherwise
+    // invisible on solid-color quads but makes bilinear texture sampling
+    // (text glyphs, images) blend the edge texel with whatever's next to it
+    // in the atlas - typically blank padding - fading/clipping that edge.
+    const float x0 = std::round(x * m_pixelScale) / m_pixelScale;
+    const float y0 = std::round(y * m_pixelScale) / m_pixelScale;
+    const float x1 = std::round((x + w) * m_pixelScale) / m_pixelScale;
+    const float y1 = std::round((y + h) * m_pixelScale) / m_pixelScale;
+
     PushConstants pc{};
-    pc.posPx[0] = x;
-    pc.posPx[1] = y;
-    pc.sizePx[0] = w;
-    pc.sizePx[1] = h;
+    pc.posPx[0] = x0;
+    pc.posPx[1] = y0;
+    pc.sizePx[0] = x1 - x0;
+    pc.sizePx[1] = y1 - y0;
     pc.uvRect[0] = u0;
     pc.uvRect[1] = v0;
     pc.uvRect[2] = u1;
@@ -511,6 +524,7 @@ void UiRenderer::DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDe
     pc.screenSizePx[0] = m_frameWidth;
     pc.screenSizePx[1] = m_frameHeight;
     pc.cornerRadiusPx = cornerRadiusPx;
+    pc.pixelScale = m_pixelScale;
     vkCmdPushConstants(m_commandBuffer, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pc);
 
     vkCmdDraw(m_commandBuffer, 6, 1, 0, 0);
@@ -542,14 +556,9 @@ void UiRenderer::DrawText(UiFontHandle fontHandle, const std::string &text, floa
             continue;
         const UiFontManager::Character &ch = it->second;
 
-        // Snap to the physical pixel grid: the glyph quad's rendered size
-        // matches its atlas texel footprint exactly (see LoadFont's
-        // renderScale), so a fractional physical-pixel position is the only
-        // thing that can make the GPU's bilinear atlas sampling land off a
-        // texel centre and blend a glyph's edge row with the atlas's blank
-        // padding - most visible on descenders. See m_pixelScale's comment.
-        const float xpos = std::round((cursorX + ch.bearingX * scale) * m_pixelScale) / m_pixelScale;
-        const float ypos = std::round((y + f.offsetY - ch.bearingY) * m_pixelScale) / m_pixelScale;
+        // Pixel-grid snapping happens centrally in DrawUnitQuad.
+        const float xpos = cursorX + ch.bearingX * scale;
+        const float ypos = y + f.offsetY - ch.bearingY;
         const float cw = ch.width * scale;
         const float ch_h = ch.height * scale;
 

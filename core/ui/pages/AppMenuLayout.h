@@ -28,7 +28,7 @@ inline constexpr int kMenuWidth = 320;
 inline constexpr int kMenuHeight = 240;
 inline constexpr float kMenuScale = 2.0f;
 
-inline constexpr float kHeaderHeight = 37.5f;
+inline constexpr float kHeaderHeight = 35.0f;
 inline constexpr float kBottomHeight = 15.0f;
 inline constexpr float kMenuContentPadding = 3.0f;
 inline constexpr float kMenuContentX = 10.0f;

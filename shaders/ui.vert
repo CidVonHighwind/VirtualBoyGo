@@ -12,12 +12,14 @@ layout(push_constant) uniform PushConstants {
     vec4 color;
     vec2 screenSizePx;
     float cornerRadiusPx;  // only read by ui_solid.frag - 0 for a plain rect
+    float pixelScale;      // physical pixels per logical unit - see PushConstants comment
 } pc;
 
 layout(location = 0) out vec2 vUV;
 layout(location = 1) out vec4 vColor;
 layout(location = 2) out vec2 vSizePx;
 layout(location = 3) out float vCornerRadiusPx;
+layout(location = 4) out float vPixelScale;
 
 void main() {
     vec2 posPx = pc.posPx + inUnitPos * pc.sizePx;
@@ -27,4 +29,5 @@ void main() {
     vColor = pc.color;
     vSizePx = pc.sizePx;
     vCornerRadiusPx = pc.cornerRadiusPx;
+    vPixelScale = pc.pixelScale;
 }
