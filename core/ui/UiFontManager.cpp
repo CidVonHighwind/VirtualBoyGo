@@ -3,6 +3,7 @@
 #include "UiVulkanUtils.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -73,19 +74,6 @@ void UiFontManager::RasterizeAndPackGlyph(Font &font, char32_t codepoint)
 
     const FT_Bitmap &bitmap = font.ftFace->glyph->bitmap;
 
-    float descent = 0.0f;
-    if (descent < static_cast<float>(bitmap.rows) - font.ftFace->glyph->bitmap_top)
-        descent = static_cast<float>(bitmap.rows) - font.ftFace->glyph->bitmap_top;
-    float ascentCalc = (font.ftFace->glyph->bitmap_top < static_cast<int>(bitmap.rows))
-                           ? static_cast<float>(bitmap.rows)
-                           : static_cast<float>(font.ftFace->glyph->bitmap_top);
-    float ascent = 0.0f;
-    if (ascent < ascentCalc - descent)
-        ascent = ascentCalc - descent;
-    const float offsetYPhysical = ascent / font.renderScale;
-    if (font.offsetY < offsetYPhysical)
-        font.offsetY = offsetYPhysical;
-
     // Shelf-pack: wrap to a new row if this glyph doesn't fit the current
     // one, grow the atlas taller if it doesn't fit at all.
     if (font.packX + static_cast<int>(bitmap.width) + 1 > font.atlasWidth)
@@ -94,6 +82,7 @@ void UiFontManager::RasterizeAndPackGlyph(Font &font, char32_t codepoint)
         font.packY += font.packRowHeight + 2;
         font.packRowHeight = 0;
     }
+
     if (font.packY + static_cast<int>(bitmap.rows) + 1 > font.atlasHeight)
         GrowAtlasHeight(font, font.packY + static_cast<int>(bitmap.rows) + 1);
 
@@ -103,8 +92,10 @@ void UiFontManager::RasterizeAndPackGlyph(Font &font, char32_t codepoint)
         {
             const int dstX = font.packX + static_cast<int>(col);
             const int dstY = font.packY + static_cast<int>(row);
+
             if (dstX < 0 || dstX >= font.atlasWidth || dstY < 0 || dstY >= font.atlasHeight)
                 continue;
+
             font.atlasPixels[static_cast<size_t>(dstY) * font.atlasWidth + dstX] =
                 bitmap.buffer[row * bitmap.pitch + col];
         }
@@ -224,6 +215,11 @@ UiFontHandle UiFontManager::LoadFont(const std::vector<uint8_t> &ttfBytes, int p
                            &font.ftFace))
         throw std::runtime_error("UiFontManager: FT_New_Memory_Face failed");
     FT_Set_Pixel_Sizes(font.ftFace, 0, pixelHeight);
+    // Fixed once from the face's own metrics rather than accumulated from
+    // whichever glyphs happen to be baked - see the Font::offsetY comment
+    // for why growing it later (e.g. from a tall on-demand glyph) would
+    // desync every already-laid-out row's text position.
+    font.offsetY = static_cast<float>(font.ftFace->size->metrics.ascender >> 6) / font.renderScale;
 
     font.atlasWidth = 30 * pixelHeight;
     font.atlasHeight = 8 * pixelHeight;
@@ -281,6 +277,7 @@ void UiFontManager::RebakeFont(UiFontHandle handle, const std::vector<uint8_t> &
                            &newFont.ftFace))
         throw std::runtime_error("UiFontManager: FT_New_Memory_Face failed");
     FT_Set_Pixel_Sizes(newFont.ftFace, 0, pixelHeight);
+    newFont.offsetY = static_cast<float>(newFont.ftFace->size->metrics.ascender >> 6) / newFont.renderScale;
 
     newFont.atlasWidth = 30 * pixelHeight;
     newFont.atlasHeight = 8 * pixelHeight;
@@ -362,4 +359,17 @@ float UiFontManager::GetFontPHeight(UiFontHandle handle) const
 float UiFontManager::GetFontPStart(UiFontHandle handle) const
 {
     return handle.IsValid() ? m_fonts[handle.id]->pStart : 0.0f;
+}
+
+void UiFontManager::DebugDumpAtlas(UiFontHandle handle, const char *path) const
+{
+    if (!handle.IsValid())
+        return;
+    const Font &font = *m_fonts[handle.id];
+    std::FILE *f = std::fopen(path, "wb");
+    if (!f)
+        return;
+    std::fprintf(f, "P5\n%d %d\n255\n", font.atlasWidth, font.atlasHeight);
+    std::fwrite(font.atlasPixels.data(), 1, font.atlasPixels.size(), f);
+    std::fclose(f);
 }

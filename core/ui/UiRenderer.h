@@ -45,6 +45,8 @@ public:
     // content is set (not while drawing) so arbitrary Unicode text (e.g. ROM
     // file names) has baked glyphs by the time DrawText/GetTextWidth need them.
     void EnsureGlyphsForText(UiFontHandle font, const std::string &utf8Text);
+    // TEMP debug: see UiFontManager::DebugDumpAtlas.
+    void DebugDumpFontAtlas(UiFontHandle font, const char *path) const;
     float GetTextWidth(UiFontHandle font, const std::string &text) const;
     float GetFontPHeight(UiFontHandle font) const;
     float GetFontPStart(UiFontHandle font) const;
@@ -226,4 +228,12 @@ private:
     // Per-frame state between BeginFrame/EndFrame.
     float m_frameWidth{0};
     float m_frameHeight{0};
+    // Physical pixels per logical unit for the current frame (1.0 outside
+    // BeginOffscreenFrame's logical/physical split - see DrawText's use of
+    // this for why it matters: a text quad positioned at a fractional
+    // physical pixel makes the GPU's bilinear atlas sampling blend a glyph's
+    // edge texels with the atlas's blank padding, softening/clipping that
+    // edge - most visible on descenders. Snapping to the physical pixel
+    // grid before drawing avoids that regardless of scale.
+    float m_pixelScale{1.0f};
 };

@@ -7,7 +7,7 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     // No icon-bearing entries yet - still a placeholder page.
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
                                            kMenuItemSize);
-    list->Color          = kMenuTextColor;
+    list->Color = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
     // Placeholder until ROM scanning is wired up
@@ -18,6 +18,7 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->AddEntry(u8"Prîncé – Spéçîál Édïtïon™ ©®€.vb");
 
     m_menu.MenuItems.push_back(list);
-    m_menu.BackPress = [this]() { if (mainPage) Navigate(mainPage, -1); };
+    m_menu.BackPress = [this]()
+    { if (mainPage) Navigate(mainPage, -1); };
     m_menu.Init();
 }

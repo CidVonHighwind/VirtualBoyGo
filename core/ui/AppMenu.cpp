@@ -39,12 +39,12 @@ namespace
     constexpr int kBatteryColorCount = 5;
     constexpr XrColor4f kBatteryColors[] = {
         {0.745f, 0.114f, 0.176f, 1.0f},
-        {0.92f,  0.361f, 0.176f, 1.0f},
-        {0.976f, 0.69f,  0.255f, 1.0f},
+        {0.92f, 0.361f, 0.176f, 1.0f},
+        {0.976f, 0.69f, 0.255f, 1.0f},
         {0.545f, 0.769f, 0.247f, 1.0f},
         {0.545f, 0.769f, 0.247f, 1.0f},
-        {0.0f,   0.78f,  0.078f, 1.0f},
-        {0.0f,   0.78f,  0.078f, 1.0f},
+        {0.0f, 0.78f, 0.078f, 1.0f},
+        {0.0f, 0.78f, 0.078f, 1.0f},
     };
 
     XrColor4f Lerp(const XrColor4f &a, const XrColor4f &b, float t)
@@ -83,15 +83,14 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
     const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
+
     // Bake glyphs at physical resolution (kMenuScale x the logical size) for
     // crisp text - see UiFontManager::LoadFont's renderScale doc comment.
-    // kMenuFontSize/kSmallFontSize x 2 lands back on their pre-rework
-    // physical sizes (22px/16px) exactly; kHeaderFontSize x 2 = 66 (was 65,
-    // off by the 1px already lost rounding 65 to a logical size earlier).
     m_titleFont = ui.LoadFont(headerFontBytes, static_cast<int>(kHeaderFontSize * m_menuScale), m_menuScale);
-    m_icons.Load(ui);
     m_resources.menuFont = ui.LoadFont(menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
     m_resources.smallFont = ui.LoadFont(smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);
+
+    m_icons.Load(ui);
     m_resources.icons = &m_icons;
     // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
     // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution

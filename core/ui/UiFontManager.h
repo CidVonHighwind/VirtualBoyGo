@@ -56,7 +56,13 @@ public:
     {
         int fontSize = 0;      // physical FreeType pixel height
         float renderScale = 1.0f;
-        float offsetY = 0; // baseline offset from top of glyph cell
+        // Baseline offset from top of glyph cell, i.e. the font's ascender
+        // (from FT_Face metrics). Set once in LoadFont/RebakeFont and never
+        // updated afterwards - it must NOT grow as more glyphs get baked on
+        // demand (EnsureGlyphsForText), or every row of text already laid
+        // out using the old (smaller) offsetY via GetFontPStart would drift
+        // downward relative to newly-drawn text using the new value.
+        float offsetY = 0;
         float pHeight = 0; // height of the capital 'P' glyph
         float pStart = 0;  // gap above 'P' (used to vertically center header text)
         VkImage image{VK_NULL_HANDLE};
@@ -120,6 +126,11 @@ public:
 
     // Raw access for UiRenderer's DrawText (needs Character + descriptorSet).
     const Font &Get(UiFontHandle handle) const { return *m_fonts[handle.id]; }
+
+    // TEMP debug: dumps the atlas's current CPU-side pixels as a raw PGM
+    // (P5) file - visualize glyph packing directly instead of guessing from
+    // rendered (and possibly mis-rendered) text.
+    void DebugDumpAtlas(UiFontHandle handle, const char *path) const;
 
 private:
     // Rasterizes one codepoint via FreeType and packs it into font's atlas

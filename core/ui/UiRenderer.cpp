@@ -6,6 +6,7 @@
 // vbgo_app link unit) - this include just pulls in the declarations.
 #include "third_party/stb_image.h"
 
+#include <cmath>
 #include <cstring>
 #include <stdexcept>
 
@@ -156,6 +157,11 @@ void UiRenderer::RebakeFont(UiFontHandle font, const std::vector<uint8_t> &ttfBy
 void UiRenderer::EnsureGlyphsForText(UiFontHandle font, const std::string &utf8Text)
 {
     m_fontManager.EnsureGlyphsForText(font, utf8Text);
+}
+
+void UiRenderer::DebugDumpFontAtlas(UiFontHandle font, const char *path) const
+{
+    m_fontManager.DebugDumpAtlas(font, path);
 }
 
 float UiRenderer::GetTextWidth(UiFontHandle font, const std::string &text) const
@@ -373,6 +379,7 @@ void UiRenderer::BeginFrame(VkImage image, VkFormat format, uint32_t width, uint
 
     m_frameWidth = static_cast<float>(width);
     m_frameHeight = static_cast<float>(height);
+    m_pixelScale = 1.0f;
 
     vkResetCommandBuffer(m_commandBuffer, 0);
     VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -415,6 +422,7 @@ void UiRenderer::BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clea
     // below still covers the whole physical image either way.
     m_frameWidth = logicalWidth > 0.0f ? logicalWidth : static_cast<float>(img.width);
     m_frameHeight = logicalHeight > 0.0f ? logicalHeight : static_cast<float>(img.height);
+    m_pixelScale = static_cast<float>(img.width) / m_frameWidth;
 
     vkResetCommandBuffer(m_commandBuffer, 0);
     VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -451,6 +459,7 @@ void UiRenderer::SetViewportRegion(float x, float y, float w, float h)
 
     m_frameWidth = w;
     m_frameHeight = h;
+    m_pixelScale = 1.0f;
 }
 
 void UiRenderer::EndFrame()
@@ -533,8 +542,14 @@ void UiRenderer::DrawText(UiFontHandle fontHandle, const std::string &text, floa
             continue;
         const UiFontManager::Character &ch = it->second;
 
-        const float xpos = cursorX + ch.bearingX * scale;
-        const float ypos = y + f.offsetY - ch.bearingY;
+        // Snap to the physical pixel grid: the glyph quad's rendered size
+        // matches its atlas texel footprint exactly (see LoadFont's
+        // renderScale), so a fractional physical-pixel position is the only
+        // thing that can make the GPU's bilinear atlas sampling land off a
+        // texel centre and blend a glyph's edge row with the atlas's blank
+        // padding - most visible on descenders. See m_pixelScale's comment.
+        const float xpos = std::round((cursorX + ch.bearingX * scale) * m_pixelScale) / m_pixelScale;
+        const float ypos = std::round((y + f.offsetY - ch.bearingY) * m_pixelScale) / m_pixelScale;
         const float cw = ch.width * scale;
         const float ch_h = ch.height * scale;
 
