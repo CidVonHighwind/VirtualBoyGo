@@ -69,7 +69,8 @@ namespace
     uint32_t PollGameplayInput(GLFWwindow *window)
     {
         uint32_t bits = 0;
-        auto setIf = [&](int key, uint32_t bit) {
+        auto setIf = [&](int key, uint32_t bit)
+        {
             if (glfwGetKey(window, key) == GLFW_PRESS)
                 bits |= (1u << bit);
         };
@@ -118,9 +119,9 @@ int main()
     // AppMenuLayout.h) panel composited (rounded corners and all) at a
     // centered offset within it, not the window's full size.
     const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale
-                                                      : static_cast<int>(kMenuWidth * kMenuScale);
+                                                     : static_cast<int>(kMenuWidth * kMenuScale);
     const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale
-                                                        : static_cast<int>(kMenuHeight * kMenuScale);
+                                                       : static_cast<int>(kMenuHeight * kMenuScale);
 
     if (!glfwInit())
     {
@@ -251,15 +252,6 @@ int main()
         // Edge-triggered so holding the key doesn't spam-toggle every frame.
         bool tabWasPressed = false;
 
-        // TEMP debug: alternate eyes every second instead of always showing
-        // Left - a quick visual check for whether the core's side-by-side
-        // frame actually has different content per eye (if the picture
-        // visibly changes each toggle, the data is real and any "flat in
-        // the headset" bug is downstream of this - OpenXR quad layer
-        // eyeVisibility handling, not the emulator/core).
-        float eyeToggleSeconds = 0.0f;
-        Emulator::Eye debugEye = Emulator::Eye::Left;
-
         while (!glfwWindowShouldClose(window))
         {
             glfwPollEvents();
@@ -298,14 +290,6 @@ int main()
             emulator.SetGameplayInput(appMenu.IsOpen() ? 0 : PollGameplayInput(window));
             emulator.RunFrame(deltaSeconds);
 
-            eyeToggleSeconds += deltaSeconds;
-            if (eyeToggleSeconds >= 1.0f)
-            {
-                eyeToggleSeconds = 0.0f;
-                debugEye = (debugEye == Emulator::Eye::Left) ? Emulator::Eye::Right : Emulator::Eye::Left;
-                std::printf("[debug] showing %s eye\n", debugEye == Emulator::Eye::Left ? "LEFT" : "RIGHT");
-            }
-
             batteryCycleSeconds += deltaSeconds;
             appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));
 
@@ -343,14 +327,7 @@ int main()
                                   appMenu.GetBackgroundColor());
             if (emulator.HasScreen())
             {
-                // TEMP debug: alternates Left/Right every second (see
-                // debugEye above) - normally this would just always be
-                // Emulator::Eye::Left (flat window, no second eye to show
-                // the other half to). TODO: make eye choice configurable
-                // once the debug toggle is removed (see Emulator::Eye's doc
-                // comment).
-                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height),
-                                    debugEye);
+                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), Emulator::Eye::Left);
             }
             if (appMenu.IsOpen())
                 appMenu.Draw(uiRenderer, menuX, menuY);
