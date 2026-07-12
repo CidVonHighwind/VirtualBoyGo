@@ -3,6 +3,7 @@
 // event pump and OpenXR's Android-specific loader/instance init.
 #include "OpenXrApp.h"
 #include "AssetLoader.h"
+#include "RomScanner.h"
 
 #include <openxr/openxr_platform.h>
 
@@ -44,6 +45,10 @@ void android_main(struct android_app* app) {
     app->onAppCmd = HandleAppCmd;
 
     SetAndroidAssetManager(app->activity->assetManager);
+    // App-specific external storage (e.g. /sdcard/Android/data/<package>/
+    // files) - no runtime permission needed under scoped storage, unlike an
+    // arbitrary SD-card path. Users drop ROMs into its "VB" subfolder.
+    SetAndroidRomDir(app->activity->externalDataPath);
 
     // OpenXR's Android loader needs explicit init before xrCreateInstance.
     PFN_xrInitializeLoaderKHR initializeLoader = nullptr;

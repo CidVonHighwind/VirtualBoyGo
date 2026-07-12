@@ -122,6 +122,7 @@ add_library(vbgo_app STATIC
     core/OpenXrApp.cpp
     core/VulkanRenderer.cpp
     core/AssetLoader.cpp
+    core/RomScanner.cpp
     core/XrInput.cpp
     core/Emulator.cpp
     core/ui/UiRenderer.cpp

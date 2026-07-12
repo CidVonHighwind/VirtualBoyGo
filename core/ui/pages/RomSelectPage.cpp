@@ -1,4 +1,5 @@
 #include "RomSelectPage.h"
+#include "../../RomScanner.h"
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
@@ -10,12 +11,26 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    // Placeholder until ROM scanning is wired up
-    list->AddEntry("(No ROMs found)");
-    // TEMP unicode glyph test
-    list->AddEntry(u8"Jörg's Ünïcode Café.vb");
-    list->AddEntry(u8"日本語のファイル名テスト");
-    list->AddEntry(u8"Prîncé – Spéçîál Édïtïon™ ©®€.vb");
+    const std::vector<RomEntry> roms = ScanRoms();
+    if (roms.empty())
+    {
+        list->AddEntry("(No ROMs found)");
+    }
+    else
+    {
+        for (const RomEntry &rom : roms)
+        {
+            // TODO: actually load romPath's bytes into the emulator core
+            // once one exists (see core/Emulator.h) - for now selecting a
+            // ROM just returns to the main page, same as pressing Back.
+            const std::string romPath = rom.fullPath;
+            list->AddEntry(rom.name, [this, romPath](MenuItem *) {
+                (void)romPath;
+                if (mainPage)
+                    Navigate(mainPage, -1);
+            });
+        }
+    }
 
     m_menu.MenuItems.push_back(list);
     m_menu.BackPress = [this]()

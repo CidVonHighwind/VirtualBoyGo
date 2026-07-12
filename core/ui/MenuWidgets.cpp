@@ -415,7 +415,7 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
         const float trackPad = 1.5f; // gap at top/bottom so thumb never overflows
         const float trackY = m_posY + offsetY + trackPad;
         const float trackH = m_height - trackPad * 2;
-        const float radius = 1.5f;
+        const float radius = kScrollbarWidth / 2.0f;
 
         // Track
         XrColor4f trackColor{0.3f, 0.3f, 0.3f, 0.5f * alpha};
