@@ -104,17 +104,12 @@ if(NOT ANDROID)
         set(${OUT_VAR} ${HEADER_OUT} PARENT_SCOPE)
     endfunction()
 
-    vbgo_add_shader(CUBE_VERT_HEADER ${CMAKE_SOURCE_DIR}/shaders/cube.vert)
-    vbgo_add_shader(CUBE_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/cube.frag)
-    vbgo_add_shader(TEXTURED_QUAD_VERT_HEADER ${CMAKE_SOURCE_DIR}/shaders/textured_quad.vert)
-    vbgo_add_shader(TEXTURED_QUAD_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/textured_quad.frag)
     vbgo_add_shader(UI_VERT_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui.vert)
     vbgo_add_shader(UI_SOLID_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_solid.frag)
     vbgo_add_shader(UI_TEXT_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_text.frag)
     vbgo_add_shader(UI_IMAGE_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image.frag)
     vbgo_add_shader(UI_IMAGE_ROUNDED_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image_rounded.frag)
-    add_custom_target(vbgo_shaders DEPENDS ${CUBE_VERT_HEADER} ${CUBE_FRAG_HEADER} ${TEXTURED_QUAD_VERT_HEADER}
-                                            ${TEXTURED_QUAD_FRAG_HEADER} ${UI_VERT_HEADER} ${UI_SOLID_FRAG_HEADER}
+    add_custom_target(vbgo_shaders DEPENDS ${UI_VERT_HEADER} ${UI_SOLID_FRAG_HEADER}
                                             ${UI_TEXT_FRAG_HEADER} ${UI_IMAGE_FRAG_HEADER} ${UI_IMAGE_ROUNDED_FRAG_HEADER})
 endif()
 
@@ -201,8 +196,6 @@ else()
     add_custom_command(
         TARGET VirtualBoyGoPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC>
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC>
         COMMAND ${CMAKE_COMMAND} -E copy_directory
                 "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/fonts"
@@ -212,10 +205,10 @@ else()
 
     # --------------------------------------------------------------------
     # Flat desktop window, no headset/OpenXR runtime needed at all - the
-    # fast local-iteration debug build. Reuses the same VulkanRenderer
-    # content-drawing code (RenderTexturedQuad) as the composition-layer
-    # quad on the headset builds, just presented into a normal window
-    # swapchain instead of an OpenXR session.
+    # fast local-iteration debug build. Reuses the same UiRenderer/AppMenu
+    # content-drawing code as the composition-layer quads on the headset
+    # builds, just presented into a normal window swapchain instead of an
+    # OpenXR session.
     # --------------------------------------------------------------------
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -238,8 +231,6 @@ else()
 
     add_custom_command(
         TARGET VirtualBoyGoPC2D POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/assets/test_image.jpg" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
         COMMAND ${CMAKE_COMMAND} -E copy_directory

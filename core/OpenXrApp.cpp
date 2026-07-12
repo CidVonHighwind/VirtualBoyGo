@@ -417,11 +417,8 @@ void OpenXrApp::RenderFrame()
         {
             projectionViews.resize(viewCountOutput);
 
-            // Main eye buffers stay plain black - all test content lives in
-            // the quad layer below, since that's the piece that actually
-            // matters (the eventual menu/emulator-screen render target).
-            static const std::vector<DrawCube> kNoCubes;
-
+            // Main eye buffers stay plain black - all real content lives in
+            // the quad layers below (menu/emulator screen).
             for (uint32_t i = 0; i < viewCountOutput; ++i)
             {
                 Swapchain &sc = m_swapchains[i];
@@ -442,7 +439,7 @@ void OpenXrApp::RenderFrame()
                 projectionViews[i].subImage.imageRect.extent = {sc.width, sc.height};
 
                 m_renderer.RenderEye(sc.images[imageIndex].image, m_colorFormat, static_cast<uint32_t>(sc.width),
-                                     static_cast<uint32_t>(sc.height), m_views[i].pose, m_views[i].fov, kNoCubes);
+                                     static_cast<uint32_t>(sc.height));
 
                 XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
                 CheckXr(xrReleaseSwapchainImage(sc.handle, &releaseInfo), "xrReleaseSwapchainImage");

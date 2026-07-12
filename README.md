@@ -18,20 +18,14 @@ platforms, live on a Quest 3:
 - OpenXR instance/system/session/swapchain lifecycle (`core/OpenXrApp`).
 - A Vulkan device created via `XR_KHR_vulkan_enable2`'s delegated-creation
   path, plus a minimal render pipeline (`core/VulkanRenderer`).
-- A **quad composition layer** rendering a real decoded JPEG
-  (`assets/test_image.jpg`) as a floating panel - this is the important
-  piece, since it's the OpenXR analogue of the old VrApi `ovrLayerCylinder2`
-  that the eventual emulator screen/menu rendering will build on. The main
-  eye buffers are plain black; the debug cube only shows up as a fallback if
-  the test image fails to load.
+- **Quad composition layers** (`core/ui/UiRenderer`, `core/ui/AppMenu`)
+  rendering the menu/UI and emulator screen as floating panels - the OpenXR
+  analogue of the old VrApi `ovrLayerCylinder2` these build on. The main eye
+  buffers are plain black; all real content lives in these quad layers.
 
-A third build target, `VirtualBoyGoPC2D`, renders the same content (via
-`VulkanRenderer::RenderTexturedQuad`) into a plain GLFW window instead of an
-OpenXR session - no headset or runtime needed at all, for fast local
-iteration.
-
-Not started yet: porting `FrontendGo`'s menu/UI or the actual emulator core
-into this shell.
+A third build target, `VirtualBoyGoPC2D`, renders the same content into a
+plain GLFW window instead of an OpenXR session - no headset or runtime
+needed at all, for fast local iteration.
 
 ## Project layout
 

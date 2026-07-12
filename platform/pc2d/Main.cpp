@@ -129,7 +129,7 @@ int main()
         renderer.CreateDeviceForSurface(surface);
 
         // Prefer an sRGB surface format - matches the color-space handling
-        // used for the test texture (see VulkanRenderer::LoadTestImage).
+        // UiRenderer's image-loading path (UiRenderer::LoadImage) expects.
         uint32_t formatCount = 0;
         vkGetPhysicalDeviceSurfaceFormatsKHR(renderer.GetPhysicalDevice(), surface, &formatCount, nullptr);
         std::vector<VkSurfaceFormatKHR> formats(formatCount);
