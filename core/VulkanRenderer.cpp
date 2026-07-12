@@ -5,6 +5,7 @@
 #define STBI_ONLY_PNG
 #include "third_party/stb_image.h"
 
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -69,6 +70,29 @@ void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) 
     deviceGetInfo.systemId = xrSystemId;
     deviceGetInfo.vulkanInstance = m_instance;
     CheckXr(pfnGetDevice2(xrInstance, &deviceGetInfo, &m_physicalDevice), "xrGetVulkanGraphicsDevice2KHR");
+
+    // TEMP debug: confirm which GPU the OpenXR runtime told us to use -
+    // dual-GPU systems are a suspected cause of the VK_ERROR_DEVICE_LOST
+    // seen under SteamVR (cross-adapter shared-texture interop breaking if
+    // this doesn't match whatever GPU SteamVR's own compositor uses).
+    {
+        VkPhysicalDeviceProperties props{};
+        vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
+        std::fprintf(stderr, "[VulkanRenderer] OpenXR selected GPU: \"%s\" (vendorID=0x%04x, deviceID=0x%04x)\n",
+                    props.deviceName, props.vendorID, props.deviceID);
+
+        uint32_t allDeviceCount = 0;
+        vkEnumeratePhysicalDevices(m_instance, &allDeviceCount, nullptr);
+        std::vector<VkPhysicalDevice> allDevices(allDeviceCount);
+        vkEnumeratePhysicalDevices(m_instance, &allDeviceCount, allDevices.data());
+        std::fprintf(stderr, "[VulkanRenderer] All available GPUs (%u):\n", allDeviceCount);
+        for (VkPhysicalDevice dev : allDevices) {
+            VkPhysicalDeviceProperties p{};
+            vkGetPhysicalDeviceProperties(dev, &p);
+            std::fprintf(stderr, "  - \"%s\" (vendorID=0x%04x, deviceID=0x%04x)%s\n", p.deviceName, p.vendorID,
+                        p.deviceID, dev == m_physicalDevice ? "  <-- selected" : "");
+        }
+    }
 
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);

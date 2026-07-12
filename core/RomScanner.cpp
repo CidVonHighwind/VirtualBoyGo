@@ -6,10 +6,6 @@
 
 namespace
 {
-#if defined(__ANDROID__)
-std::string g_androidRomDir;
-#endif
-
 std::string ToLower(std::string s)
 {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -19,7 +15,10 @@ std::string ToLower(std::string s)
 std::string RomDirectory()
 {
 #if defined(__ANDROID__)
-    return g_androidRomDir.empty() ? std::string() : g_androidRomDir + "/VB";
+    // Plain, easy-to-find path - see RomScanner.h's doc comment for why this
+    // needs MANAGE_EXTERNAL_STORAGE instead of the app's own sandboxed
+    // external-files folder.
+    return "/sdcard/VB";
 #elif defined(_DEBUG)
     // Fixed path to this repo's checked-in sample ROMs - zero-setup local
     // testing, at the cost of only working on this machine/checkout. Release
@@ -33,10 +32,6 @@ std::string RomDirectory()
 #endif
 }
 } // namespace
-
-#if defined(__ANDROID__)
-void SetAndroidRomDir(const char* path) { g_androidRomDir = path ? path : ""; }
-#endif
 
 std::vector<RomEntry> ScanRoms()
 {

@@ -114,6 +114,57 @@ if(NOT ANDROID)
 endif()
 
 # --------------------------------------------------------------------------
+# Virtual Boy emulator core - libretro/beetle-vb-libretro (a fork of
+# Mednafen's VB emulation), vendored as a git submodule at
+# third_party/beetle-vb-libretro, GPL-2.0 licensed (see that folder's
+# COPYING). Source list mirrors that submodule's own Makefile.common (the
+# core has no CMake build of its own - it's normally built via GNU make -
+# so this enumerates the same files Makefile.common lists for
+# HAVE_GRIFFIN!=1, NEED_BLIP=1, rather than a directory glob, to stay in
+# sync with exactly what upstream's own build compiles).
+# --------------------------------------------------------------------------
+set(VB_CORE_DIR ${CMAKE_SOURCE_DIR}/third_party/beetle-vb-libretro)
+add_library(vb_core STATIC
+    ${VB_CORE_DIR}/mednafen/hw_cpu/v810/v810_cpu.cpp
+    ${VB_CORE_DIR}/mednafen/mempatcher.cpp
+    ${VB_CORE_DIR}/libretro.cpp
+    ${VB_CORE_DIR}/mednafen/vb/vsu.c
+    ${VB_CORE_DIR}/mednafen/vb/input.c
+    ${VB_CORE_DIR}/mednafen/vb/timer.c
+    ${VB_CORE_DIR}/mednafen/vb/vip.c
+    ${VB_CORE_DIR}/mednafen/hw_cpu/v810/fpu-new/softfloat.c
+    ${VB_CORE_DIR}/mednafen/sound/Blip_Buffer.c
+    ${VB_CORE_DIR}/mednafen/state.c
+    ${VB_CORE_DIR}/mednafen/settings.c
+    ${VB_CORE_DIR}/libretro-common/compat/compat_strl.c
+    ${VB_CORE_DIR}/libretro-common/compat/compat_snprintf.c
+)
+target_include_directories(vb_core PUBLIC
+    ${VB_CORE_DIR}
+    ${VB_CORE_DIR}/mednafen
+    ${VB_CORE_DIR}/mednafen/include
+    ${VB_CORE_DIR}/libretro-common/include
+)
+# Matches upstream's own Makefile flags (see Makefile/Makefile.common) for a
+# WANT_32BPP, non-static-linking, non-HAVE_GRIFFIN build.
+target_compile_definitions(vb_core PRIVATE
+    WANT_32BPP
+    __LIBRETRO__
+    STDC_HEADERS
+    __STDC_LIMIT_MACROS
+    MEDNAFEN_VERSION="0.9.31"
+    MEDNAFEN_VERSION_NUMERIC=931
+)
+if(MSVC)
+    # Mirrors the Makefile's windows_msvc* platform block - the submodule
+    # already ships MSVC-specific compat code (mednafen/msvc_compat.h,
+    # mednafen/hw_cpu/v810/v810_op_table_msvc.inc) for exactly this.
+    target_compile_definitions(vb_core PRIVATE INLINE=_inline NOMINMAX _CRT_SECURE_NO_DEPRECATE)
+else()
+    target_compile_definitions(vb_core PRIVATE INLINE=inline)
+endif()
+
+# --------------------------------------------------------------------------
 # Core app: OpenXR session/swapchain lifecycle + Vulkan rendering. Shared,
 # platform-agnostic code - the actual per-platform entry points (pc/, pc2d/,
 # android/) live under platform/ and just call into this.
@@ -140,7 +191,7 @@ add_library(vbgo_app STATIC
     core/ui/AppMenu.cpp
 )
 target_include_directories(vbgo_app PUBLIC core)
-target_link_libraries(vbgo_app PUBLIC openxr_loader volk freetype)
+target_link_libraries(vbgo_app PUBLIC openxr_loader volk freetype vb_core)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
     add_dependencies(vbgo_app vbgo_shaders)
@@ -173,6 +224,7 @@ else()
         platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
+
     # MSVC's incremental linker has been observed to silently keep a stale
     # .exe (identical byte-for-byte) across rebuilds when only an upstream
     # static lib's contents changed, without erroring - forcing a full

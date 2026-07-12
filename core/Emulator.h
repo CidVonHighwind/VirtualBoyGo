@@ -3,34 +3,146 @@
 #include "ui/UiRenderer.h"
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
-// Stand-in for the eventual Virtual Boy emulator core. Right now it just
-// loads a static test image ("game_image.png") as the "game screen", but
-// DrawScreen's call shape (a single pixel-perfect stretched texture draw)
-// is exactly what the real core will keep once it's uploading actual
-// per-frame emulated frames instead of a static PNG - callers on every
-// platform (OpenXrApp, pc2d) go through this same interface so none of them
-// need to change when that swap happens.
-class Emulator {
+// Bit positions for Emulator::SetGameplayInput's bitmask - one bit per VB
+// button. Values match libretro's RETRO_DEVICE_ID_JOYPAD_* ids exactly (see
+// beetle-vb-libretro/libretro.cpp's retro_load_game input descriptor table,
+// which is what actually defines which VB button each id means - the VB has
+// two D-pads, not one, hence Left*/Right* instead of a single Up/Down/Left/
+// Right) so Emulator.cpp's input_state_cb can use id directly as a bit
+// index. Kept here (not libretro.h) so frontends (Main.cpp/OpenXrApp) don't
+// need to include the core's headers just to feed it input.
+namespace VBButtonBit
+{
+    constexpr uint32_t B = 0;
+    constexpr uint32_t Select = 2;
+    constexpr uint32_t Start = 3;
+    constexpr uint32_t LeftUp = 4;
+    constexpr uint32_t LeftDown = 5;
+    constexpr uint32_t LeftLeft = 6;
+    constexpr uint32_t LeftRight = 7;
+    constexpr uint32_t A = 8;
+    constexpr uint32_t L = 10;
+    constexpr uint32_t R = 11;
+    constexpr uint32_t RightUp = 12;
+    constexpr uint32_t RightLeft = 13;
+    constexpr uint32_t RightDown = 14;
+    constexpr uint32_t RightRight = 15;
+} // namespace VBButtonBit
+
+// Thin adapter over the real Virtual Boy core (libretro/beetle-vb-libretro,
+// vendored as a git submodule at third_party/beetle-vb-libretro - see that
+// folder's COPYING for its GPL-2.0 license), statically linked and called
+// directly through its standard libretro.h API (retro_load_game/retro_run/
+// etc.), not dlopen'd. See RunFrame/the retro_* callback implementations in
+// Emulator.cpp for what's still stubbed (audio is discarded).
+//
+// The core always renders in "side-by-side" 3D mode (forced via this
+// class's environment callback) - both VB eyes packed into one wide
+// combined frame - which DrawScreen exposes as a single texture; splitting
+// that into two per-eye OpenXR quad layers (via subImage.imageRect crops)
+// is OpenXrApp's job, not this class's.
+class Emulator
+{
    public:
     // Screens are shown at this fixed integer upscale (pixel-perfect,
     // nearest-neighbor - see UiRenderer::LoadImage) everywhere the emulator
     // screen is displayed, so PC2D and the headset builds look consistent.
     static constexpr int kScale = 3;
 
-    void Initialize(UiRenderer& ui);
+    // Fixed side-by-side-mode geometry (384-wide base VB screen * 2 eyes,
+    // 224 tall) - used to size the screen swapchain/texture up front, before
+    // any ROM is loaded (GetScreenWidth/Height must be valid immediately
+    // after Initialize(), well before the user picks a ROM from the menu).
+    // This is an assumption about what libretro.cpp's side-by-side geometry
+    // actually reports - the core's own base geometry constants
+    // (MEDNAFEN_CORE_GEOMETRY_BASE_W/H = 384/224) are fixed regardless of
+    // ROM content, so this should hold for any ROM, but hasn't been verified
+    // against the real DisplayRect the core reports at runtime yet. If it's
+    // off, the visible symptom is a stretched/letterboxed aspect ratio, not
+    // a crash - adjust these two constants once confirmed.
+    static constexpr uint32_t kSideBySideWidth = 384 * 2;
+    static constexpr uint32_t kSideBySideHeight = 224;
 
+    void Initialize(UiRenderer &ui);
+
+    // Reads romPath's bytes and hands them to the core via retro_load_game.
+    // Safe to call more than once (unloads whatever ROM was previously
+    // loaded first). Returns false if the file couldn't be read or the core
+    // rejected it.
+    bool LoadRom(const std::string &romPath);
+
+    // True once Initialize() has set up the streaming screen texture -
+    // *not* tied to whether a ROM is loaded, so the screen quad layer/
+    // texture exists (showing black) from app start, and DrawScreen doesn't
+    // need special-casing for the "no ROM loaded yet" state.
     bool HasScreen() const { return m_screenTexture.IsValid(); }
-    uint32_t GetScreenWidth() const { return m_screenWidth; }
-    uint32_t GetScreenHeight() const { return m_screenHeight; }
+    uint32_t GetScreenWidth() const { return kSideBySideWidth; }
+    uint32_t GetScreenHeight() const { return kSideBySideHeight; }
+
+    // Fixed-timestep accumulator against the VB's native ~50.27Hz refresh -
+    // call once per app frame with the same deltaSeconds already computed
+    // for AppMenu::Update. Runs retro_run() zero or more times to catch up,
+    // then re-uploads the latest video frame to the streaming texture if at
+    // least one retro_run() happened. A no-op before any ROM is loaded.
+    void RunFrame(float deltaSeconds);
+
+    // Sets the VB gamepad state RunFrame's next retro_run() call(s) will
+    // read - bits per VBButtonBit, 1 = held. Call once per app frame (before
+    // RunFrame) with whatever the current frontend's input maps to; pass 0
+    // while the menu is open so gameplay input doesn't leak through it.
+    void SetGameplayInput(uint32_t joypadBitmask);
+
+    // Which half of the combined side-by-side frame DrawScreen shows -
+    // Both is the real stereo image (what OpenXrApp uses, splitting it into
+    // per-eye quad layers itself); Left/Right are for flat/mono display
+    // (pc2d's debug window) where there's no second eye to show the other
+    // half to. TODO: expose Left vs Right as a user-facing setting instead
+    // of pc2d hardcoding Left - filed as a known follow-up, not implemented
+    // yet.
+    enum class Eye
+    {
+        Both,
+        Left,
+        Right
+    };
 
     // Stretches the current screen into the given destination rect (in
     // target pixels) - callers typically size that rect to
-    // GetScreenWidth/Height() * kScale for a pixel-perfect look.
-    void DrawScreen(UiRenderer& ui, float x, float y, float w, float h) const;
+    // GetScreenWidth/Height() * kScale for a pixel-perfect look (Both only -
+    // Left/Right are half that width, see Eye). Draws whatever the last
+    // RunFrame produced (all-black before any ROM loads).
+    void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both) const;
 
    private:
+    UiRenderer *m_ui = nullptr;
     UiImageHandle m_screenTexture;
-    uint32_t m_screenWidth = 0;
-    uint32_t m_screenHeight = 0;
+    bool m_coreInitialized = false;
+    bool m_romLoaded = false;
+
+    // Native VB refresh rate (retro_get_system_av_info's timing.fps) -
+    // RunFrame accumulates real deltaSeconds against this to decide how many
+    // times to call retro_run() per app frame.
+    static constexpr float kCoreFps = 50.27f;
+    float m_frameAccumulator = 0.0f;
+
+    // Updated by the video_cb callback each retro_run() call - the portion
+    // of the fixed-size streaming texture that's actually valid for the
+    // current frame (used to UV-crop in DrawScreen). Defaults to the
+    // side-by-side geometry assumption above until the first real frame.
+    uint32_t m_lastFrameWidth = kSideBySideWidth;
+    uint32_t m_lastFrameHeight = kSideBySideHeight;
+
+    // The core's XRGB8888 output has an unused byte in the alpha position
+    // (not a real alpha channel - typically 0), but ui_image.frag multiplies
+    // its output alpha by whatever the sampled texture's alpha channel is.
+    // Every other UiRenderer image source has real alpha (stb_image forces
+    // opaque alpha for alpha-less PNGs, icons are authored with real alpha),
+    // so this is the first data source where that byte is meaningless - copy
+    // each frame through this buffer forcing alpha to 0xFF rather than
+    // uploading the core's buffer directly, or the screen renders fully
+    // transparent (black, since nothing else is behind it).
+    std::vector<uint8_t> m_frameBufferRgba;
 };

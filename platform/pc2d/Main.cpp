@@ -61,6 +61,35 @@ namespace
             bits |= ButtonMapping[EmuButton_B];
     }
 
+    // VB gameplay input - separate key layout from menu navigation (the VB
+    // controller has two D-pads plus A/B/L/R/Start/Select, more buttons than
+    // the menu's 6). Bit positions match VBButtonBit (see Emulator.h).
+    // Left D-pad: arrows. Right D-pad: WASD. A/B: X/Z (SNES-style layout).
+    // L/R: Q/E. Start/Select: Enter/Backspace.
+    uint32_t PollGameplayInput(GLFWwindow *window)
+    {
+        uint32_t bits = 0;
+        auto setIf = [&](int key, uint32_t bit) {
+            if (glfwGetKey(window, key) == GLFW_PRESS)
+                bits |= (1u << bit);
+        };
+        setIf(GLFW_KEY_UP, VBButtonBit::LeftUp);
+        setIf(GLFW_KEY_DOWN, VBButtonBit::LeftDown);
+        setIf(GLFW_KEY_LEFT, VBButtonBit::LeftLeft);
+        setIf(GLFW_KEY_RIGHT, VBButtonBit::LeftRight);
+        setIf(GLFW_KEY_W, VBButtonBit::RightUp);
+        setIf(GLFW_KEY_S, VBButtonBit::RightDown);
+        setIf(GLFW_KEY_A, VBButtonBit::RightLeft);
+        setIf(GLFW_KEY_D, VBButtonBit::RightRight);
+        setIf(GLFW_KEY_X, VBButtonBit::A);
+        setIf(GLFW_KEY_Z, VBButtonBit::B);
+        setIf(GLFW_KEY_Q, VBButtonBit::L);
+        setIf(GLFW_KEY_E, VBButtonBit::R);
+        setIf(GLFW_KEY_ENTER, VBButtonBit::Start);
+        setIf(GLFW_KEY_BACKSPACE, VBButtonBit::Select);
+        return bits;
+    }
+
 } // namespace
 
 int main()
@@ -198,7 +227,7 @@ int main()
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
                               renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
         emulator.Initialize(uiRenderer);
-        appMenu.Initialize(uiRenderer, chosen.format);
+        appMenu.Initialize(uiRenderer, chosen.format, emulator);
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");
@@ -214,6 +243,22 @@ int main()
         // rendering itself gets exercised without a headset. One full
         // 0-100 sweep every 10 seconds.
         float batteryCycleSeconds = 0.0f;
+
+        // Tab toggles the menu open/closed - not part of buttonStates
+        // (that's the menu-navigation/emulator button set, see
+        // ButtonMapping.h) since this is an app-level concern AppMenu itself
+        // doesn't read input for (see AppMenu::Show/Hide/ToggleOpen).
+        // Edge-triggered so holding the key doesn't spam-toggle every frame.
+        bool tabWasPressed = false;
+
+        // TEMP debug: alternate eyes every second instead of always showing
+        // Left - a quick visual check for whether the core's side-by-side
+        // frame actually has different content per eye (if the picture
+        // visibly changes each toggle, the data is real and any "flat in
+        // the headset" bug is downstream of this - OpenXR quad layer
+        // eyeVisibility handling, not the emulator/core).
+        float eyeToggleSeconds = 0.0f;
+        Emulator::Eye debugEye = Emulator::Eye::Left;
 
         while (!glfwWindowShouldClose(window))
         {
@@ -239,9 +284,27 @@ int main()
             const float deltaSeconds = std::chrono::duration<float>(now - lastFrameTime).count();
             lastFrameTime = now;
 
+            const bool tabPressed = glfwGetKey(window, GLFW_KEY_TAB) == GLFW_PRESS;
+            if (tabPressed && !tabWasPressed)
+                appMenu.ToggleOpen();
+            tabWasPressed = tabPressed;
+
             std::memcpy(lastButtonStates, buttonStates, sizeof(buttonStates));
             PollKeyboardButtonState(window, buttonStates);
             appMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
+            // Only feed the game keyboard input while the menu is closed -
+            // otherwise menu navigation (also arrow keys) would leak through
+            // as gameplay input at the same time.
+            emulator.SetGameplayInput(appMenu.IsOpen() ? 0 : PollGameplayInput(window));
+            emulator.RunFrame(deltaSeconds);
+
+            eyeToggleSeconds += deltaSeconds;
+            if (eyeToggleSeconds >= 1.0f)
+            {
+                eyeToggleSeconds = 0.0f;
+                debugEye = (debugEye == Emulator::Eye::Left) ? Emulator::Eye::Right : Emulator::Eye::Left;
+                std::printf("[debug] showing %s eye\n", debugEye == Emulator::Eye::Left ? "LEFT" : "RIGHT");
+            }
 
             batteryCycleSeconds += deltaSeconds;
             appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));
@@ -257,7 +320,8 @@ int main()
             const float menuX = (static_cast<float>(fbWidth) - kMenuWidth * menuScale) / 2.0f;
             const float menuY = (static_cast<float>(fbHeight) - kMenuHeight * menuScale) / 2.0f;
 
-            appMenu.RenderToBuffer(uiRenderer);
+            if (appMenu.IsOpen())
+                appMenu.RenderToBuffer(uiRenderer);
 
             vkResetFences(renderer.GetDevice(), 1, &acquireFence);
             uint32_t imageIndex = 0;
@@ -279,9 +343,17 @@ int main()
                                   appMenu.GetBackgroundColor());
             if (emulator.HasScreen())
             {
-                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height));
+                // TEMP debug: alternates Left/Right every second (see
+                // debugEye above) - normally this would just always be
+                // Emulator::Eye::Left (flat window, no second eye to show
+                // the other half to). TODO: make eye choice configurable
+                // once the debug toggle is removed (see Emulator::Eye's doc
+                // comment).
+                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height),
+                                    debugEye);
             }
-            appMenu.Draw(uiRenderer, menuX, menuY);
+            if (appMenu.IsOpen())
+                appMenu.Draw(uiRenderer, menuX, menuY);
             uiRenderer.EndFrame();
 
             VkPresentInfoKHR presentInfo{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};

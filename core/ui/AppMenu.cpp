@@ -79,7 +79,7 @@ namespace
 // -----------------------------------------------------------------------
 // Initialise
 
-void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
+void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator)
 {
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
@@ -93,6 +93,8 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat)
 
     m_icons.Load(ui);
     m_resources.icons = &m_icons;
+    m_resources.emulator = &emulator;
+    m_resources.appMenu = this;
     // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
     // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution
     // texture via BeginOffscreenFrame's logicalWidth/logicalHeight, so the
@@ -180,6 +182,9 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 
 void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds)
 {
+    if (!m_open)
+        return; // closed - no page should react to input meant for gameplay
+
     if (m_transitionState > 0.0f)
     {
         m_transitionState -= deltaSeconds / kTransitionSpeed;

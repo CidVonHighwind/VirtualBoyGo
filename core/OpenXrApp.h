@@ -42,10 +42,20 @@ class OpenXrApp {
     void InitializeSession();
     void CreateSwapchains();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
-    // Renders the emulator screen into its dedicated quad swapchain and
-    // fills out the XrCompositionLayerQuad for it. Returns false if there's
-    // nothing to submit yet (e.g. swapchain not created).
-    bool RenderScreenLayer(XrCompositionLayerQuad& quadLayer);
+    // Renders the emulator screen into its two dedicated per-eye quad
+    // swapchains and fills out an XrCompositionLayerQuad for each - the
+    // emulator always renders both VB eyes packed side-by-side into a single
+    // combined frame (see Emulator's class comment), so DrawScreen crops the
+    // matching half (Emulator::Eye::Left/Right) into each swapchain
+    // separately. Two independent swapchains rather than one shared/cropped
+    // one - some runtimes (confirmed: SteamVR) don't handle one swapchain
+    // image being referenced by two simultaneous composition layer
+    // submissions well (manifested as VK_ERROR_DEVICE_LOST at session sync -
+    // likely their Vulkan interop's shared-texture/fence bookkeeping
+    // expecting a 1:1 acquire/layer relationship). Returns false (leaving
+    // both untouched) if there's nothing to submit yet (e.g. swapchains not
+    // created).
+    bool RenderScreenLayer(XrCompositionLayerQuad& leftQuadLayer, XrCompositionLayerQuad& rightQuadLayer);
     // Renders the menu into its own dedicated quad swapchain, positioned a
     // little closer to the viewer than the screen layer so it visibly
     // floats in front of it instead of sitting flush on the same plane.
@@ -72,13 +82,16 @@ class OpenXrApp {
     std::vector<Swapchain> m_swapchains;
     int64_t m_colorFormat{0};
 
-    // Dedicated swapchain for the emulator screen's quad composition layer -
-    // the OpenXR equivalent of the old VrApi ovrLayerCylinder2 used to show
-    // the emulator screen outside the main eye-buffer projection layer.
-    // Sized to the emulator's screen at Emulator::kScale (falling back to
-    // AppMenu::kMenuWidth/kMenuHeight if no screen is loaded) so it renders
-    // at 1:1 pixel resolution instead of being up/downscaled.
-    Swapchain m_screenSwapchain;
+    // Dedicated swapchains for the emulator screen's quad composition layer,
+    // one per eye (see RenderScreenLayer's doc comment for why not one
+    // shared/cropped swapchain) - the OpenXR equivalent of the old VrApi
+    // ovrLayerCylinder2 used to show the emulator screen outside the main
+    // eye-buffer projection layer. Each sized to half the emulator's
+    // (side-by-side, both eyes) screen width at Emulator::kScale (falling
+    // back to AppMenu::kMenuWidth/kMenuHeight if no screen is loaded) so
+    // they render at 1:1 pixel resolution instead of being up/downscaled.
+    Swapchain m_screenSwapchainLeft;
+    Swapchain m_screenSwapchainRight;
     // Dedicated swapchain for the menu's own quad composition layer -
     // separate from the screen so the menu can be positioned at its own
     // depth (see RenderMenuLayer) instead of being baked into the same
@@ -95,4 +108,8 @@ class OpenXrApp {
     AppMenu m_appMenu;
     uint32_t m_buttonStates[3]{};
     uint32_t m_lastButtonStates[3]{};
+    // Edge detection for the left controller's menu button toggling
+    // m_appMenu open/closed (see XrInput::IsMenuButtonPressed) - a held
+    // button shouldn't toggle every frame.
+    bool m_lastMenuButtonPressed{false};
 };

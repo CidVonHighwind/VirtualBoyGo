@@ -3,16 +3,6 @@
 #include <string>
 #include <vector>
 
-#if defined(__ANDROID__)
-// Must be called once (from android_main) before any ScanRoms call - pass
-// ANativeActivity::externalDataPath, the app's own external storage folder
-// (e.g. /sdcard/Android/data/<package>/files). Unlike arbitrary SD-card
-// paths, this directory needs no runtime permissions under scoped storage,
-// on any Android version - the same reason most Quest homebrew apps use it
-// for user-dropped content.
-void SetAndroidRomDir(const char* path);
-#endif
-
 struct RomEntry
 {
     std::string name;      // file name without extension, for display (e.g. "Golf (U) [!]")
@@ -25,7 +15,13 @@ struct RomEntry
 // found", not an error.
 //
 // Directory resolved per-platform:
-//  - Android: <externalDataPath>/VB (see SetAndroidRomDir).
+//  - Android: /sdcard/VB - a plain, easy-to-find path a user can drop files
+//    into with any file manager or `adb push`, rather than the app's
+//    sandboxed external-files folder. Requires the MANAGE_EXTERNAL_STORAGE
+//    permission (see AndroidManifest.xml) since it's outside the app's own
+//    scoped storage - the user has to grant "All files access" once via
+//    Settings (or `adb shell appops set --uid <pkg> MANAGE_EXTERNAL_STORAGE
+//    allow` for testing).
 //  - Windows debug builds: a fixed path into this repo's checked-in sample
 //    ROMs (sd/VB), for zero-setup local testing.
 //  - Windows release builds: a "VB" folder next to the executable, same

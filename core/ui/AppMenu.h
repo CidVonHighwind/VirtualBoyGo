@@ -12,6 +12,8 @@
 
 #include <cstdint>
 
+class Emulator;
+
 // Top-level menu system. Owns all menu pages and drives the slide transition
 // between them. Renders the active page into an offscreen buffer each frame,
 // then composites it onto the real target with rounded corners.
@@ -27,7 +29,7 @@ public:
     static constexpr float kPanelCornerRadiusPx = 8.0f;
     static constexpr float kTransitionSpeed = 0.15f;
 
-    void Initialize(UiRenderer &ui, VkFormat targetFormat);
+    void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator);
     void Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds);
     void RenderToBuffer(UiRenderer &ui);
     void Draw(UiRenderer &ui, float x, float y);
@@ -53,6 +55,16 @@ public:
     // there; the flat 2D debug build cycles a fake value through it instead.
     void SetBatteryPercent(int percent) { m_batteryPercent = percent; }
 
+    // Menu open/closed - closing lets the emulator screen show unobstructed
+    // instead of always sitting under the menu panel. "Resume" and picking a
+    // ROM both close it; callers are responsible for wiring some way back
+    // in (a controller button, a keyboard key - see OpenXrApp/pc2d Main.cpp)
+    // since AppMenu itself only tracks the state, not any particular input.
+    bool IsOpen() const { return m_open; }
+    void Show() { m_open = true; }
+    void Hide() { m_open = false; }
+    void ToggleOpen() { m_open = !m_open; }
+
 private:
     void InitPages(UiRenderer &ui);
     void StartTransition(MenuPage *target, int dir);
@@ -77,4 +89,5 @@ private:
     float m_menuScale = kMenuScale; // see SetMenuScale
 
     int m_batteryPercent = -1;
+    bool m_open = true;
 };

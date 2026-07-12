@@ -48,6 +48,10 @@ void XrInput::Initialize(XrInstance instance, XrSession session) {
     m_thumbstickAction = createAction("thumbstick", "Thumbstick", XR_ACTION_TYPE_VECTOR2F_INPUT, true);
     m_aClickAction = createAction("a_click", "A Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
     m_bClickAction = createAction("b_click", "B Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
+    m_xClickAction = createAction("x_click", "X Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
+    m_yClickAction = createAction("y_click", "Y Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
+    m_triggerAction = createAction("trigger", "Trigger", XR_ACTION_TYPE_FLOAT_INPUT, true);
+    m_menuClickAction = createAction("menu_click", "Menu Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
 
     auto path = [&](const char* p) {
         XrPath result;
@@ -60,6 +64,16 @@ void XrInput::Initialize(XrInstance instance, XrSession session) {
         {m_thumbstickAction, path("/user/hand/right/input/thumbstick")},
         {m_aClickAction, path("/user/hand/right/input/a/click")},
         {m_bClickAction, path("/user/hand/right/input/b/click")},
+        // Touch's left controller has X/Y where the right has A/B.
+        {m_xClickAction, path("/user/hand/left/input/x/click")},
+        {m_yClickAction, path("/user/hand/left/input/y/click")},
+        // Index trigger, analog - thresholded to a bool in Sync(). No
+        // dedicated /click sub-path for this input on touch_controller.
+        {m_triggerAction, path("/user/hand/left/input/trigger/value")},
+        {m_triggerAction, path("/user/hand/right/input/trigger/value")},
+        // Left controller's dedicated menu button - Touch controllers only
+        // have this on the left hand.
+        {m_menuClickAction, path("/user/hand/left/input/menu/click")},
     };
 
     XrPath profilePath;
@@ -109,6 +123,8 @@ void XrInput::Sync(XrSession session) {
         {m_rightHandPath, ButtonMapper::DeviceRightTouch},
     };
 
+    m_rightThumbstick = {0.0f, 0.0f};
+    m_leftThumbstick = {0.0f, 0.0f};
     for (const HandInfo& hand : hands) {
         XrActionStateGetInfo stickGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         stickGetInfo.action = m_thumbstickAction;
@@ -121,8 +137,22 @@ void XrInput::Sync(XrSession session) {
             if (stickState.currentState.y < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Down];
             if (stickState.currentState.x < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Left];
             if (stickState.currentState.x > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Right];
+            if (hand.deviceSlot == ButtonMapper::DeviceRightTouch) m_rightThumbstick = stickState.currentState;
+            else m_leftThumbstick = stickState.currentState;
         }
     }
+
+    constexpr float kTriggerThreshold = 0.5f;
+    auto readTrigger = [&](XrPath handPath) {
+        XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
+        getInfo.action = m_triggerAction;
+        getInfo.subactionPath = handPath;
+        XrActionStateFloat state{XR_TYPE_ACTION_STATE_FLOAT};
+        return XR_SUCCEEDED(xrGetActionStateFloat(session, &getInfo, &state)) && state.isActive &&
+               state.currentState > kTriggerThreshold;
+    };
+    m_leftTriggerPressed = readTrigger(m_leftHandPath);
+    m_rightTriggerPressed = readTrigger(m_rightHandPath);
 
     auto readClick = [&](XrAction action, uint32_t emuButton) {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
@@ -132,11 +162,34 @@ void XrInput::Sync(XrSession session) {
         XrActionStateBoolean state{XR_TYPE_ACTION_STATE_BOOLEAN};
         if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &getInfo, &state)) && state.isActive && state.currentState) {
             m_buttonStates[ButtonMapper::DeviceRightTouch] |= ButtonMapper::ButtonMapping[emuButton];
+            return true;
         }
+        return false;
     };
 
-    readClick(m_aClickAction, ButtonMapper::EmuButton_A);
-    readClick(m_bClickAction, ButtonMapper::EmuButton_B);
+    m_aPressed = readClick(m_aClickAction, ButtonMapper::EmuButton_A);
+    m_bPressed = readClick(m_bClickAction, ButtonMapper::EmuButton_B);
+
+    // X/Y have no menu-navigation meaning (unlike A/B), so these don't touch
+    // m_buttonStates - just the raw gameplay-mapping state.
+    auto readRawBool = [&](XrAction action) {
+        XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
+        getInfo.action = action;
+        getInfo.subactionPath = XR_NULL_PATH;
+        XrActionStateBoolean state{XR_TYPE_ACTION_STATE_BOOLEAN};
+        return XR_SUCCEEDED(xrGetActionStateBoolean(session, &getInfo, &state)) && state.isActive && state.currentState;
+    };
+    m_xPressed = readRawBool(m_xClickAction);
+    m_yPressed = readRawBool(m_yClickAction);
+
+    m_menuButtonPressed = false;
+    XrActionStateGetInfo menuGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
+    menuGetInfo.action = m_menuClickAction;
+    menuGetInfo.subactionPath = XR_NULL_PATH;
+    XrActionStateBoolean menuState{XR_TYPE_ACTION_STATE_BOOLEAN};
+    if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &menuGetInfo, &menuState)) && menuState.isActive) {
+        m_menuButtonPressed = menuState.currentState;
+    }
 }
 
 void XrInput::GetButtonStates(uint32_t buttonStates[3]) const {

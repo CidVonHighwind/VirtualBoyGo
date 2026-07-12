@@ -6,6 +6,7 @@
 // vbgo_app link unit) - this include just pulls in the declarations.
 #include "third_party/stb_image.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
@@ -111,6 +112,10 @@ void UiRenderer::Shutdown()
             vkDestroyImage(m_device, image.image, nullptr);
         if (image.memory != VK_NULL_HANDLE)
             vkFreeMemory(m_device, image.memory, nullptr);
+        if (image.stagingBuffer != VK_NULL_HANDLE)
+            vkDestroyBuffer(m_device, image.stagingBuffer, nullptr);
+        if (image.stagingMemory != VK_NULL_HANDLE)
+            vkFreeMemory(m_device, image.stagingMemory, nullptr); // implicitly unmaps
     }
     m_images.clear();
 
@@ -368,6 +373,158 @@ void UiRenderer::ResizeRenderTexture(UiImageHandle handle, uint32_t width, uint3
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     write.pImageInfo = &imageDescInfo;
     vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+}
+
+UiImageHandle UiRenderer::CreateStreamingImage(uint32_t width, uint32_t height, VkFormat format)
+{
+    Image image;
+    image.width = width;
+    image.height = height;
+    image.format = format;
+
+    VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.format = format;
+    imageInfo.extent = {width, height, 1};
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    CheckVk(vkCreateImage(m_device, &imageInfo, nullptr, &image.image), "vkCreateImage (streaming)");
+
+    VkMemoryRequirements memReq;
+    vkGetImageMemoryRequirements(m_device, image.image, &memReq);
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex =
+        UiFindMemoryType(m_physicalDevice, memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    CheckVk(vkAllocateMemory(m_device, &allocInfo, nullptr, &image.memory), "vkAllocateMemory (streaming)");
+    vkBindImageMemory(m_device, image.image, image.memory, 0);
+
+    VkImageViewCreateInfo viewInfo{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.image = image.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = format;
+    viewInfo.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    CheckVk(vkCreateImageView(m_device, &viewInfo, nullptr, &image.view), "vkCreateImageView (streaming)");
+
+    VkSamplerCreateInfo samplerInfo{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.maxLod = 1.0f;
+    CheckVk(vkCreateSampler(m_device, &samplerInfo, nullptr, &image.sampler), "vkCreateSampler (streaming)");
+
+    // Persistent host-visible staging buffer, mapped once for the image's
+    // whole lifetime - UpdateStreamingImage just memcpys into it, no
+    // per-call map/unmap or buffer alloc.
+    image.stagingSize = static_cast<VkDeviceSize>(width) * height * 4;
+    VkBufferCreateInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufferInfo.size = image.stagingSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    CheckVk(vkCreateBuffer(m_device, &bufferInfo, nullptr, &image.stagingBuffer), "vkCreateBuffer (streaming staging)");
+
+    VkMemoryRequirements stagingMemReq;
+    vkGetBufferMemoryRequirements(m_device, image.stagingBuffer, &stagingMemReq);
+    VkMemoryAllocateInfo stagingAllocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    stagingAllocInfo.allocationSize = stagingMemReq.size;
+    stagingAllocInfo.memoryTypeIndex = UiFindMemoryType(
+        m_physicalDevice, stagingMemReq.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    CheckVk(vkAllocateMemory(m_device, &stagingAllocInfo, nullptr, &image.stagingMemory),
+            "vkAllocateMemory (streaming staging)");
+    vkBindBufferMemory(m_device, image.stagingBuffer, image.stagingMemory, 0);
+    vkMapMemory(m_device, image.stagingMemory, 0, image.stagingSize, 0, &image.stagingMapped);
+
+    VkDescriptorSetAllocateInfo setAllocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    setAllocInfo.descriptorPool = m_descriptorPool;
+    setAllocInfo.descriptorSetCount = 1;
+    setAllocInfo.pSetLayouts = &m_textDescriptorSetLayout;
+    CheckVk(vkAllocateDescriptorSets(m_device, &setAllocInfo, &image.descriptorSet),
+            "vkAllocateDescriptorSets (streaming)");
+
+    VkDescriptorImageInfo imageDescInfo{};
+    imageDescInfo.sampler = image.sampler;
+    imageDescInfo.imageView = image.view;
+    imageDescInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    write.dstSet = image.descriptorSet;
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo = &imageDescInfo;
+    vkUpdateDescriptorSets(m_device, 1, &write, 0, nullptr);
+
+    m_images.push_back(image);
+    return UiImageHandle{static_cast<int>(m_images.size()) - 1};
+}
+
+void UiRenderer::UpdateStreamingImage(UiImageHandle handle, const void *pixels, size_t dataSize)
+{
+    if (!handle.IsValid())
+        return;
+    Image &img = m_images[handle.id];
+    if (img.stagingMapped == nullptr)
+        return; // not a streaming image - CreateStreamingImage was never called for this handle
+
+    std::memcpy(img.stagingMapped, pixels, std::min(dataSize, static_cast<size_t>(img.stagingSize)));
+
+    const bool firstUpload = img.currentLayout == VK_IMAGE_LAYOUT_UNDEFINED;
+
+    vkResetCommandBuffer(m_commandBuffer, 0);
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    CheckVk(vkBeginCommandBuffer(m_commandBuffer, &beginInfo), "vkBeginCommandBuffer (streaming update)");
+
+    VkImageMemoryBarrier toDst{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    toDst.oldLayout = img.currentLayout;
+    toDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toDst.image = img.image;
+    toDst.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    toDst.srcAccessMask = firstUpload ? 0 : VK_ACCESS_SHADER_READ_BIT;
+    toDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(m_commandBuffer,
+                         firstUpload ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &toDst);
+
+    VkBufferImageCopy copyRegion{};
+    copyRegion.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    copyRegion.imageExtent = {img.width, img.height, 1};
+    vkCmdCopyBufferToImage(m_commandBuffer, img.stagingBuffer, img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                           &copyRegion);
+
+    VkImageMemoryBarrier toRead{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    toRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.image = img.image;
+    toRead.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    toRead.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    toRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &toRead);
+
+    CheckVk(vkEndCommandBuffer(m_commandBuffer), "vkEndCommandBuffer (streaming update)");
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (streaming update)");
+    // Simplicity over performance, consistent with the rest of this
+    // codebase's one-time-submit-and-wait pattern - a real double-buffered/
+    // fenced upload would avoid this CPU stall, but isn't needed yet.
+    vkQueueWaitIdle(m_queue);
+
+    img.currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
 
 // --- Frame management ---

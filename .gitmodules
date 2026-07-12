@@ -1,0 +1,3 @@
+[submodule "third_party/beetle-vb-libretro"]
+	path = third_party/beetle-vb-libretro
+	url = https://github.com/libretro/beetle-vb-libretro.git

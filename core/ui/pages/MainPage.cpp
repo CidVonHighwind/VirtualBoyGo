@@ -1,4 +1,5 @@
 #include "MainPage.h"
+#include "../AppMenu.h"
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
@@ -9,7 +10,9 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    list->AddEntry("Resume", nullptr, nullptr, nullptr, UiIconId::Resume);
+    AppMenu *appMenu = resources.appMenu;
+    list->AddEntry("Resume", [appMenu](MenuItem *) { if (appMenu) appMenu->Hide(); },
+        nullptr, nullptr, UiIconId::Resume);
     list->AddEntry("Reset Game", nullptr, nullptr, nullptr, UiIconId::Reset);
     list->AddEntry("Save Slot: 1", nullptr,
         [](MenuItem *) { /* TODO: decrement slot */ },

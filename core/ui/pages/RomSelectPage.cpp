@@ -1,5 +1,7 @@
 #include "RomSelectPage.h"
+#include "../../Emulator.h"
 #include "../../RomScanner.h"
+#include "../AppMenu.h"
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
@@ -18,14 +20,14 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     }
     else
     {
+        Emulator *emulator = resources.emulator;
+        AppMenu *appMenu = resources.appMenu;
         for (const RomEntry &rom : roms)
         {
-            // TODO: actually load romPath's bytes into the emulator core
-            // once one exists (see core/Emulator.h) - for now selecting a
-            // ROM just returns to the main page, same as pressing Back.
             const std::string romPath = rom.fullPath;
-            list->AddEntry(rom.name, [this, romPath](MenuItem *) {
-                (void)romPath;
+            list->AddEntry(rom.name, [this, emulator, appMenu, romPath](MenuItem *) {
+                if (emulator && emulator->LoadRom(romPath) && appMenu)
+                    appMenu->Hide(); // go straight to the game instead of back to the menu
                 if (mainPage)
                     Navigate(mainPage, -1);
             });

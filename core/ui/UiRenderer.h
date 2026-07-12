@@ -78,6 +78,24 @@ public:
     // every time.
     void ResizeRenderTexture(UiImageHandle handle, uint32_t width, uint32_t height);
 
+    // Creates a device-local sampled texture plus a persistent, permanently-
+    // mapped host-visible staging buffer sized for one full frame of pixels
+    // - for content that's re-uploaded wholesale every frame (e.g. an
+    // emulator's video output), where UiUploadImage's destroy-and-recreate-
+    // the-whole-VkImage-plus-blocking-queue-wait pattern (fine for a one-off
+    // font atlas rebake) would be far too slow at ~50Hz. width/height should
+    // be the largest frame size ever expected - UpdateStreamingImage always
+    // uploads exactly that many pixels; draw a UV-cropped sub-rect (see
+    // DrawImageRegion) for frames smaller than that.
+    UiImageHandle CreateStreamingImage(uint32_t width, uint32_t height, VkFormat format);
+    // Copies width*height*(format's bytes-per-pixel) bytes from pixels into
+    // the image created by CreateStreamingImage and makes them visible for
+    // sampling - a memcpy into the persistent staging buffer plus a single
+    // vkCmdCopyBufferToImage on the shared command buffer, no image
+    // recreation. dataSize must match what CreateStreamingImage sized the
+    // staging buffer for (asserted via truncation, not a hard error).
+    void UpdateStreamingImage(UiImageHandle handle, const void *pixels, size_t dataSize);
+
     // Begins recording into the given target image (e.g. a quad
     // composition-layer swapchain image). All Draw* calls happen between
     // BeginFrame/EndFrame.
@@ -177,6 +195,19 @@ private:
         VkImageView view{VK_NULL_HANDLE};
         VkSampler sampler{VK_NULL_HANDLE};
         VkDescriptorSet descriptorSet{VK_NULL_HANDLE};
+
+        // Only set for images created by CreateStreamingImage - see its doc
+        // comment. stagingMapped stays non-null for the image's whole
+        // lifetime (mapped once, not per-update).
+        VkBuffer stagingBuffer{VK_NULL_HANDLE};
+        VkDeviceMemory stagingMemory{VK_NULL_HANDLE};
+        void *stagingMapped{nullptr};
+        VkDeviceSize stagingSize{0};
+        // UpdateStreamingImage needs to know the image's current layout to
+        // build the right barrier (UNDEFINED only holds on the very first
+        // call - every call after that starts from SHADER_READ_ONLY_OPTIMAL,
+        // left there by the previous call).
+        VkImageLayout currentLayout{VK_IMAGE_LAYOUT_UNDEFINED};
     };
 
     VkRenderPass GetOrCreateRenderPass(VkFormat format);
