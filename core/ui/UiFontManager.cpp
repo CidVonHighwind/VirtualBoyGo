@@ -65,10 +65,27 @@ void UiFontManager::RasterizeAndPackGlyph(Font &font, char32_t codepoint)
     const FT_UInt glyphIndex = FT_Get_Char_Index(font.ftFace, codepoint);
     if (glyphIndex == 0 || FT_Load_Glyph(font.ftFace, glyphIndex, FT_LOAD_RENDER))
     {
-        // No glyph for this codepoint in this font - record a zero-size
-        // entry so callers don't re-attempt the (failing) lookup every time
-        // this codepoint shows up again.
-        font.characters[codepoint] = Character{};
+        // No glyph for this codepoint in this font (e.g. CJK in a Latin-only
+        // font, reading arbitrary ROM file names off disk) - fall back to
+        // '?' instead of leaving it invisible, so an unsupported character
+        // is at least visibly present rather than silently vanishing from
+        // the string. '?' is baked once per font (it's in the eager ASCII
+        // 32-126 set LoadFont always bakes, so this recursive call is a
+        // cache hit in practice) and every missing codepoint after that
+        // just copies its already-baked metrics/UVs - no extra atlas space
+        // per distinct missing codepoint. Guarded against '?' itself being
+        // unavailable (pathological font) so this can't recurse forever.
+        constexpr char32_t kFallbackCodepoint = U'?';
+        if (codepoint != kFallbackCodepoint)
+        {
+            RasterizeAndPackGlyph(font, kFallbackCodepoint);
+            auto fallbackIt = font.characters.find(kFallbackCodepoint);
+            font.characters[codepoint] = fallbackIt != font.characters.end() ? fallbackIt->second : Character{};
+        }
+        else
+        {
+            font.characters[codepoint] = Character{};
+        }
         return;
     }
 

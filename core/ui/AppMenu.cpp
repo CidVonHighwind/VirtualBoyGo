@@ -221,8 +221,8 @@ void AppMenu::RenderContent(UiRenderer &ui)
         const float timeWidth = ui.GetTextWidth(m_resources.smallFont, timeText);
         const float timeTextY = kTimeRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
                                 ui.GetFontPStart(m_resources.smallFont);
-        ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth, timeTextY, 1.0f,
-                    kMenuTextColor);
+        ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth + 0.5f, timeTextY + 0.5f, 1.0f, kHeaderTextBackColor);
+        ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth, timeTextY, 1.0f, kMenuTextColor);
     }
 
     if (m_batteryPercent >= 0 && m_batteryPercent <= 100)
@@ -242,8 +242,9 @@ void AppMenu::RenderContent(UiRenderer &ui)
         const float textWidth = ui.GetTextWidth(m_resources.smallFont, batteryText);
         const float textY = kBatteryRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
                             ui.GetFontPStart(m_resources.smallFont);
-        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 3.0f - textWidth, textY, 1.0f,
-                    kMenuTextColor);
+
+        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 3.0f - textWidth + 0.5f, textY + 0.5f, 1.0f, kHeaderTextBackColor);
+        ui.DrawText(m_resources.smallFont, batteryText, blockX - kBatteryPadding - 3.0f - textWidth, textY, 1.0f, kMenuTextColor);
     }
 
     // Draw current page + next page (sliding in/out).
