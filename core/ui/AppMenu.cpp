@@ -9,8 +9,6 @@
 namespace
 {
     constexpr XrColor4f kClearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-    constexpr XrColor4f kBodyColor = {0.2f, 0.2f, 0.2f, 0.975f};
-    constexpr XrColor4f kOverlayColor = {0.35f, 0.35f, 0.35f, 0.98f};
     constexpr XrColor4f kHeaderTextColor = {0.9f, 0.1f, 0.1f, 1.0f};
     constexpr XrColor4f kHeaderTextBackColor = {0.0f, 0.0f, 0.0f, 0.45f};
     // Font pixel sizes are inherently integer (FreeType rasterizes whole
@@ -240,9 +238,9 @@ XrColor4f AppMenu::GetBackgroundColor() const { return kClearColor; }
 void AppMenu::RenderContent(UiRenderer &ui)
 {
     // Background regions
-    ui.DrawQuad(0, 0, kMenuWidth, kHeaderHeight, kOverlayColor);
-    ui.DrawQuad(0, kHeaderHeight, kMenuWidth, kMenuHeight - kHeaderHeight - kBottomHeight, kBodyColor);
-    ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kOverlayColor);
+    ui.DrawQuad(0, 0, kMenuWidth, kHeaderHeight, kMenuOverlayColor);
+    ui.DrawQuad(0, kHeaderHeight, kMenuWidth, kMenuHeight - kHeaderHeight - kBottomHeight, kMenuBodyColor);
+    ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kMenuOverlayColor);
 
     // Centred header title
     const float headerTextY = kHeaderHeight / 2.0f - ui.GetFontPHeight(m_titleFont) / 2.0f - ui.GetFontPStart(m_titleFont);

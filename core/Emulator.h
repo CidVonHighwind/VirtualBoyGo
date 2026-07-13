@@ -120,61 +120,36 @@ class Emulator
     void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both,
                     const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}) const;
 
-    // Save-state slots are 1-9 in the UI, shifted by one internally so
-    // slot 1 maps to FrontendGo's unsuffixed default slot 0 and slot 9 maps
-    // to its slot 8 (see StateFilePath) - lets existing FrontendGo saves in
-    // the common case (the default slot) carry over unchanged. Files are a
-    // raw retro_serialize dump, same format FrontendGo wrote via the same
-    // core, so old .state[N] files are binary-compatible if copied into
-    // this ROM's States folder with matching names.
+    // UI slots are 1-9, shifted by one internally so slot 1 maps to
+    // FrontendGo's unsuffixed slot 0 (see StateFilePath). Raw
+    // retro_serialize dump, binary-compatible with FrontendGo's .state[N].
     bool SaveState(int uiSlot);
     bool LoadState(int uiSlot);
     bool SaveStateExists(int uiSlot) const;
 
-    // Preview thumbnail size - native VB resolution, matching FrontendGo's
-    // own VIDEO_WIDTH/VIDEO_HEIGHT exactly (see .stateimg below). Public:
-    // AppMenu/MainPage need these to size the preview texture/draw rect.
+    // Native VB resolution - matches FrontendGo's .stateimg exactly.
     static constexpr uint32_t kPreviewWidth = 384;
     static constexpr uint32_t kPreviewHeight = 224;
 
-    // Reads the preview captured by the last SaveState(uiSlot) call - false
-    // (outRgba left untouched) if that slot has never been saved. outRgba is
-    // always expanded to RGBA (R=G=B=lum, A=255) for the caller's
-    // convenience, but the on-disk file (.stateimg[N]) is the same raw
-    // single-byte-per-pixel grayscale buffer FrontendGo itself wrote - byte-
-    // for-byte compatible, not just filename-compatible, so an existing
-    // FrontendGo .stateimg can be dropped in and displayed correctly, and
-    // this app's own saves can be read back by FrontendGo too. Tinting (the
-    // VB color palette) happens at *display* time (see MainPage's
-    // MenuImage tint-provider), matching FrontendGo's own raw-grayscale-
-    // tinted-at-display approach - not baked in at save time.
+    // Reads the preview from the last SaveState(uiSlot) call, expanded to
+    // RGBA (R=G=B=lum, A=255) - false if that slot has never been saved.
+    // On-disk format (.stateimg[N]) is raw grayscale, byte-compatible with
+    // FrontendGo; palette tint is applied at display time, not baked in.
     bool LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const;
 
-    // Flushes cart SRAM (battery-backed save) for whatever ROM is currently
-    // loaded, if any - call once from each platform's main() right after
-    // its render loop ends, before Vulkan teardown, so it isn't lost on
-    // exit (LoadRom already flushes it on every ROM switch, but app exit
-    // has no LoadRom call to piggyback on).
+    // Flushes cart SRAM for the currently-loaded ROM, if any - call once on
+    // app exit (LoadRom already flushes on every ROM switch).
     void Shutdown();
 
    private:
-    // Builds <m_romStateDir>/<m_romBaseName>.<ext><suffix> - suffix is empty
-    // for uiSlot==1 (FrontendGo's unsuffixed slot 0), else
-    // std::to_string(uiSlot - 1) (mirrors FrontendGo's own "only slot 0
-    // omits the number" rule, just fed uiSlot-1). Creates m_romStateDir if
-    // it doesn't exist yet.
+    // <m_romStateDir>/<m_romBaseName>.<ext><suffix>; suffix empty for
+    // uiSlot==1, else uiSlot-1.
     std::string StateFilePath(int uiSlot, const char *ext) const;
 
-    // Raw single-byte-per-pixel grayscale luminance, kPreviewWidth x
-    // kPreviewHeight - the exact format/resolution FrontendGo's .stateimg
-    // used (its own screen capture was never tinted either - tinting always
-    // happened at display time from the current palette).
     void CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const;
 
-    // Cart battery-save (SRAM), separate from save-states - matches
-    // FrontendGo's <romDir>/<stem>.srm convention (next to the ROM, no
-    // States subfolder). SaveRam must run before retro_unload_game() - the
-    // core's SRAM pointer isn't valid once the game is unloaded.
+    // Cart battery-save, matches FrontendGo's <romDir>/<stem>.srm. Must run
+    // before retro_unload_game() - the SRAM pointer isn't valid after.
     void SaveRam();
     void LoadRam();
 

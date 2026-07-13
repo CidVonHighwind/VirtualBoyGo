@@ -7,16 +7,9 @@
 
 namespace
 {
-    // Save-slot preview, on the same offscreen menu canvas as the list
-    // itself (not a separate real-window overlay), positioned to the right
-    // of the list - not below it - at a true 0.5x scale of the native
-    // 384x224 capture (see Emulator::kPreviewWidth/kPreviewHeight). This is
-    // why kMenuWidth had to grow (see AppMenuLayout.h) - the list needs its
-    // own reserved width alongside a full-size preview, not the full-width
-    // kListWidth every other page gets.
     constexpr float kPreviewWidth = Emulator::kPreviewWidth * 0.5f;   // 192
     constexpr float kPreviewHeight = Emulator::kPreviewHeight * 0.5f; // 112
-    constexpr float kPreviewGap = 10.0f;
+    constexpr float kPreviewGap = 8.0f;
     constexpr float kListWidthMain = kListWidth - kPreviewGap - kPreviewWidth;
     constexpr float kPreviewX = kMenuContentX + kListWidthMain + kPreviewGap;
     constexpr float kPreviewY = kMenuContentY + (kListHeight - kPreviewHeight) / 2.0f;

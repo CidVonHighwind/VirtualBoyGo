@@ -46,6 +46,10 @@ inline constexpr float kTransitionSlideDistance = 37.5f;
 inline constexpr XrColor4f kMenuTextColor = {0.8f, 0.8f, 0.8f, 1.0f};
 inline constexpr XrColor4f kMenuSelectionColor = {0.9f, 0.1f, 0.1f, 1.0f};
 
+// Header/bottom bar color and the body color between them.
+inline constexpr XrColor4f kMenuOverlayColor = {0.35f, 0.35f, 0.35f, 0.98f};
+inline constexpr XrColor4f kMenuBodyColor = {0.2f, 0.2f, 0.2f, 0.975f};
+
 // Shared secondary/small-print font (battery %, version string) - smaller
 // than kMenuFontSize since it's decorative/informational, not a menu row.
 inline constexpr int kSmallFontSize = 8;

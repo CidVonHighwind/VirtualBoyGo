@@ -66,11 +66,7 @@ public:
     void Hide() { m_open = false; }
     void ToggleOpen() { m_open = !m_open; }
 
-    // Re-applies m_resources.settings' swapSelectBackButton/menuButton1/2 to
-    // every owned page's Menu - called once after InitPages, and again
-    // whenever MenuButtonMapPage changes one of these (each page owns its
-    // own Menu instance, so there's no single shared place to read these
-    // from at update time - they have to be pushed out on every change).
+    // Pushes swapSelectBackButton/menuButton1/2 out to every page's Menu.
     void ApplyMenuButtonSettings();
 
 private:

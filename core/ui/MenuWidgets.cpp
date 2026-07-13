@@ -1,4 +1,5 @@
 #include "MenuWidgets.h"
+#include "pages/AppMenuLayout.h"
 
 #include <algorithm>
 
@@ -167,15 +168,23 @@ void MenuImage::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     const float x = PosX + offsetX;
     const float y = PosY + offsetY;
 
+    // Rounded frame, matching the header/bottom bars - hollow, not filled:
+    // the body-colored quad punches the middle back out so the frame only
+    // ever shows as a border, whatever's drawn on top of it.
+    constexpr float kFrameThickness = 3.0f;
+    constexpr float kFrameRadius = 3.0f;
+    XrColor4f frameColor = kMenuOverlayColor;
+    frameColor.a = 0.45f * alpha;
+    ui.DrawQuadRounded(x - kFrameThickness, y - kFrameThickness, m_width + kFrameThickness * 2,
+                       m_height + kFrameThickness * 2, frameColor, kFrameRadius);
+
     if (m_hasImage)
     {
-        const XrColor4f tint = m_tintProvider ? m_tintProvider() : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+        XrColor4f tint = m_tintProvider ? m_tintProvider() : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+        tint.a *= alpha;
         ui.DrawImage(m_texture, x, y, m_width, m_height, tint);
         return;
     }
-
-    const XrColor4f bg{0.15f, 0.15f, 0.15f, 0.6f * alpha};
-    ui.DrawQuad(x, y, m_width, m_height, bg);
 
     const float textWidth = ui.GetTextWidth(m_font, kMenuImageEmptyText);
     const float textX = x + (m_width - textWidth) / 2.0f;
@@ -255,14 +264,9 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
         item->Update(buttonState, lastButtonState, deltaSeconds);
     }
 
-    // Left/Right only adjust the selected item's own value (e.g. save slot
-    // +/-) - navigation in/out of a page is select/back's job alone (see the
-    // A/B handling below), not left/right. No ClearButtonState here,
-    // deliberately - clearing buttonState would make next frame's
-    // lastButtonState read as "not held", so ButtonPressed's rising-edge
-    // check would treat a still-held key as a brand new press every single
-    // frame, firing at 60Hz instead of respecting ScrollDelay/ScrollTimeH
-    // like Up/Down (below) correctly do.
+    // Left/Right adjust the selected item's own value (e.g. save slot +/-).
+    // No ClearButtonState - clearing would make the held key look freshly
+    // pressed every frame, breaking the ScrollDelay repeat throttle.
     if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_Left) ||
         ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_LeftStickLeft) ||
         ButtonPressed(buttonState, lastButtonState, DeviceLeftTouch, EmuButton_Left) ||
@@ -449,9 +453,11 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
 
     const int visible = maxVisible();
 
-    // Centre the item block vertically: distribute leftover space equally
-    // above and below rather than leaving a gap only at the bottom.
-    const float usedHeight = visible * m_itemHeight;
+    // Centre the item block vertically around however many rows are
+    // actually showing (not the list's full capacity) - a 1-entry list
+    // centers that entry in the middle, not pinned to the top.
+    const int rowCount = std::min(visible, static_cast<int>(m_entries.size()));
+    const float usedHeight = rowCount * m_itemHeight;
     const float verticalPad = (m_height - usedHeight) / 2.0f;
     const float baseY = m_posY + offsetY + verticalPad;
 

@@ -79,24 +79,16 @@ public:
     // registry ported yet).
     bool SwapSelectBackButton = false;
 
-    // Extra select-button bindings, checked in addition to the default A/B
-    // select/back - e.g. a user-remapped physical button that should also
-    // act as "confirm" (ported from FrontendGo's buttonMappingMenu.Buttons[2]
-    // via MenuButtonMapPage). IsSet=false (each MappedButton's own default)
-    // means "no extra binding".
+    // Extra select-button bindings, checked alongside the default A/B.
+    // IsSet=false means unbound.
     ButtonMapper::MappedButton ExtraSelectButton1;
     ButtonMapper::MappedButton ExtraSelectButton2;
 
     std::function<void()> BackPress;
 
-    // Modal "capture the next button press" hook for the button-remap pages
-    // (EmulatorButtonMapPage/MenuButtonMapPage): when set, Update() calls
-    // this first each frame instead of running normal navigation - return
-    // true while still waiting for a press (navigation stays suspended for
-    // that frame), or false once a binding has been found and written back
-    // (the hook should clear CaptureHook to nullptr itself before returning
-    // false, so normal navigation resumes the very next frame instead of
-    // needing a second call to notice the hook cleared itself).
+    // If set, called each Update() instead of normal navigation - return
+    // true while still waiting for a press, false (and clear this) once
+    // bound. Used by the button-remap pages.
     std::function<bool(uint32_t *buttonState, uint32_t *lastButtonState)> CaptureHook;
 
     void Init();
@@ -165,27 +157,16 @@ private:
     float m_offsetX = 0;
 };
 
-// A fixed-rect image, backed by its own streaming texture - not selectable
-// (never part of keyboard/gamepad navigation, see MenuItem::Selectable's
-// default). Used for the save-slot preview thumbnail: SetImage/Clear are
-// called whenever the selected slot changes, and Draw shows either the
-// last image given to SetImage (stretched to fit widthxheight) or a plain
-// "Empty Slot" placeholder when Clear() was last called (no save in that
-// slot yet).
+// A fixed-rect image backed by its own streaming texture, not selectable.
+// Used for the save-slot preview: Draw shows the last SetImage'd image, or
+// an "Empty Slot" placeholder after Clear().
 class MenuImage : public MenuItem
 {
 public:
-    // textureWidth/textureHeight size the backing streaming texture (the
-    // pixel resolution SetImage's rgba buffer must match); width/height are
-    // the logical on-screen draw size (may differ - the image is stretched
-    // to fit, same as UiRenderer::DrawImage always does). tintProvider, if
-    // given, is called fresh every Draw() to tint the image (e.g. the VB
-    // color palette) - a live callback rather than a cached color so the
-    // preview instantly reflects a palette change made elsewhere, matching
-    // FrontendGo's own save-preview behavior (its raw grayscale .stateimg
-    // was tinted at display time too, not baked in at save time - the whole
-    // reason SetImage's rgba is captured pre-tint, see Emulator::
-    // CaptureScreenshotRgba).
+    // textureWidth/textureHeight size the backing streaming texture; width/
+    // height are the on-screen draw size (stretched to fit). tintProvider,
+    // if given, is called fresh every draw to tint the image live (e.g. the
+    // VB color palette).
     MenuImage(UiRenderer &ui, UiFontHandle font, uint32_t textureWidth, uint32_t textureHeight, float posX, float posY,
               float width, float height, std::function<XrColor4f()> tintProvider = nullptr);
 
