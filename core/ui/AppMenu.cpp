@@ -172,6 +172,19 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 {
     if (!target || m_nextPage)
         return; // ignore if already transitioning
+
+    if (!m_open)
+    {
+        // Menu isn't visible (e.g. RomSelectPage hides the menu then
+        // navigates back to MainPage in the same callback) - Update()
+        // doesn't tick the transition while closed, so animating here would
+        // just leave it paused mid-slide and replay on the next reopen.
+        // Nothing to see, so jump straight to the target instead.
+        m_currentPage = target;
+        m_currentPage->ResetSelection();
+        return;
+    }
+
     m_nextPage = target;
     m_transitionDir = dir;
     m_transitionState = 1.0f;

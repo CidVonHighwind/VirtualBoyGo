@@ -1,7 +1,7 @@
 // Flat desktop window - no OpenXR, no headset required at all. Draws the
 // same AppMenu/UiRenderer content the composition-layer quad shows on the
 // headset builds, presented into a normal window swapchain instead of an
-// OpenXR session, driven by arrow keys/Enter/Escape instead of controller
+// OpenXR session, driven by arrow keys/A/S instead of controller
 // input. This is the fast local-iteration debug build the emulator/menu
 // rendering will eventually show up in without needing to put the headset on.
 #include "VulkanRenderer.h"
@@ -55,9 +55,9 @@ namespace
             bits |= ButtonMapping[EmuButton_Left];
         if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
             bits |= ButtonMapping[EmuButton_Right];
-        if (glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
             bits |= ButtonMapping[EmuButton_A];
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
             bits |= ButtonMapping[EmuButton_B];
     }
 
@@ -284,11 +284,14 @@ int main()
             std::memcpy(lastButtonStates, buttonStates, sizeof(buttonStates));
             PollKeyboardButtonState(window, buttonStates);
             appMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
-            // Only feed the game keyboard input while the menu is closed -
-            // otherwise menu navigation (also arrow keys) would leak through
-            // as gameplay input at the same time.
-            emulator.SetGameplayInput(appMenu.IsOpen() ? 0 : PollGameplayInput(window));
-            emulator.RunFrame(deltaSeconds);
+
+            // Pause emulation while the menu is open so gameplay doesn't
+            // keep advancing behind it.
+            if (!appMenu.IsOpen())
+            {
+                emulator.SetGameplayInput(PollGameplayInput(window));
+                emulator.RunFrame(deltaSeconds);
+            }
 
             batteryCycleSeconds += deltaSeconds;
             appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));

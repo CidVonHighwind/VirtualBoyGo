@@ -38,6 +38,12 @@ public:
         m_menu.Draw(ui, transitionDirX, 0, moveProgress, moveDist, fadeProgress);
     }
 
+    // Puts the cursor back on the first entry - called by AppMenu whenever
+    // this page becomes current, so re-entering a page never leaves the
+    // cursor wherever it was last left (e.g. MainPage should always land on
+    // "Resume", not wherever the user was before loading a ROM).
+    void ResetSelection() { m_menu.ResetSelection(); }
+
 protected:
     Menu m_menu;
 };

@@ -147,6 +147,20 @@ namespace
 
 void Menu::Init() { MenuItems[CurrentSelection]->Select(); }
 
+void Menu::ResetSelection()
+{
+    MenuItems[CurrentSelection]->Unselect();
+
+    CurrentSelection = 0;
+    while (!MenuItems[CurrentSelection]->Selectable && CurrentSelection < static_cast<int>(MenuItems.size()) - 1)
+        ++CurrentSelection;
+
+    for (auto &item : MenuItems)
+        item->ResetSelection();
+
+    MenuItems[CurrentSelection]->Select();
+}
+
 bool Menu::ButtonPressed(uint32_t *buttonState, uint32_t *lastButtonState, uint32_t device, uint32_t button)
 {
     return (buttonState[device] & ButtonMapper::ButtonMapping[button]) &&
@@ -197,14 +211,19 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
         item->Update(buttonState, lastButtonState, deltaSeconds);
     }
 
+    // Left/Right only adjust the selected item's own value (e.g. save slot
+    // +/-) - navigation in/out of a page is select/back's job alone (see the
+    // A/B handling below), not left/right.
     if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_Left) ||
         ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_LeftStickLeft) ||
         ButtonPressed(buttonState, lastButtonState, DeviceLeftTouch, EmuButton_Left) ||
         ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, EmuButton_Left))
     {
-        // Left is unconditional page-level back navigation.
-        if (BackPress != nullptr)
-            BackPress();
+        buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
+        if (MenuItems[CurrentSelection]->PressedLeft() != 0)
+        {
+            ClearButtonState(buttonState);
+        }
     }
 
     if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_Right) ||
@@ -214,10 +233,6 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
     {
         buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
         if (MenuItems[CurrentSelection]->PressedRight() != 0)
-        {
-            ClearButtonState(buttonState);
-        }
-        else if (MenuItems[CurrentSelection]->PressedEnter() != 0)
         {
             ClearButtonState(buttonState);
         }

@@ -58,6 +58,11 @@ public:
     virtual void Select();
     virtual void Unselect();
 
+    // Restores the item's internal cursor to its start - e.g. MenuList's
+    // scroll position - so re-entering a page doesn't leave it wherever the
+    // user last left it. No-op for items without one of their own.
+    virtual void ResetSelection() {}
+
     virtual void Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha);
 };
 
@@ -85,6 +90,10 @@ public:
     void Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaSeconds);
 
     void Draw(UiRenderer &ui, int transitionDirX, int transitionDirY, float moveProgress, float moveDist, float fadeProgress);
+
+    // Resets the top-level cursor to the first selectable item and resets
+    // every item's own internal selection (e.g. MenuList's scroll cursor).
+    void ResetSelection();
 };
 
 class MenuLabel : public MenuItem
@@ -171,6 +180,12 @@ public:
     int PressedLeft() override;
     int PressedRight() override;
     int PressedEnter() override;
+
+    void ResetSelection() override
+    {
+        m_selectedIndex = 0;
+        m_firstVisible = 0;
+    }
 
     void Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha) override;
 
