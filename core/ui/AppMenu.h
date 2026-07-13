@@ -13,6 +13,7 @@
 #include <cstdint>
 
 class Emulator;
+struct AppSettings;
 
 // Top-level menu system. Owns all menu pages and drives the slide transition
 // between them. Renders the active page into an offscreen buffer each frame,
@@ -29,7 +30,7 @@ public:
     static constexpr float kPanelCornerRadiusPx = 8.0f;
     static constexpr float kTransitionSpeed = 0.15f;
 
-    void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator);
+    void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings);
     void Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds);
     void RenderToBuffer(UiRenderer &ui);
     void Draw(UiRenderer &ui, float x, float y);
@@ -64,6 +65,13 @@ public:
     void Show() { m_open = true; }
     void Hide() { m_open = false; }
     void ToggleOpen() { m_open = !m_open; }
+
+    // Re-applies m_resources.settings' swapSelectBackButton/menuButton1/2 to
+    // every owned page's Menu - called once after InitPages, and again
+    // whenever MenuButtonMapPage changes one of these (each page owns its
+    // own Menu instance, so there's no single shared place to read these
+    // from at update time - they have to be pushed out on every change).
+    void ApplyMenuButtonSettings();
 
 private:
     void InitPages(UiRenderer &ui);

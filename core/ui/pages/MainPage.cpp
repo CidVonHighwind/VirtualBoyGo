@@ -1,25 +1,53 @@
 #include "MainPage.h"
+#include "../../Emulator.h"
+#include "../../Settings.h"
 #include "../AppMenu.h"
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
+namespace
+{
+    // Save-slot preview, on the same offscreen menu canvas as the list
+    // itself (not a separate real-window overlay), positioned to the right
+    // of the list - not below it - at a true 0.5x scale of the native
+    // 384x224 capture (see Emulator::kPreviewWidth/kPreviewHeight). This is
+    // why kMenuWidth had to grow (see AppMenuLayout.h) - the list needs its
+    // own reserved width alongside a full-size preview, not the full-width
+    // kListWidth every other page gets.
+    constexpr float kPreviewWidth = Emulator::kPreviewWidth * 0.5f;   // 192
+    constexpr float kPreviewHeight = Emulator::kPreviewHeight * 0.5f; // 112
+    constexpr float kPreviewGap = 10.0f;
+    constexpr float kListWidthMain = kListWidth - kPreviewGap - kPreviewWidth;
+    constexpr float kPreviewX = kMenuContentX + kListWidthMain + kPreviewGap;
+    constexpr float kPreviewY = kMenuContentY + (kListHeight - kPreviewHeight) / 2.0f;
+}
+
 void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
-    auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
-                                           kMenuItemSize, resources.icons);
+    auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidthMain,
+                                           kListHeight, kMenuItemSize, resources.icons);
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
     AppMenu *appMenu = resources.appMenu;
+    m_emulator = resources.emulator;
+
     list->AddEntry("Resume", [appMenu](MenuItem *) { if (appMenu) appMenu->Hide(); },
         nullptr, nullptr, UiIconId::Resume);
     list->AddEntry("Reset Game", nullptr, nullptr, nullptr, UiIconId::Reset);
-    list->AddEntry("Save Slot: 1", nullptr,
-        [](MenuItem *) { /* TODO: decrement slot */ },
-        [](MenuItem *) { /* TODO: increment slot */ },
+    list->AddEntry("Save Slot: " + std::to_string(m_saveSlot), nullptr,
+        [this](MenuItem *) { ChangeSaveSlot(-1); },
+        [this](MenuItem *) { ChangeSaveSlot(1); },
         UiIconId::SaveSlot);
-    list->AddEntry("Save", nullptr, nullptr, nullptr, UiIconId::Save);
-    list->AddEntry("Load", nullptr, nullptr, nullptr, UiIconId::Load);
+    list->AddEntry("Save", [this](MenuItem *) {
+        if (m_emulator)
+        {
+            m_emulator->SaveState(m_saveSlot);
+            RefreshSavePreview();
+        }
+    }, nullptr, nullptr, UiIconId::Save);
+    list->AddEntry("Load", [this](MenuItem *) { if (m_emulator) m_emulator->LoadState(m_saveSlot); },
+        nullptr, nullptr, UiIconId::Load);
     list->AddEntry("Load ROM", [this](MenuItem *) { if (romSelectPage) Navigate(romSelectPage, 1); },
         nullptr, nullptr, UiIconId::RomList);
     list->AddEntry("Reset View", nullptr, nullptr, nullptr, UiIconId::ResetView);
@@ -28,5 +56,48 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->AddEntry("Exit", nullptr, nullptr, nullptr, UiIconId::Exit);
 
     m_menu.MenuItems.push_back(list);
+
+    AppSettings *settings = resources.settings;
+    m_preview = std::make_shared<MenuImage>(ui, resources.smallFont, Emulator::kPreviewWidth, Emulator::kPreviewHeight,
+                                            kPreviewX, kPreviewY, kPreviewWidth, kPreviewHeight,
+                                            [settings]() -> XrColor4f {
+                                                return settings ? XrColor4f{settings->colorR, settings->colorG, settings->colorB, 1.0f}
+                                                                : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+                                            });
+    m_menu.MenuItems.push_back(m_preview);
+
     m_menu.Init();
+
+    m_list = list;
+    RefreshSavePreview();
+}
+
+void MainPage::ResetSelection()
+{
+    MenuPage::ResetSelection();
+    RefreshSavePreview();
+}
+
+void MainPage::ChangeSaveSlot(int delta)
+{
+    m_saveSlot += delta;
+    if (m_saveSlot < kMinSaveSlot)
+        m_saveSlot = kMaxSaveSlot;
+    else if (m_saveSlot > kMaxSaveSlot)
+        m_saveSlot = kMinSaveSlot;
+
+    m_list->SetEntryText(kSaveSlotEntryIndex, "Save Slot: " + std::to_string(m_saveSlot));
+    RefreshSavePreview();
+}
+
+void MainPage::RefreshSavePreview()
+{
+    if (!m_emulator || !m_preview)
+        return;
+
+    std::vector<uint8_t> rgba;
+    if (m_emulator->LoadStatePreview(m_saveSlot, rgba))
+        m_preview->SetImage(rgba);
+    else
+        m_preview->Clear();
 }

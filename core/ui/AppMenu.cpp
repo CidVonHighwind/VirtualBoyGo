@@ -1,5 +1,6 @@
 #include "AppMenu.h"
 #include "AssetLoader.h"
+#include "../Settings.h"
 
 #include <cmath>
 #include <cstdio>
@@ -79,7 +80,7 @@ namespace
 // -----------------------------------------------------------------------
 // Initialise
 
-void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator)
+void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings)
 {
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
@@ -95,6 +96,7 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulat
     m_resources.icons = &m_icons;
     m_resources.emulator = &emulator;
     m_resources.appMenu = this;
+    m_resources.settings = &settings;
     // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
     // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution
     // texture via BeginOffscreenFrame's logicalWidth/logicalHeight, so the
@@ -163,6 +165,22 @@ void AppMenu::InitPages(UiRenderer &ui)
     m_menuButtonMapPage.Init(ui, m_resources);
     m_emulatorButtonMapPage.Init(ui, m_resources);
     m_moveScreenPage.Init(ui, m_resources);
+
+    ApplyMenuButtonSettings();
+}
+
+void AppMenu::ApplyMenuButtonSettings()
+{
+    if (!m_resources.settings)
+        return;
+
+    MenuPage *pages[] = {&m_mainPage,           &m_settingsPage,          &m_romSelectPage,
+                        &m_menuButtonMapPage, &m_emulatorButtonMapPage, &m_moveScreenPage};
+    for (MenuPage *page : pages)
+    {
+        page->SetSwapSelectBackButton(m_resources.settings->swapSelectBackButton);
+        page->SetExtraSelectButtons(m_resources.settings->menuButton1, m_resources.settings->menuButton2);
+    }
 }
 
 // -----------------------------------------------------------------------

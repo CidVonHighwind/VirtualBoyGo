@@ -33,4 +33,7 @@ void main() {
     // a page transition) without touching the source pixels' own colour -
     // DrawImage/DrawImageRounded always pass a=1, so this is a no-op there.
     outColor.a *= vColor.a;
+    // vColor.rgb lets callers tint a drawn region (e.g. Emulator::DrawScreen's
+    // VB color palette) - most callers pass white (1,1,1), a no-op multiply.
+    outColor.rgb *= vColor.rgb;
 }

@@ -5,6 +5,7 @@
 
 class Emulator;
 class AppMenu;
+struct AppSettings;
 
 // Shared read-only resources every menu page needs, loaded once by
 // AppMenu::Initialize and handed to each page's Init() as a single bundle -
@@ -20,4 +21,8 @@ struct UiMenuResources
     // gameplay.
     Emulator *emulator = nullptr;
     AppMenu *appMenu = nullptr;
+    // Not const - SettingsPage/MoveScreenPage/the button-map pages all write
+    // through this directly (single shared instance, see AppSettings' own
+    // doc comment) - no per-page copies to keep in sync.
+    AppSettings *settings = nullptr;
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Emulator.h"
+#include "Settings.h"
 #include "VulkanRenderer.h"
 #include "XrInput.h"
 #include "ui/AppMenu.h"
@@ -106,6 +107,14 @@ class OpenXrApp {
     XrInput m_input;
     Emulator m_emulator;
     AppMenu m_appMenu;
+    AppSettings m_settings;
+    // Set by RenderFrame right before RenderScreenLayer/RenderMenuLayer, from
+    // xrLocateViews' output - only valid (m_headPoseValid true) on frames
+    // where the runtime actually located fresh view poses (see RenderFrame's
+    // posesValid check). Used for the Follow Head setting's head-locked
+    // orientation - see ComputeScreenOrientation in OpenXrApp.cpp.
+    XrQuaternionf m_headOrientation{0.0f, 0.0f, 0.0f, 1.0f};
+    bool m_headPoseValid{false};
     uint32_t m_buttonStates[3]{};
     uint32_t m_lastButtonStates[3]{};
     // Edge detection for the left controller's menu button toggling

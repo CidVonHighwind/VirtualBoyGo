@@ -113,14 +113,83 @@ class Emulator
     // target pixels) - callers typically size that rect to
     // GetScreenWidth/Height() * kScale for a pixel-perfect look (Both only -
     // Left/Right are half that width, see Eye). Draws whatever the last
-    // RunFrame produced (all-black before any ROM loads).
-    void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both) const;
+    // RunFrame produced (all-black before any ROM loads). tint multiplies
+    // the drawn pixels (white = no-op) - the VB color palette/custom RGB
+    // tint (AppSettings::colorR/G/B) is applied this way, since the core
+    // itself has no palette concept and always outputs pre-colored frames.
+    void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both,
+                    const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}) const;
+
+    // Save-state slots are 1-9 in the UI, shifted by one internally so
+    // slot 1 maps to FrontendGo's unsuffixed default slot 0 and slot 9 maps
+    // to its slot 8 (see StateFilePath) - lets existing FrontendGo saves in
+    // the common case (the default slot) carry over unchanged. Files are a
+    // raw retro_serialize dump, same format FrontendGo wrote via the same
+    // core, so old .state[N] files are binary-compatible if copied into
+    // this ROM's States folder with matching names.
+    bool SaveState(int uiSlot);
+    bool LoadState(int uiSlot);
+    bool SaveStateExists(int uiSlot) const;
+
+    // Preview thumbnail size - native VB resolution, matching FrontendGo's
+    // own VIDEO_WIDTH/VIDEO_HEIGHT exactly (see .stateimg below). Public:
+    // AppMenu/MainPage need these to size the preview texture/draw rect.
+    static constexpr uint32_t kPreviewWidth = 384;
+    static constexpr uint32_t kPreviewHeight = 224;
+
+    // Reads the preview captured by the last SaveState(uiSlot) call - false
+    // (outRgba left untouched) if that slot has never been saved. outRgba is
+    // always expanded to RGBA (R=G=B=lum, A=255) for the caller's
+    // convenience, but the on-disk file (.stateimg[N]) is the same raw
+    // single-byte-per-pixel grayscale buffer FrontendGo itself wrote - byte-
+    // for-byte compatible, not just filename-compatible, so an existing
+    // FrontendGo .stateimg can be dropped in and displayed correctly, and
+    // this app's own saves can be read back by FrontendGo too. Tinting (the
+    // VB color palette) happens at *display* time (see MainPage's
+    // MenuImage tint-provider), matching FrontendGo's own raw-grayscale-
+    // tinted-at-display approach - not baked in at save time.
+    bool LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const;
+
+    // Flushes cart SRAM (battery-backed save) for whatever ROM is currently
+    // loaded, if any - call once from each platform's main() right after
+    // its render loop ends, before Vulkan teardown, so it isn't lost on
+    // exit (LoadRom already flushes it on every ROM switch, but app exit
+    // has no LoadRom call to piggyback on).
+    void Shutdown();
 
    private:
+    // Builds <m_romStateDir>/<m_romBaseName>.<ext><suffix> - suffix is empty
+    // for uiSlot==1 (FrontendGo's unsuffixed slot 0), else
+    // std::to_string(uiSlot - 1) (mirrors FrontendGo's own "only slot 0
+    // omits the number" rule, just fed uiSlot-1). Creates m_romStateDir if
+    // it doesn't exist yet.
+    std::string StateFilePath(int uiSlot, const char *ext) const;
+
+    // Raw single-byte-per-pixel grayscale luminance, kPreviewWidth x
+    // kPreviewHeight - the exact format/resolution FrontendGo's .stateimg
+    // used (its own screen capture was never tinted either - tinting always
+    // happened at display time from the current palette).
+    void CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const;
+
+    // Cart battery-save (SRAM), separate from save-states - matches
+    // FrontendGo's <romDir>/<stem>.srm convention (next to the ROM, no
+    // States subfolder). SaveRam must run before retro_unload_game() - the
+    // core's SRAM pointer isn't valid once the game is unloaded.
+    void SaveRam();
+    void LoadRam();
+
     UiRenderer *m_ui = nullptr;
     UiImageHandle m_screenTexture;
     bool m_coreInitialized = false;
     bool m_romLoaded = false;
+
+    // Set by LoadRom - the currently-loaded ROM's own directory (for the
+    // .srm SRAM path, next to the ROM) and a "<romDir>/States" subfolder +
+    // filename stem (for save-state/preview paths). Empty/unset before any
+    // ROM has ever loaded, in which case SaveRam/SaveState etc. are no-ops.
+    std::string m_romDir;
+    std::string m_romStateDir;
+    std::string m_romBaseName;
 
     // Native VB refresh rate (retro_get_system_av_info's timing.fps) -
     // RunFrame accumulates real deltaSeconds against this to decide how many

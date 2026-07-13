@@ -2,9 +2,11 @@
 
 #include <libretro.h>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 
@@ -186,6 +188,9 @@ bool Emulator::LoadRom(const std::string &romPath)
 
     if (m_romLoaded)
     {
+        // Must flush the outgoing ROM's SRAM before unloading - the core's
+        // SRAM pointer isn't valid once the game is unloaded.
+        SaveRam();
         retro_unload_game();
         m_romLoaded = false;
     }
@@ -199,6 +204,16 @@ bool Emulator::LoadRom(const std::string &romPath)
     m_frameAccumulator = 0.0f;
     std::fprintf(stderr, "[Emulator] LoadRom(\"%s\"): %zu bytes read, retro_load_game -> %s\n", romPath.c_str(),
                 romBytes.size(), m_romLoaded ? "success" : "FAILED");
+
+    if (m_romLoaded)
+    {
+        const std::filesystem::path path(romPath);
+        m_romDir = path.parent_path().string();
+        m_romStateDir = (path.parent_path() / "States").string();
+        m_romBaseName = path.stem().string();
+        LoadRam();
+    }
+
     return m_romLoaded;
 }
 
@@ -257,7 +272,7 @@ void Emulator::RunFrame(float deltaSeconds)
     }
 }
 
-void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye) const
+void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye, const XrColor4f &tint) const
 {
     if (!m_screenTexture.IsValid())
         return;
@@ -286,5 +301,181 @@ void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Ey
     }
     ++drawCount;
 
-    ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1);
+    ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
+}
+
+std::string Emulator::StateFilePath(int uiSlot, const char *ext) const
+{
+    std::error_code ec;
+    std::filesystem::create_directories(m_romStateDir, ec);
+
+    std::string path = m_romStateDir + "/" + m_romBaseName + "." + ext;
+    if (uiSlot != 1)
+        path += std::to_string(uiSlot - 1);
+    return path;
+}
+
+void Emulator::CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const
+{
+    outGray.assign(static_cast<size_t>(kPreviewWidth) * kPreviewHeight, 0);
+    if (m_frameBufferRgba.empty())
+        return;
+
+    // Left-eye crop of the current side-by-side frame (native VB
+    // resolution) - same convention DrawScreen's Eye::Left uses - mapped
+    // proportionally onto kPreviewWidth x kPreviewHeight rather than
+    // assuming an exact match (m_lastFrameWidth/Height aren't guaranteed to
+    // be exactly the assumed side-by-side geometry - see Emulator.h); in
+    // practice this is a 1:1 copy since both are 384x224. Luminance = max
+    // channel - the core's output is already a true grayscale signal
+    // (R==G==B) before any palette tint, so any channel would do; max is
+    // just the safest choice if that ever isn't quite true.
+    const uint32_t srcEyeWidth = m_lastFrameWidth / 2;
+    const uint32_t srcHeight = m_lastFrameHeight;
+    if (srcEyeWidth == 0 || srcHeight == 0)
+        return;
+
+    for (uint32_t y = 0; y < kPreviewHeight; ++y)
+    {
+        const uint32_t srcY = y * srcHeight / kPreviewHeight;
+        for (uint32_t x = 0; x < kPreviewWidth; ++x)
+        {
+            const uint32_t srcX = x * srcEyeWidth / kPreviewWidth;
+            const size_t srcIndex = (static_cast<size_t>(srcY) * kFbWidth + srcX) * 4;
+            const uint8_t r = m_frameBufferRgba[srcIndex + 0];
+            const uint8_t g = m_frameBufferRgba[srcIndex + 1];
+            const uint8_t b = m_frameBufferRgba[srcIndex + 2];
+            outGray[static_cast<size_t>(y) * kPreviewWidth + x] = std::max({r, g, b});
+        }
+    }
+}
+
+bool Emulator::SaveState(int uiSlot)
+{
+    if (!m_romLoaded)
+        return false;
+
+    const size_t size = retro_serialize_size();
+    if (size == 0)
+        return false;
+
+    std::vector<uint8_t> data(size);
+    if (!retro_serialize(data.data(), size))
+        return false;
+
+    {
+        std::ofstream out(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::trunc);
+        if (!out)
+            return false;
+        out.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
+    }
+
+    std::vector<uint8_t> preview;
+    CaptureScreenshotGrayscale(preview);
+    std::ofstream previewOut(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::trunc);
+    if (previewOut)
+        previewOut.write(reinterpret_cast<const char *>(preview.data()), static_cast<std::streamsize>(preview.size()));
+
+    return true;
+}
+
+bool Emulator::LoadState(int uiSlot)
+{
+    if (!m_romLoaded)
+        return false;
+
+    std::ifstream in(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::ate);
+    if (!in)
+        return false;
+
+    const std::streamsize size = in.tellg();
+    // Refuse rather than feed the core a stale/mismatched-size buffer -
+    // FrontendGo's own LoadState skipped this check.
+    if (size <= 0 || static_cast<size_t>(size) != retro_serialize_size())
+        return false;
+
+    std::vector<uint8_t> data(static_cast<size_t>(size));
+    in.seekg(0, std::ios::beg);
+    in.read(reinterpret_cast<char *>(data.data()), size);
+
+    return retro_unserialize(data.data(), data.size());
+}
+
+bool Emulator::SaveStateExists(int uiSlot) const
+{
+    std::error_code ec;
+    return std::filesystem::exists(StateFilePath(uiSlot, "state"), ec) && !ec;
+}
+
+bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
+{
+    std::ifstream in(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::ate);
+    if (!in)
+        return false;
+
+    const std::streamsize size = in.tellg();
+    constexpr size_t kGraySize = static_cast<size_t>(kPreviewWidth) * kPreviewHeight;
+    if (size <= 0 || static_cast<size_t>(size) != kGraySize)
+        return false;
+
+    std::vector<uint8_t> gray(kGraySize);
+    in.seekg(0, std::ios::beg);
+    in.read(reinterpret_cast<char *>(gray.data()), size);
+
+    // Expand to RGBA (untinted - see LoadStatePreview's doc comment) for the
+    // caller, since UiRenderer's streaming-texture path expects RGBA.
+    outRgba.resize(kGraySize * 4);
+    for (size_t i = 0; i < kGraySize; ++i)
+    {
+        const uint8_t lum = gray[i];
+        outRgba[i * 4 + 0] = lum;
+        outRgba[i * 4 + 1] = lum;
+        outRgba[i * 4 + 2] = lum;
+        outRgba[i * 4 + 3] = 0xFF;
+    }
+    return true;
+}
+
+void Emulator::SaveRam()
+{
+    if (!m_romLoaded || m_romDir.empty())
+        return;
+
+    const size_t size = retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
+    void *data = retro_get_memory_data(RETRO_MEMORY_SAVE_RAM);
+    if (size == 0 || !data)
+        return; // this ROM has no battery-backed SRAM
+
+    std::ofstream out(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::trunc);
+    if (out)
+        out.write(static_cast<const char *>(data), static_cast<std::streamsize>(size));
+}
+
+void Emulator::LoadRam()
+{
+    if (!m_romLoaded || m_romDir.empty())
+        return;
+
+    const size_t size = retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
+    void *data = retro_get_memory_data(RETRO_MEMORY_SAVE_RAM);
+    if (size == 0 || !data)
+        return;
+
+    std::ifstream in(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::ate);
+    if (!in)
+        return;
+
+    const std::streamsize fileSize = in.tellg();
+    // Ignore rather than feed the core a stale/mismatched-size buffer.
+    if (fileSize <= 0 || static_cast<size_t>(fileSize) != size)
+        return;
+
+    in.seekg(0, std::ios::beg);
+    in.read(static_cast<char *>(data), fileSize);
+}
+
+void Emulator::Shutdown()
+{
+    if (m_romLoaded)
+        SaveRam();
 }

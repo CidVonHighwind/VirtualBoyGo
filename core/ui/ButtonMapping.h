@@ -71,6 +71,16 @@ namespace ButtonMapper {
             0x01000000, 0x02000000, 0x04000000, 0x08000000,
             0x10000000, 0x20000000, 0x40000000, 0x80000000,};
 
+    // Translates a device/EmuButton-space bitmask (as produced by pc2d's
+    // PollGameplayInput/PollKeyboardButtonState or XrInput::Sync) into a VB
+    // gameplay bitmask (bit positions per Emulator.h's VBButtonBit) using a
+    // caller-supplied binding table - one MappedButton per VBButtonBit slot,
+    // indexed directly by the VBButtonBit constant. Unset slots (IsSet ==
+    // false) never contribute a bit. This is what makes the button-remapping
+    // menu pages (EmulatorButtonMapPage) actually affect gameplay, instead of
+    // each platform hardcoding VB bits directly.
+    uint32_t TranslateToVBBitmask(const uint32_t buttonStates[3], const MappedButton (&vbButtons)[16]);
+
     // gamepad button names; ltouch button names; rtouch button names
     const std::string MapButtonStr[32 * 3] = {
                                         "A", "B", "RThumb", "RBumper",

@@ -7,6 +7,7 @@
 #include "VulkanRenderer.h"
 #include "AssetLoader.h"
 #include "Emulator.h"
+#include "Settings.h"
 #include "ui/AppMenu.h"
 #include "ui/ButtonMapping.h"
 #include "ui/UiRenderer.h"
@@ -63,32 +64,78 @@ namespace
 
     // VB gameplay input - separate key layout from menu navigation (the VB
     // controller has two D-pads plus A/B/L/R/Start/Select, more buttons than
-    // the menu's 6). Bit positions match VBButtonBit (see Emulator.h).
-    // Left D-pad: arrows. Right D-pad: WASD. A/B: X/Z (SNES-style layout).
-    // L/R: Q/E. Start/Select: Enter/Backspace.
-    uint32_t PollGameplayInput(GLFWwindow *window)
+    // the menu's 6). Left D-pad: arrows. Right D-pad: WASD. A/B: X/Z
+    // (SNES-style layout). L/R: Q/E. Start/Select: Enter/Backspace.
+    //
+    // Routed through the same ButtonMapper::EmuButton_*/TranslateToVBBitmask
+    // abstraction menu navigation already uses (rather than setting
+    // VBButtonBit bits directly, like this used to) so the Emulator Button
+    // Mapping menu page can actually rebind these - see
+    // ApplyDefaultGameplayBindings for the default key<->EmuButton_* slot
+    // assignment these physical keys are wired to.
+    uint32_t PollGameplayInput(GLFWwindow *window, const AppSettings &settings)
     {
-        uint32_t bits = 0;
-        auto setIf = [&](int key, uint32_t bit)
+        using namespace ButtonMapper;
+        uint32_t buttonStates[3] = {0, 0, 0};
+        uint32_t &bits = buttonStates[DeviceRightTouch];
+
+        auto setIf = [&](int key, uint32_t emuButton)
         {
             if (glfwGetKey(window, key) == GLFW_PRESS)
-                bits |= (1u << bit);
+                bits |= ButtonMapping[emuButton];
         };
-        setIf(GLFW_KEY_UP, VBButtonBit::LeftUp);
-        setIf(GLFW_KEY_DOWN, VBButtonBit::LeftDown);
-        setIf(GLFW_KEY_LEFT, VBButtonBit::LeftLeft);
-        setIf(GLFW_KEY_RIGHT, VBButtonBit::LeftRight);
-        setIf(GLFW_KEY_W, VBButtonBit::RightUp);
-        setIf(GLFW_KEY_S, VBButtonBit::RightDown);
-        setIf(GLFW_KEY_A, VBButtonBit::RightLeft);
-        setIf(GLFW_KEY_D, VBButtonBit::RightRight);
-        setIf(GLFW_KEY_X, VBButtonBit::A);
-        setIf(GLFW_KEY_Z, VBButtonBit::B);
-        setIf(GLFW_KEY_Q, VBButtonBit::L);
-        setIf(GLFW_KEY_E, VBButtonBit::R);
-        setIf(GLFW_KEY_ENTER, VBButtonBit::Start);
-        setIf(GLFW_KEY_BACKSPACE, VBButtonBit::Select);
-        return bits;
+        setIf(GLFW_KEY_UP, EmuButton_Up);
+        setIf(GLFW_KEY_DOWN, EmuButton_Down);
+        setIf(GLFW_KEY_LEFT, EmuButton_Left);
+        setIf(GLFW_KEY_RIGHT, EmuButton_Right);
+        setIf(GLFW_KEY_W, EmuButton_LeftStickUp);
+        setIf(GLFW_KEY_S, EmuButton_LeftStickDown);
+        setIf(GLFW_KEY_A, EmuButton_LeftStickLeft);
+        setIf(GLFW_KEY_D, EmuButton_LeftStickRight);
+        setIf(GLFW_KEY_X, EmuButton_A);
+        setIf(GLFW_KEY_Z, EmuButton_B);
+        setIf(GLFW_KEY_Q, EmuButton_LShoulder);
+        setIf(GLFW_KEY_E, EmuButton_RShoulder);
+        setIf(GLFW_KEY_ENTER, EmuButton_Enter);
+        setIf(GLFW_KEY_BACKSPACE, EmuButton_Back);
+
+        return TranslateToVBBitmask(buttonStates, settings.vbButtons);
+    }
+
+    // Fills in vbButtons/menu-button slots that have never been bound yet
+    // (IsSet == false) with this platform's default key layout - runs once
+    // at startup, after Settings::Load(), so a user's saved remaps (from a
+    // previous run) are never overwritten, only genuinely-unset slots (a
+    // fresh settings.dat, or one saved before a button existed) get a
+    // default. Mirrors PollGameplayInput's key choices above exactly, so
+    // first-run behavior is unchanged from before this abstraction existed.
+    void ApplyDefaultGameplayBindings(AppSettings &settings)
+    {
+        using namespace ButtonMapper;
+        auto setDefault = [&](uint32_t vbBit, uint32_t emuButton)
+        {
+            MappedButton &b = settings.vbButtons[vbBit];
+            if (!b.IsSet)
+            {
+                b.IsSet = true;
+                b.InputDevice = DeviceRightTouch;
+                b.ButtonIndex = static_cast<int>(emuButton);
+            }
+        };
+        setDefault(VBButtonBit::LeftUp, EmuButton_Up);
+        setDefault(VBButtonBit::LeftDown, EmuButton_Down);
+        setDefault(VBButtonBit::LeftLeft, EmuButton_Left);
+        setDefault(VBButtonBit::LeftRight, EmuButton_Right);
+        setDefault(VBButtonBit::RightUp, EmuButton_LeftStickUp);
+        setDefault(VBButtonBit::RightDown, EmuButton_LeftStickDown);
+        setDefault(VBButtonBit::RightLeft, EmuButton_LeftStickLeft);
+        setDefault(VBButtonBit::RightRight, EmuButton_LeftStickRight);
+        setDefault(VBButtonBit::A, EmuButton_A);
+        setDefault(VBButtonBit::B, EmuButton_B);
+        setDefault(VBButtonBit::L, EmuButton_LShoulder);
+        setDefault(VBButtonBit::R, EmuButton_RShoulder);
+        setDefault(VBButtonBit::Start, EmuButton_Enter);
+        setDefault(VBButtonBit::Select, EmuButton_Back);
     }
 
 } // namespace
@@ -143,6 +190,9 @@ int main()
     UiRenderer uiRenderer;
     Emulator emulator;
     AppMenu appMenu;
+    AppSettings settings;
+    settings.Load(); // no-op (defaults stand) on first run/missing file
+    ApplyDefaultGameplayBindings(settings);
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFence acquireFence = VK_NULL_HANDLE;
@@ -228,7 +278,7 @@ int main()
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
                               renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
         emulator.Initialize(uiRenderer);
-        appMenu.Initialize(uiRenderer, chosen.format, emulator);
+        appMenu.Initialize(uiRenderer, chosen.format, emulator, settings);
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");
@@ -289,7 +339,7 @@ int main()
             // keep advancing behind it.
             if (!appMenu.IsOpen())
             {
-                emulator.SetGameplayInput(PollGameplayInput(window));
+                emulator.SetGameplayInput(PollGameplayInput(window, settings));
                 emulator.RunFrame(deltaSeconds);
             }
 
@@ -330,7 +380,9 @@ int main()
                                   appMenu.GetBackgroundColor());
             if (emulator.HasScreen())
             {
-                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), Emulator::Eye::Left);
+                const XrColor4f tint{settings.colorR, settings.colorG, settings.colorB, 1.0f};
+                emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height),
+                                    Emulator::Eye::Left, tint);
             }
             if (appMenu.IsOpen())
                 appMenu.Draw(uiRenderer, menuX, menuY);
@@ -352,6 +404,11 @@ int main()
         std::fprintf(stderr, "VirtualBoyGo 2D: %s\n", ex.what());
         exitCode = 1;
     }
+
+    // Flush cart SRAM (if any) for whatever ROM is currently loaded - LoadRom
+    // already does this on every ROM switch, but app exit has no LoadRom
+    // call to piggyback on.
+    emulator.Shutdown();
 
     if (acquireFence != VK_NULL_HANDLE)
         vkDestroyFence(renderer.GetDevice(), acquireFence, nullptr);

@@ -134,14 +134,20 @@ public:
     void DrawText(UiFontHandle font, const std::string &text, float x, float y, float scale, const XrColor4f &color);
     // Stretches the whole image into the given destination rect (in target
     // pixels). Pass an already integer-scaled rect for a pixel-perfect look
-    // (the sampler is NEAREST, so no blurring occurs either way).
-    void DrawImage(UiImageHandle image, float x, float y, float w, float h);
+    // (the sampler is NEAREST, so no blurring occurs either way). tint
+    // multiplies the sampled rgb (white = no-op) - e.g. Emulator::DrawScreen's
+    // VB color palette.
+    void DrawImage(UiImageHandle image, float x, float y, float w, float h,
+                   const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
     // Like DrawImage, but samples only the given sub-rect of the image (UVs
     // in 0..1 image space) - for drawing one icon out of a shared atlas
-    // texture instead of the whole image. Only alpha is applied (see
-    // ui_image.frag) - rgb is unused for icons, which are already coloured.
+    // texture instead of the whole image, or a UV-cropped region of a larger
+    // texture (see Emulator::DrawScreen). tint multiplies the sampled rgb
+    // (white = no-op, the default every caller but DrawScreen uses) in
+    // addition to the alpha fade.
     void DrawImageRegion(UiImageHandle image, float x, float y, float w, float h,
-                         float u0, float v0, float u1, float v1, float alpha = 1.0f);
+                         float u0, float v0, float u1, float v1, float alpha = 1.0f,
+                         const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
     // Like DrawImage, but masks the sampled texture to rounded corners - the
     // intended way to composite a whole pre-rendered buffer (e.g. an
     // offscreen-rendered AppMenu) as a single rounded panel, instead of

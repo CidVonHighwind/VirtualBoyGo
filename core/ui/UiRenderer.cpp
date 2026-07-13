@@ -726,23 +726,23 @@ void UiRenderer::DrawText(UiFontHandle fontHandle, const std::string &text, floa
     }
 }
 
-void UiRenderer::DrawImage(UiImageHandle imageHandle, float x, float y, float w, float h)
+void UiRenderer::DrawImage(UiImageHandle imageHandle, float x, float y, float w, float h, const XrColor4f &tint)
 {
     if (!imageHandle.IsValid())
         return;
     const Image &img = m_images[imageHandle.id];
     DrawUnitQuad(m_imagePipeline, m_textPipelineLayout, img.descriptorSet,
-                 x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
+                 x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, tint);
 }
 
 void UiRenderer::DrawImageRegion(UiImageHandle imageHandle, float x, float y, float w, float h,
-                                 float u0, float v0, float u1, float v1, float alpha)
+                                 float u0, float v0, float u1, float v1, float alpha, const XrColor4f &tint)
 {
     if (!imageHandle.IsValid())
         return;
     const Image &img = m_images[imageHandle.id];
     DrawUnitQuad(m_imagePipeline, m_textPipelineLayout, img.descriptorSet,
-                 x, y, w, h, u0, v0, u1, v1, XrColor4f{1.0f, 1.0f, 1.0f, alpha});
+                 x, y, w, h, u0, v0, u1, v1, XrColor4f{tint.r, tint.g, tint.b, alpha});
 }
 
 void UiRenderer::DrawImageRounded(UiImageHandle imageHandle, float x, float y, float w, float h, float cornerRadiusPx)

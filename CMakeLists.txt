@@ -174,6 +174,7 @@ add_library(vbgo_app STATIC
     core/VulkanRenderer.cpp
     core/AssetLoader.cpp
     core/RomScanner.cpp
+    core/Settings.cpp
     core/XrInput.cpp
     core/Emulator.cpp
     core/ui/UiRenderer.cpp
@@ -181,6 +182,7 @@ add_library(vbgo_app STATIC
     core/ui/UiFontManager.cpp
     core/ui/UiVulkanUtils.cpp
     core/ui/UiIconSet.cpp
+    core/ui/ButtonMapping.cpp
     core/ui/pages/MainPage.cpp
     core/ui/pages/SettingsPage.cpp
     core/ui/pages/RomSelectPage.cpp

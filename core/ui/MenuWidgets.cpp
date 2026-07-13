@@ -134,16 +134,57 @@ void MenuButton::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     ui.DrawText(m_font, Text, PosX + (Selected ? 2.5f : 0.0f) + offsetX + m_offsetX, PosY + offsetY, 1.0f, c);
 }
 
-// ---- Menu ----
+// ---- MenuImage ----
 
 namespace
 {
-    void ClearButtonState(uint32_t *buttonState)
+    const std::string kMenuImageEmptyText = "Empty Slot";
+}
+
+MenuImage::MenuImage(UiRenderer &ui, UiFontHandle font, uint32_t textureWidth, uint32_t textureHeight, float posX,
+                     float posY, float width, float height, std::function<XrColor4f()> tintProvider)
+    : m_ui(&ui), m_font(font), m_width(width), m_height(height), m_tintProvider(std::move(tintProvider))
+{
+    PosX = posX;
+    PosY = posY;
+    m_texture = ui.CreateStreamingImage(textureWidth, textureHeight, VK_FORMAT_B8G8R8A8_UNORM);
+    m_ui->EnsureGlyphsForText(m_font, kMenuImageEmptyText);
+}
+
+void MenuImage::SetImage(const std::vector<uint8_t> &rgba)
+{
+    m_ui->UpdateStreamingImage(m_texture, rgba.data(), rgba.size());
+    m_hasImage = true;
+}
+
+void MenuImage::Clear() { m_hasImage = false; }
+
+void MenuImage::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
+{
+    if (!Visible)
+        return;
+
+    const float x = PosX + offsetX;
+    const float y = PosY + offsetY;
+
+    if (m_hasImage)
     {
-        for (int i = 0; i < 3; ++i)
-            buttonState[i] = 0;
+        const XrColor4f tint = m_tintProvider ? m_tintProvider() : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+        ui.DrawImage(m_texture, x, y, m_width, m_height, tint);
+        return;
     }
-} // namespace
+
+    const XrColor4f bg{0.15f, 0.15f, 0.15f, 0.6f * alpha};
+    ui.DrawQuad(x, y, m_width, m_height, bg);
+
+    const float textWidth = ui.GetTextWidth(m_font, kMenuImageEmptyText);
+    const float textX = x + (m_width - textWidth) / 2.0f;
+    const float textY = y + m_height / 2.0f - ui.GetFontPHeight(m_font) / 2.0f - ui.GetFontPStart(m_font);
+    const XrColor4f textColor{0.7f, 0.7f, 0.7f, alpha};
+    ui.DrawText(m_font, kMenuImageEmptyText, textX, textY, 1.0f, textColor);
+}
+
+// ---- Menu ----
 
 void Menu::Init() { MenuItems[CurrentSelection]->Select(); }
 
@@ -188,6 +229,9 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
 {
     using namespace ButtonMapper;
 
+    if (CaptureHook && CaptureHook(buttonState, lastButtonState))
+        return; // still waiting for a button press - normal navigation suspended
+
     MenuItems[CurrentSelection]->Unselect();
 
     if ((buttonState[DeviceGamepad] &
@@ -213,17 +257,19 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
 
     // Left/Right only adjust the selected item's own value (e.g. save slot
     // +/-) - navigation in/out of a page is select/back's job alone (see the
-    // A/B handling below), not left/right.
+    // A/B handling below), not left/right. No ClearButtonState here,
+    // deliberately - clearing buttonState would make next frame's
+    // lastButtonState read as "not held", so ButtonPressed's rising-edge
+    // check would treat a still-held key as a brand new press every single
+    // frame, firing at 60Hz instead of respecting ScrollDelay/ScrollTimeH
+    // like Up/Down (below) correctly do.
     if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_Left) ||
         ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_LeftStickLeft) ||
         ButtonPressed(buttonState, lastButtonState, DeviceLeftTouch, EmuButton_Left) ||
         ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, EmuButton_Left))
     {
         buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
-        if (MenuItems[CurrentSelection]->PressedLeft() != 0)
-        {
-            ClearButtonState(buttonState);
-        }
+        MenuItems[CurrentSelection]->PressedLeft();
     }
 
     if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_Right) ||
@@ -232,20 +278,23 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
         ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, EmuButton_Right))
     {
         buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
-        if (MenuItems[CurrentSelection]->PressedRight() != 0)
-        {
-            ClearButtonState(buttonState);
-        }
+        MenuItems[CurrentSelection]->PressedRight();
     }
 
-    if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, SwapSelectBackButton ? EmuButton_B : EmuButton_A) ||
-        ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, SwapSelectBackButton ? EmuButton_B : EmuButton_A))
+    bool selectPressed =
+        ButtonPressed(buttonState, lastButtonState, DeviceGamepad, SwapSelectBackButton ? EmuButton_B : EmuButton_A) ||
+        ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, SwapSelectBackButton ? EmuButton_B : EmuButton_A);
+    if (!selectPressed && ExtraSelectButton1.IsSet)
+        selectPressed = ButtonPressed(buttonState, lastButtonState, static_cast<uint32_t>(ExtraSelectButton1.InputDevice),
+                                      static_cast<uint32_t>(ExtraSelectButton1.ButtonIndex));
+    if (!selectPressed && ExtraSelectButton2.IsSet)
+        selectPressed = ButtonPressed(buttonState, lastButtonState, static_cast<uint32_t>(ExtraSelectButton2.InputDevice),
+                                      static_cast<uint32_t>(ExtraSelectButton2.ButtonIndex));
+
+    if (selectPressed)
     {
         buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
-        if (MenuItems[CurrentSelection]->PressedEnter() != 0)
-        {
-            ClearButtonState(buttonState);
-        }
+        MenuItems[CurrentSelection]->PressedEnter();
     }
     else if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, SwapSelectBackButton ? EmuButton_A : EmuButton_B) ||
              ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, SwapSelectBackButton ? EmuButton_A : EmuButton_B))
@@ -311,6 +360,12 @@ void MenuList::AddEntry(const std::string &text,
     // glyphs it needs now, not while drawing. See MenuLabel::SetText.
     m_ui->EnsureGlyphsForText(m_font, text);
     m_entries.push_back({text, press, left, right, icon});
+}
+
+void MenuList::SetEntryText(int index, const std::string &text)
+{
+    m_ui->EnsureGlyphsForText(m_font, text);
+    m_entries[index].text = text;
 }
 
 int MenuList::maxVisible() const { return static_cast<int>(m_height / m_itemHeight); }

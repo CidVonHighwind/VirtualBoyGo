@@ -137,6 +137,21 @@ void XrInput::Sync(XrSession session) {
             if (stickState.currentState.y < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Down];
             if (stickState.currentState.x < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Left];
             if (stickState.currentState.x > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Right];
+            // Also set hand-specific Left/RightStick bits (distinct from the
+            // generic Up/Down/Left/Right above, which both hands share for
+            // menu navigation) - these are what AppSettings::vbButtons'
+            // default bindings point at, so the two VB D-pads (left
+            // controller -> Left D-pad, right controller -> Right D-pad) can
+            // be told apart via ButtonMapper::TranslateToVBBitmask.
+            const bool isLeftHand = hand.deviceSlot == ButtonMapper::DeviceLeftTouch;
+            const uint32_t upBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickUp : ButtonMapper::EmuButton_RightStickUp;
+            const uint32_t downBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickDown : ButtonMapper::EmuButton_RightStickDown;
+            const uint32_t leftBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickLeft : ButtonMapper::EmuButton_RightStickLeft;
+            const uint32_t rightBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickRight : ButtonMapper::EmuButton_RightStickRight;
+            if (stickState.currentState.y > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[upBit];
+            if (stickState.currentState.y < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[downBit];
+            if (stickState.currentState.x < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[leftBit];
+            if (stickState.currentState.x > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[rightBit];
             if (hand.deviceSlot == ButtonMapper::DeviceRightTouch) m_rightThumbstick = stickState.currentState;
             else m_leftThumbstick = stickState.currentState;
         }
@@ -153,6 +168,11 @@ void XrInput::Sync(XrSession session) {
     };
     m_leftTriggerPressed = readTrigger(m_leftHandPath);
     m_rightTriggerPressed = readTrigger(m_rightHandPath);
+    // Also feed buttonStates (see the thumbstick block above's doc comment) -
+    // AppSettings::vbButtons' default L/R bindings point at this bit on the
+    // matching hand's device slot.
+    if (m_leftTriggerPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
+    if (m_rightTriggerPressed) m_buttonStates[ButtonMapper::DeviceRightTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
 
     auto readClick = [&](XrAction action, uint32_t emuButton) {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
@@ -181,6 +201,10 @@ void XrInput::Sync(XrSession session) {
     };
     m_xPressed = readRawBool(m_xClickAction);
     m_yPressed = readRawBool(m_yClickAction);
+    // Also feed buttonStates (see the thumbstick block above's doc comment) -
+    // AppSettings::vbButtons' default Select/Start bindings point at these.
+    if (m_xPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_X];
+    if (m_yPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Y];
 
     m_menuButtonPressed = false;
     XrActionStateGetInfo menuGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
