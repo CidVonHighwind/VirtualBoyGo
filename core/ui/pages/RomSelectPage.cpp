@@ -1,4 +1,5 @@
 #include "RomSelectPage.h"
+#include "../../AndroidRomAccess.h"
 #include "../../Emulator.h"
 #include "../../RomScanner.h"
 #include "../AppMenu.h"
@@ -13,24 +14,38 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->SelectionColor = kMenuSelectionColor;
     list->TintIconOnSelect = false; // cartridge glyph, not a status indicator - stays put when a row is selected
 
-    const std::vector<RomEntry> roms = ScanRoms();
-    if (roms.empty())
+    if (!AndroidRomAccess::HasRomsFolder())
     {
-        list->AddEntry("(No ROMs found)");
+        // Only reachable if "Change ROMs Folder..." (SettingsPage) cleared the
+        // folder this session - re-picking needs an app restart, so just say so.
+        MenuList *listPtr = list.get();
+        list->AddEntry("Pick ROMs folder...", [listPtr](MenuItem *) {
+            AndroidRomAccess::RequestChangeRomsFolder();
+            listPtr->SetEntryText(0, "Folder cleared - restart the app!");
+        });
     }
     else
     {
-        Emulator *emulator = resources.emulator;
-        AppMenu *appMenu = resources.appMenu;
-        for (const RomEntry &rom : roms)
+        const std::vector<RomEntry> roms = ScanRoms();
+        if (roms.empty())
         {
-            const std::string romPath = rom.fullPath;
-            list->AddEntry(rom.name, [this, emulator, appMenu, romPath](MenuItem *) {
-                if (emulator && emulator->LoadRom(romPath) && appMenu)
-                    appMenu->Hide(); // go straight to the game instead of back to the menu
-                if (mainPage)
-                    Navigate(mainPage, -1);
-            }, nullptr, nullptr, UiIconId::VbCartridge);
+            list->AddEntry("(No ROMs found)");
+        }
+        else
+        {
+            Emulator *emulator = resources.emulator;
+            AppMenu *appMenu = resources.appMenu;
+            for (const RomEntry &rom : roms)
+            {
+                const std::string romPath = rom.fullPath;
+                const std::string romName = rom.name;
+                list->AddEntry(rom.name, [this, emulator, appMenu, romPath, romName](MenuItem *) {
+                    if (emulator && emulator->LoadRom(romPath, romName) && appMenu)
+                        appMenu->Hide(); // go straight to the game instead of back to the menu
+                    if (mainPage)
+                        Navigate(mainPage, -1);
+                }, nullptr, nullptr, UiIconId::VbCartridge);
+            }
         }
     }
 

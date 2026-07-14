@@ -1,4 +1,5 @@
 #include "SettingsPage.h"
+#include "../../AndroidRomAccess.h"
 #include "../../Settings.h"
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
@@ -102,6 +103,15 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, -kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, kColorStep); });
 
+#if defined(__ANDROID__)
+    // Way back into the ROMs-folder picker (SAF, see RomScanner.h). Clears
+    // the folder and asks for a restart rather than re-popping the picker
+    // directly (see AndroidRomAccess::RequestChangeRomsFolder).
+    list->AddSpacer(kMenuSpacerSize);
+    list->AddEntry("Change ROMs Folder...", [this](MenuItem *) { RequestChangeRomsFolder(); },
+        nullptr, nullptr, UiIconId::RomList);
+#endif
+
     m_menu.MenuItems.push_back(list);
     m_list = list;
 
@@ -184,6 +194,15 @@ void SettingsPage::ChangeColorChannel(float AppSettings::*channel, float delta)
     m_settings->selectedPalette = -1; // diverges from whatever preset was selected, matches FrontendGo
     RefreshLabels();
 }
+
+#if defined(__ANDROID__)
+void SettingsPage::RequestChangeRomsFolder()
+{
+    AndroidRomAccess::RequestChangeRomsFolder();
+    if (m_list)
+        m_list->SetEntryText(kChangeRomsFolderIndex, "Folder cleared - restart the app!");
+}
+#endif
 
 void SettingsPage::RefreshLabels()
 {

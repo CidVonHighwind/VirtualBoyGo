@@ -1,5 +1,9 @@
 #include "Emulator.h"
 
+#if defined(__ANDROID__)
+#include "AndroidRomAccess.h"
+#endif
+
 #include <libretro.h>
 
 #include <algorithm>
@@ -194,15 +198,22 @@ void Emulator::Initialize(UiRenderer &ui)
     m_frameBufferRgba.resize(static_cast<size_t>(kFbWidth) * kFbHeight * 4);
 }
 
-bool Emulator::LoadRom(const std::string &romPath)
+bool Emulator::LoadRom(const std::string &romPath, const std::string &displayName)
 {
     if (!m_coreInitialized)
         return false;
 
-    std::ifstream in(romPath, std::ios::binary);
-    if (!in)
-        return false;
-    const std::vector<uint8_t> romBytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+#if defined(__ANDROID__)
+    const std::vector<uint8_t> romBytes = AndroidRomAccess::ReadFile(romPath);
+#else
+    std::vector<uint8_t> romBytes;
+    {
+        std::ifstream in(romPath, std::ios::binary);
+        if (!in)
+            return false;
+        romBytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+#endif
     if (romBytes.empty())
         return false;
 
@@ -227,10 +238,16 @@ bool Emulator::LoadRom(const std::string &romPath)
 
     if (m_romLoaded)
     {
+        // romPath is a content:// URI, not a filesystem path - use the
+        // caller's display name for save-data naming. AndroidRomAccess
+        // resolves the folder itself, so m_romDir/m_romStateDir go unused.
+        m_romBaseName = displayName.empty() ? "rom" : displayName;
+#else
         const std::filesystem::path path(romPath);
         m_romDir = path.parent_path().string();
         m_romStateDir = (path.parent_path() / "States").string();
         m_romBaseName = path.stem().string();
+#endif
         LoadRam();
     }
 
@@ -314,15 +331,19 @@ void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Ey
     ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
 }
 
+std::string Emulator::StateFileName(int uiSlot, const char *ext) const
+{
+    std::string name = m_romBaseName + "." + ext;
+    if (uiSlot != 0)
+        name += std::to_string(uiSlot);
+    return name;
+}
+
 std::string Emulator::StateFilePath(int uiSlot, const char *ext) const
 {
     std::error_code ec;
     std::filesystem::create_directories(m_romStateDir, ec);
-
-    std::string path = m_romStateDir + "/" + m_romBaseName + "." + ext;
-    if (uiSlot != 0)
-        path += std::to_string(uiSlot);
-    return path;
+    return m_romStateDir + "/" + StateFileName(uiSlot, ext);
 }
 
 void Emulator::CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const
@@ -373,6 +394,14 @@ bool Emulator::SaveState(int uiSlot)
     if (!retro_serialize(data.data(), size))
         return false;
 
+    std::vector<uint8_t> preview;
+    CaptureScreenshotGrayscale(preview);
+
+#if defined(__ANDROID__)
+    if (!AndroidRomAccess::WriteRomsFile(StateFileName(uiSlot, "state"), true, data.data(), data.size()))
+        return false;
+    AndroidRomAccess::WriteRomsFile(StateFileName(uiSlot, "stateimg"), true, preview.data(), preview.size());
+#else
     {
         std::ofstream out(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::trunc);
         if (!out)
@@ -380,11 +409,10 @@ bool Emulator::SaveState(int uiSlot)
         out.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
     }
 
-    std::vector<uint8_t> preview;
-    CaptureScreenshotGrayscale(preview);
     std::ofstream previewOut(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::trunc);
     if (previewOut)
         previewOut.write(reinterpret_cast<const char *>(preview.data()), static_cast<std::streamsize>(preview.size()));
+#endif
 
     return true;
 }
@@ -394,43 +422,61 @@ bool Emulator::LoadState(int uiSlot)
     if (!m_romLoaded)
         return false;
 
+#if defined(__ANDROID__)
+    std::vector<uint8_t> data = AndroidRomAccess::ReadRomsFile(StateFileName(uiSlot, "state"), true);
+    // Refuse rather than feed the core a stale/mismatched-size buffer -
+    // FrontendGo's own LoadState skipped this check.
+    if (data.size() != retro_serialize_size())
+        return false;
+#else
     std::ifstream in(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::ate);
     if (!in)
         return false;
 
     const std::streamsize size = in.tellg();
-    // Refuse rather than feed the core a stale/mismatched-size buffer -
-    // FrontendGo's own LoadState skipped this check.
     if (size <= 0 || static_cast<size_t>(size) != retro_serialize_size())
         return false;
 
     std::vector<uint8_t> data(static_cast<size_t>(size));
     in.seekg(0, std::ios::beg);
     in.read(reinterpret_cast<char *>(data.data()), size);
+#endif
 
     return retro_unserialize(data.data(), data.size());
 }
 
 bool Emulator::SaveStateExists(int uiSlot) const
 {
+#if defined(__ANDROID__)
+    return AndroidRomAccess::RomsFileExists(StateFileName(uiSlot, "state"), true);
+#else
     std::error_code ec;
     return std::filesystem::exists(StateFilePath(uiSlot, "state"), ec) && !ec;
+#endif
 }
 
 bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
 {
+    constexpr size_t kGraySize = static_cast<size_t>(kPreviewWidth) * kPreviewHeight;
+    std::vector<uint8_t> gray;
+
+#if defined(__ANDROID__)
+    gray = AndroidRomAccess::ReadRomsFile(StateFileName(uiSlot, "stateimg"), true);
+    if (gray.size() != kGraySize)
+        return false;
+#else
     std::ifstream in(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::ate);
     if (!in)
         return false;
 
     const std::streamsize size = in.tellg();
-    constexpr size_t kGraySize = static_cast<size_t>(kPreviewWidth) * kPreviewHeight;
     if (size <= 0 || static_cast<size_t>(size) != kGraySize)
         return false;
 
-    std::vector<uint8_t> gray(kGraySize);
+    gray.resize(kGraySize);
     in.seekg(0, std::ios::beg);
     in.read(reinterpret_cast<char *>(gray.data()), size);
+#endif
 
     // Expand to RGBA (untinted - see LoadStatePreview's doc comment) for the
     // caller, since UiRenderer's streaming-texture path expects RGBA.
@@ -448,7 +494,7 @@ bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
 
 void Emulator::SaveRam()
 {
-    if (!m_romLoaded || m_romDir.empty())
+    if (!m_romLoaded)
         return;
 
     const size_t size = retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
@@ -456,14 +502,20 @@ void Emulator::SaveRam()
     if (size == 0 || !data)
         return; // this ROM has no battery-backed SRAM
 
+#if defined(__ANDROID__)
+    AndroidRomAccess::WriteRomsFile(m_romBaseName + ".srm", false, data, size);
+#else
+    if (m_romDir.empty())
+        return;
     std::ofstream out(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::trunc);
     if (out)
         out.write(static_cast<const char *>(data), static_cast<std::streamsize>(size));
+#endif
 }
 
 void Emulator::LoadRam()
 {
-    if (!m_romLoaded || m_romDir.empty())
+    if (!m_romLoaded)
         return;
 
     const size_t size = retro_get_memory_size(RETRO_MEMORY_SAVE_RAM);
@@ -471,6 +523,15 @@ void Emulator::LoadRam()
     if (size == 0 || !data)
         return;
 
+#if defined(__ANDROID__)
+    const std::vector<uint8_t> bytes = AndroidRomAccess::ReadRomsFile(m_romBaseName + ".srm", false);
+    // Ignore rather than feed the core a stale/mismatched-size buffer.
+    if (bytes.size() != size)
+        return;
+    std::memcpy(data, bytes.data(), size);
+#else
+    if (m_romDir.empty())
+        return;
     std::ifstream in(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::ate);
     if (!in)
         return;
@@ -482,6 +543,7 @@ void Emulator::LoadRam()
 
     in.seekg(0, std::ios::beg);
     in.read(static_cast<char *>(data), fileSize);
+#endif
 }
 
 void Emulator::Shutdown()

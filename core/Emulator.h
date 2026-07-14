@@ -74,7 +74,11 @@ class Emulator
     // Safe to call more than once (unloads whatever ROM was previously
     // loaded first). Returns false if the file couldn't be read or the core
     // rejected it.
-    bool LoadRom(const std::string &romPath);
+    //
+    // On Android romPath is a content:// URI, so displayName (RomEntry::name)
+    // is used for save-state/SRAM naming instead of the path stem. Ignored
+    // elsewhere.
+    bool LoadRom(const std::string &romPath, const std::string &displayName = "");
 
     // True once Initialize() has set up the streaming screen texture -
     // *not* tied to whether a ROM is loaded, so the screen quad layer/
@@ -146,8 +150,12 @@ class Emulator
     void Shutdown();
 
    private:
-    // <m_romStateDir>/<m_romBaseName>.<ext><suffix>; suffix empty for
-    // uiSlot==0, else uiSlot itself.
+    // <m_romBaseName>.<ext><suffix>; suffix empty for uiSlot==0, else uiSlot.
+    // Bare filename - used directly on Android, joined with m_romStateDir
+    // elsewhere (see StateFilePath).
+    std::string StateFileName(int uiSlot, const char *ext) const;
+
+    // <m_romStateDir>/<StateFileName(...)>. Unused on Android.
     std::string StateFilePath(int uiSlot, const char *ext) const;
 
     void CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const;
@@ -162,10 +170,9 @@ class Emulator
     bool m_coreInitialized = false;
     bool m_romLoaded = false;
 
-    // Set by LoadRom - the currently-loaded ROM's own directory (for the
-    // .srm SRAM path, next to the ROM) and a "<romDir>/States" subfolder +
-    // filename stem (for save-state/preview paths). Empty/unset before any
-    // ROM has ever loaded, in which case SaveRam/SaveState etc. are no-ops.
+    // Set by LoadRom: the ROM's directory (.srm) and its "States" subfolder
+    // (save states/previews). On Android only m_romBaseName is set (the dirs
+    // are unused). Empty before any ROM loads, when SaveRam/SaveState no-op.
     std::string m_romDir;
     std::string m_romStateDir;
     std::string m_romBaseName;

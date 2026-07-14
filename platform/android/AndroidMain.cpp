@@ -3,6 +3,7 @@
 // event pump and OpenXR's Android-specific loader/instance init.
 #include "OpenXrApp.h"
 #include "AssetLoader.h"
+#include "AndroidRomAccess.h"
 
 #include <openxr/openxr_platform.h>
 
@@ -44,6 +45,7 @@ void android_main(struct android_app* app) {
     app->onAppCmd = HandleAppCmd;
 
     SetAndroidAssetManager(app->activity->assetManager);
+    AndroidRomAccess::Init(app->activity->vm, app->activity->clazz);
 
     // OpenXR's Android loader needs explicit init before xrCreateInstance.
     PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
@@ -69,7 +71,11 @@ void android_main(struct android_app* app) {
         for (;;) {
             int events;
             struct android_poll_source* source;
-            const int timeoutMs = (!state.resumed && (!initialized || !xrApp.IsSessionRunning())) ? -1 : 0;
+            // Gated on HasRomsFolder() too, so the loop stays blocked (no
+            // busy-spin) while the ROMs-folder picker is up, like it does for
+            // resume.
+            const bool readyToInit = state.resumed && AndroidRomAccess::HasRomsFolder();
+            const int timeoutMs = (!readyToInit && (!initialized || !xrApp.IsSessionRunning())) ? -1 : 0;
             if (ALooper_pollAll(timeoutMs, nullptr, &events, reinterpret_cast<void**>(&source)) < 0) break;
             if (source) source->process(app, source);
             if (app->destroyRequested) {
@@ -79,7 +85,12 @@ void android_main(struct android_app* app) {
         }
         if (destroyRequested) break;
 
-        if (!initialized && state.resumed) {
+        // Wait for a ROMs folder before starting the OpenXR session: the
+        // picker (MainActivity.onCreate) runs concurrently with this thread,
+        // and launching it once immersed makes Horizon OS drop VR focus for
+        // good (see AndroidRomAccess::RequestChangeRomsFolder). Staying non-
+        // immersive until it's done keeps focus handoff normal.
+        if (!initialized && state.resumed && AndroidRomAccess::HasRomsFolder()) {
             try {
                 OpenXrApp::InitInfo info;
                 info.instanceCreateNext = &androidCreateInfo;

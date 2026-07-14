@@ -31,6 +31,10 @@ private:
     static constexpr int kColorRIndex = 10;
     static constexpr int kColorGIndex = 11;
     static constexpr int kColorBIndex = 12;
+#if defined(__ANDROID__)
+    // 13 is the spacer ahead of it.
+    static constexpr int kChangeRomsFolderIndex = 14;
+#endif
 
     static constexpr float kIpdStep = 1.0f / 256.0f; // matches FrontendGo's IPD_STEP_SIZE
     static constexpr float kIpdMin = -0.125f;
@@ -43,6 +47,9 @@ private:
     void ChangePalette(int delta);
     void ChangeColorChannel(float AppSettings::*channel, float delta);
     void RefreshLabels();
+#if defined(__ANDROID__)
+    void RequestChangeRomsFolder();
+#endif
 
     std::shared_ptr<MenuList> m_list;
     AppSettings *m_settings = nullptr;

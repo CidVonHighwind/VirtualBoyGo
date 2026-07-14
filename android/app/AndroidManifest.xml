@@ -8,15 +8,8 @@
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
 
-    <!-- ROMs live in a plain /sdcard/VB folder (see core/RomScanner.cpp) so
-         they're easy to find/drop files into with any file manager, rather
-         than the app's own hidden sandboxed folder - this special
-         permission is what makes that path readable. Not silently granted;
-         the user has to approve "All files access" once via Settings (or
-         the adb appops uid grant shortcut for testing/sideloading). -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- No storage permission: ROMs come from a SAF folder the user picks
+         once (see MainActivity.java, core/RomScanner.h). -->
 
     <queries>
         <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />
@@ -30,13 +23,12 @@
 
     <application
             android:allowBackup="false"
-            android:label="VirtualBoyGo"
-            android:hasCode="false">
+            android:label="VirtualBoyGo">
 
         <meta-data android:name="com.oculus.supportedDevices" android:value="all" />
 
         <activity
-                android:name="android.app.NativeActivity"
+                android:name=".MainActivity"
                 android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
                 android:label="VirtualBoyGo"
                 android:launchMode="singleTask"
