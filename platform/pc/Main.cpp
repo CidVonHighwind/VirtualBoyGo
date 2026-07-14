@@ -42,7 +42,7 @@ int main() {
     }
 
     bool requestRestart = false;
-    while (!quitRequested) {
+    while (!quitRequested && !app.IsExitRequested()) {
         bool exitRenderLoop = false;
         app.PollEvents(exitRenderLoop, requestRestart);
         if (exitRenderLoop) {

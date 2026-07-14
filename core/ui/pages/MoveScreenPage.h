@@ -6,7 +6,8 @@
 class MenuList;
 struct AppSettings;
 
-// Screen placement: Yaw, Pitch, Roll, Distance, Scale, Reset View, Back.
+// Screen placement: Yaw, Pitch, Roll, Distance, Scale, Reset View. Back is
+// the bottom-bar B hint, not an in-list entry (see MenuPage::HasBackAction).
 // Only meaningful on the OpenXR path - these values feed OpenXrApp's screen
 // quad pose (see OpenXrApp::RenderScreenLayer); pc2d's flat debug window has
 // no 3D screen to move.

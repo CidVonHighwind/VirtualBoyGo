@@ -302,7 +302,7 @@ int main()
         // Edge-triggered so holding the key doesn't spam-toggle every frame.
         bool tabWasPressed = false;
 
-        while (!glfwWindowShouldClose(window))
+        while (!glfwWindowShouldClose(window) && !appMenu.IsExitRequested())
         {
             glfwPollEvents();
 
@@ -357,7 +357,7 @@ int main()
             const float menuX = (static_cast<float>(fbWidth) - kMenuWidth * menuScale) / 2.0f;
             const float menuY = (static_cast<float>(fbHeight) - kMenuHeight * menuScale) / 2.0f;
 
-            if (appMenu.IsOpen())
+            if (appMenu.IsVisible())
                 appMenu.RenderToBuffer(uiRenderer);
 
             vkResetFences(renderer.GetDevice(), 1, &acquireFence);
@@ -384,7 +384,7 @@ int main()
                 emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height),
                                     Emulator::Eye::Left, tint);
             }
-            if (appMenu.IsOpen())
+            if (appMenu.IsVisible())
                 appMenu.Draw(uiRenderer, menuX, menuY);
             uiRenderer.EndFrame();
 

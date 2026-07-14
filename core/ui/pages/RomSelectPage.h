@@ -1,8 +1,8 @@
 #pragma once
 #include "../MenuPage.h"
 
-// ROM selection browser. Placeholder for now - shows a single stub item.
-// Will hold a MenuList<std::string> once ROM scanning is implemented.
+// ROM selection browser - one row per ROM found by ScanRoms(), picking a
+// ROM loads it and returns to MainPage. Shows "(No ROMs found)" if empty.
 class RomSelectPage : public MenuPage
 {
 public:

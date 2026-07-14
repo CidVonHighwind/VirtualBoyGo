@@ -28,13 +28,12 @@ void MenuButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    list->AddEntry("Swap Select/Back: No", nullptr,
+    list->AddEntry("Swap Select/Back: No", [this](MenuItem *) { ToggleSwap(); }, // Select acts like Right - same toggle
         [this](MenuItem *) { ToggleSwap(); }, [this](MenuItem *) { ToggleSwap(); });
     list->AddEntry("Menu Button 1: [Unset]",
         [this](MenuItem *) { StartCapture(kButton1Index, 0); }, nullptr, nullptr);
     list->AddEntry("Menu Button 2: [Unset]",
         [this](MenuItem *) { StartCapture(kButton2Index, 1); }, nullptr, nullptr);
-    list->AddEntry("Back", [this](MenuItem *) { if (settingsPage) Navigate(settingsPage, -1); }, nullptr, nullptr, UiIconId::Back);
 
     m_menu.MenuItems.push_back(list);
     m_list = list;
@@ -101,4 +100,6 @@ void MenuButtonMapPage::RefreshLabels()
     m_list->SetEntryText(kSwapIndex, m_settings->swapSelectBackButton ? "Swap Select/Back: Yes" : "Swap Select/Back: No");
     m_list->SetEntryText(kButton1Index, FormatBinding("Menu Button 1", m_settings->menuButton1));
     m_list->SetEntryText(kButton2Index, FormatBinding("Menu Button 2", m_settings->menuButton2));
+
+    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

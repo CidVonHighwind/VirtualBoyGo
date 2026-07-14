@@ -45,11 +45,9 @@ ICONS = [
     ("Mapping", "mapping_icon.dds"),
     ("Palette", "palette_icon.dds"),
     ("Header", "header_icon.dds"),
-    # gb_cartridge.dds/gbc_cartridge.dds/vb_cartridge.dds are excluded: their
-    # pixel data decodes as garbled noise regardless of decoder (verified by
-    # reinterpreting the raw bytes directly, bypassing Pillow's DDS plugin) -
-    # the source files themselves are corrupt. Unused today (ROM list is
-    # still a placeholder) - re-add once fixed/re-exported upstream.
+    ("VbCartridge", "vb_cartridge.dds"),
+    # gb_cartridge.dds/gbc_cartridge.dds are excluded - unused (this app is
+    # VB-only, no other console cartridge is ever shown).
     ("MapLeftUp", "icons/mapping/left_up.dds"),
     ("MapLeftDown", "icons/mapping/left_down.dds"),
     ("MapLeftLeft", "icons/mapping/left_left.dds"),

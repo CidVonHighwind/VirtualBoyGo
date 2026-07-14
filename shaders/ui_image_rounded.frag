@@ -26,5 +26,8 @@ void main() {
     // AA band has to be scaled by vPixelScale to stay 1 physical pixel wide.
     float aaWidth = 1.0 / vPixelScale;
     float shapeAlpha = 1.0 - smoothstep(-aaWidth, aaWidth, dist);
-    outColor = vec4(texColor.rgb, texColor.a * shapeAlpha);
+    // vColor.a lets callers fade the whole composited buffer (e.g. AppMenu's
+    // open/close animation) - DrawImageRounded's non-fading callers pass
+    // a=1, so this is a no-op there. See ui_image.frag's vColor.a comment.
+    outColor = vec4(texColor.rgb, texColor.a * shapeAlpha * vColor.a);
 }

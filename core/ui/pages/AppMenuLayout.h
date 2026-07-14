@@ -36,6 +36,10 @@ inline constexpr float kMenuContentY = kHeaderHeight + kMenuContentPadding;
 inline constexpr int kMenuFontSize = 11;
 inline constexpr float kMenuItemSize = kMenuFontSize + 3.0f; // 14px
 
+// Height of a MenuList spacer row (see MenuList::AddSpacer), used to
+// visually separate logical groups of entries within a list.
+inline constexpr float kMenuSpacerSize = kMenuItemSize * 0.3f; // ~4px
+
 // Height of the scrollable list region (fills between header and bottom bar)
 inline constexpr float kListWidth = kMenuWidth - kMenuContentX * 2;
 inline constexpr float kListHeight = kMenuHeight - kMenuContentY - kBottomHeight - kMenuContentPadding;

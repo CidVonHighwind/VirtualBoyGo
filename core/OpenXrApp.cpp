@@ -451,7 +451,7 @@ bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompo
 
 bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
 {
-    if (m_menuSwapchain.handle == XR_NULL_HANDLE || !m_appMenu.IsOpen())
+    if (m_menuSwapchain.handle == XR_NULL_HANDLE || !m_appMenu.IsVisible())
     {
         return false;
     }

@@ -29,6 +29,7 @@ public:
     // Layout constants are in pages/AppMenuLayout.h (shared with page files).
     static constexpr float kPanelCornerRadiusPx = 8.0f;
     static constexpr float kTransitionSpeed = 0.15f;
+    static constexpr float kOpenCloseSpeed = 0.15f;
 
     void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings);
     void Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds);
@@ -61,13 +62,30 @@ public:
     // ROM both close it; callers are responsible for wiring some way back
     // in (a controller button, a keyboard key - see OpenXrApp/pc2d Main.cpp)
     // since AppMenu itself only tracks the state, not any particular input.
+    // IsOpen() flips immediately (gameplay input/screen resume right away);
+    // IsVisible() stays true until the fade-out animation finishes, so
+    // callers doing the render-gating (RenderMenuLayer/pc2d's Main.cpp)
+    // should check IsVisible(), not IsOpen(), or the close animation never
+    // gets a frame to actually show.
     bool IsOpen() const { return m_open; }
+    bool IsVisible() const { return m_visibility > 0.0f; }
     void Show() { m_open = true; }
     void Hide() { m_open = false; }
     void ToggleOpen() { m_open = !m_open; }
 
+    // 0 (fully closed) .. 1 (fully open) - drives the panel's fade/scale.
+    // Composite callers multiply this into the panel's draw alpha.
+    float GetVisibility() const { return m_visibility; }
+
     // Pushes swapSelectBackButton/menuButton1/2 out to every page's Menu.
     void ApplyMenuButtonSettings();
+
+    // Set by MainPage's "Exit" entry - AppMenu has no way to actually quit
+    // the process itself (that's platform-specific: glfwSetWindowShouldClose
+    // for pc2d, breaking the OpenXR poll loop for pc/Android), so callers'
+    // own main loops must check this each iteration and stop when it's true.
+    bool IsExitRequested() const { return m_exitRequested; }
+    void RequestExit() { m_exitRequested = true; }
 
 private:
     void InitPages(UiRenderer &ui);
@@ -85,6 +103,9 @@ private:
     MenuPage *m_nextPage = nullptr;
     float m_transitionState = 0.0f;
     int m_transitionDir = 1;
+    // A page switch requested while closed, applied on reopen instead of
+    // immediately - see StartTransition/Update.
+    MenuPage *m_pendingPage = nullptr;
 
     UiFontHandle m_titleFont;
     UiIconSet m_icons;
@@ -94,4 +115,6 @@ private:
 
     int m_batteryPercent = -1;
     bool m_open = true;
+    float m_visibility = 1.0f; // see IsVisible/GetVisibility - starts matching m_open, no animation at boot
+    bool m_exitRequested = false;
 };

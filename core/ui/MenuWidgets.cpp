@@ -358,12 +358,21 @@ void MenuList::AddEntry(const std::string &text,
                         std::function<void(MenuItem *)> press,
                         std::function<void(MenuItem *)> left,
                         std::function<void(MenuItem *)> right,
-                        UiIconId icon)
+                        UiIconId icon,
+                        AccessoryDrawFn accessoryDraw)
 {
     // Row text isn't known upfront (ROM file names, etc.) - bake whatever
     // glyphs it needs now, not while drawing. See MenuLabel::SetText.
     m_ui->EnsureGlyphsForText(m_font, text);
-    m_entries.push_back({text, press, left, right, icon});
+    m_entries.push_back({text, press, left, right, icon, std::move(accessoryDraw)});
+}
+
+void MenuList::AddSpacer(float height)
+{
+    Entry entry;
+    entry.isSpacer = true;
+    entry.height = height;
+    m_entries.push_back(entry);
 }
 
 void MenuList::SetEntryText(int index, const std::string &text)
@@ -372,22 +381,64 @@ void MenuList::SetEntryText(int index, const std::string &text)
     m_entries[index].text = text;
 }
 
-int MenuList::maxVisible() const { return static_cast<int>(m_height / m_itemHeight); }
-bool MenuList::needsScrollbar() const { return (int)m_entries.size() > maxVisible(); }
+float MenuList::rowHeight(int index) const { return m_entries[index].isSpacer ? m_entries[index].height : m_itemHeight; }
+
+// How many entries starting at `first` fit within the list's height, packing
+// by each row's own height rather than assuming a uniform m_itemHeight.
+int MenuList::maxVisibleFrom(int first) const
+{
+    float used = 0;
+    int count = 0;
+    for (int i = first; i < (int)m_entries.size(); ++i)
+    {
+        const float h = rowHeight(i);
+        if (count > 0 && used + h > m_height)
+            break;
+        used += h;
+        ++count;
+    }
+    return count;
+}
+
+bool MenuList::needsScrollbar() const { return maxVisibleFrom(0) < (int)m_entries.size(); }
+
+void MenuList::ResetSelection()
+{
+    m_selectedIndex = 0;
+    while (m_selectedIndex < (int)m_entries.size() - 1 && m_entries[m_selectedIndex].isSpacer)
+        ++m_selectedIndex;
+    m_firstVisible = 0;
+}
+
+void MenuList::SelectIndex(int index)
+{
+    if (index < 0 || index >= (int)m_entries.size() || m_entries[index].isSpacer)
+        return;
+
+    m_selectedIndex = index;
+    if (m_selectedIndex < m_firstVisible)
+        m_firstVisible = m_selectedIndex;
+    else if (m_selectedIndex >= m_firstVisible + maxVisibleFrom(m_firstVisible))
+        m_firstVisible = m_selectedIndex - maxVisibleFrom(m_firstVisible) + 1;
+}
 
 int MenuList::PressedUp()
 {
     if (m_entries.empty())
         return 0;
-    if (m_selectedIndex > 0)
-        --m_selectedIndex;
-    else
-        m_selectedIndex = (int)m_entries.size() - 1; // wrap to bottom
+    const int start = m_selectedIndex;
+    do
+    {
+        if (m_selectedIndex > 0)
+            --m_selectedIndex;
+        else
+            m_selectedIndex = (int)m_entries.size() - 1; // wrap to bottom
+    } while (m_entries[m_selectedIndex].isSpacer && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
-    else if (m_selectedIndex >= m_firstVisible + maxVisible())
-        m_firstVisible = m_selectedIndex - maxVisible() + 1;
+    else if (m_selectedIndex >= m_firstVisible + maxVisibleFrom(m_firstVisible))
+        m_firstVisible = m_selectedIndex - maxVisibleFrom(m_firstVisible) + 1;
     return 1;
 }
 
@@ -395,15 +446,19 @@ int MenuList::PressedDown()
 {
     if (m_entries.empty())
         return 0;
-    if (m_selectedIndex < (int)m_entries.size() - 1)
-        ++m_selectedIndex;
-    else
-        m_selectedIndex = 0; // wrap to top
+    const int start = m_selectedIndex;
+    do
+    {
+        if (m_selectedIndex < (int)m_entries.size() - 1)
+            ++m_selectedIndex;
+        else
+            m_selectedIndex = 0; // wrap to top
+    } while (m_entries[m_selectedIndex].isSpacer && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
-    else if (m_selectedIndex >= m_firstVisible + maxVisible())
-        m_firstVisible = m_selectedIndex - maxVisible() + 1;
+    else if (m_selectedIndex >= m_firstVisible + maxVisibleFrom(m_firstVisible))
+        m_firstVisible = m_selectedIndex - maxVisibleFrom(m_firstVisible) + 1;
     return 1;
 }
 
@@ -451,37 +506,49 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     if (!Visible || m_entries.empty())
         return;
 
-    const int visible = maxVisible();
+    const int visible = maxVisibleFrom(m_firstVisible);
 
     // Centre the item block vertically around however many rows are
     // actually showing (not the list's full capacity) - a 1-entry list
     // centers that entry in the middle, not pinned to the top.
-    const int rowCount = std::min(visible, static_cast<int>(m_entries.size()));
-    const float usedHeight = rowCount * m_itemHeight;
+    float usedHeight = 0;
+    for (int i = m_firstVisible; i < m_firstVisible + visible && i < (int)m_entries.size(); ++i)
+        usedHeight += rowHeight(i);
     const float verticalPad = (m_height - usedHeight) / 2.0f;
     const float baseY = m_posY + offsetY + verticalPad;
 
+    float rowY = baseY;
     for (int i = 0; i < visible && (m_firstVisible + i) < (int)m_entries.size(); ++i)
     {
         const int idx = m_firstVisible + i;
         const Entry &entry = m_entries[idx];
-        const bool sel = (idx == m_selectedIndex);
-        const float x = m_posX + offsetX + (sel ? 2.5f : 0.0f);
-        const float rowY = baseY + i * m_itemHeight;
-        const float y = rowY + m_textRowOffset;
-        const float textX = (m_icons && entry.icon != UiIconId::None) ? x + kIconSize + kIconTextGap : x;
+        const float h = rowHeight(idx);
 
-        XrColor4f c = sel ? SelectionColor : Color;
-        c.a *= alpha;
-        XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
-        ui.DrawText(m_font, entry.text, textX + 0.5f, y + 0.5f, 1.0f, shadow);
-        ui.DrawText(m_font, entry.text, textX, y, 1.0f, c);
-
-        if (m_icons && entry.icon != UiIconId::None)
+        if (!entry.isSpacer)
         {
-            const float iconY = rowY + (m_itemHeight - kIconSize) / 2.0f;
-            m_icons->Draw(ui, entry.icon, x, iconY, kIconSize, alpha);
+            const bool sel = (idx == m_selectedIndex);
+            const float x = m_posX + offsetX + (sel ? 2.5f : 0.0f);
+            const float y = rowY + m_textRowOffset;
+            const float textX = (m_icons && entry.icon != UiIconId::None) ? x + kIconSize + kIconTextGap : x;
+
+            XrColor4f c = sel ? SelectionColor : Color;
+            c.a *= alpha;
+            XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
+            ui.DrawText(m_font, entry.text, textX + 0.5f, y + 0.5f, 1.0f, shadow);
+            ui.DrawText(m_font, entry.text, textX, y, 1.0f, c);
+
+            if (m_icons && entry.icon != UiIconId::None)
+            {
+                const float iconY = rowY + (h - kIconSize) / 2.0f;
+                const XrColor4f iconTint = (sel && TintIconOnSelect) ? SelectionColor : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+                m_icons->Draw(ui, entry.icon, x, iconY, kIconSize, alpha, iconTint);
+            }
+
+            if (entry.accessoryDraw)
+                entry.accessoryDraw(ui, m_posX + offsetX, rowY, m_width, h, alpha);
         }
+
+        rowY += h;
     }
 
     if (needsScrollbar())

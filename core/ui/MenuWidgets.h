@@ -196,6 +196,23 @@ public:
     MenuList(UiRenderer &ui, UiFontHandle font, float posX, float posY, float width, float height, float itemHeight,
              const UiIconSet *icons = nullptr);
 
+    // Whether a row's icon also tints to SelectionColor while selected (like
+    // its text already does). On by default; RomSelectPage turns this off -
+    // its icon is just the fixed cartridge glyph, not a status indicator.
+    bool TintIconOnSelect = true;
+
+    // Draws an arbitrary accessory (e.g. color swatches) into a row's rect -
+    // rowX/rowY/rowW/rowH are the row's full content-space bounds, so the
+    // callback can right-align itself against rowX+rowW, or - using
+    // kIconSize/kIconTextGap below plus its own text measurement - sit
+    // directly after that row's icon+label instead.
+    using AccessoryDrawFn = std::function<void(UiRenderer &ui, float rowX, float rowY, float rowW, float rowH, float alpha)>;
+
+    // Icon size/gap every row uses ahead of its label - public so an
+    // AccessoryDrawFn can replicate the same icon+text starting offset.
+    static constexpr float kIconSize = 10.0f;
+    static constexpr float kIconTextGap = 4.0f;
+
     struct Entry
     {
         std::string text;
@@ -203,13 +220,21 @@ public:
         std::function<void(MenuItem *)> leftFunction;
         std::function<void(MenuItem *)> rightFunction;
         UiIconId icon = UiIconId::None;
+        AccessoryDrawFn accessoryDraw;
+        bool isSpacer = false;
+        float height = 0; // only used when isSpacer
     };
 
     void AddEntry(const std::string &text,
                   std::function<void(MenuItem *)> press = nullptr,
                   std::function<void(MenuItem *)> left = nullptr,
                   std::function<void(MenuItem *)> right = nullptr,
-                  UiIconId icon = UiIconId::None);
+                  UiIconId icon = UiIconId::None,
+                  AccessoryDrawFn accessoryDraw = nullptr);
+
+    // Adds a non-selectable blank row of the given height, used to visually
+    // separate logical groups of entries.
+    void AddSpacer(float height);
 
     // Rewrites an already-added entry's label in place - e.g. a "Save Slot:
     // N" row updating N in response to its own left/right functions,
@@ -218,22 +243,26 @@ public:
 
     int GetSelectedIndex() const { return m_selectedIndex; }
 
+    // Jumps the highlighted row straight to index, no animation, scrolling
+    // it into view if needed - e.g. AppMenu pre-selecting MainPage's "Load
+    // ROM" row when booting straight into RomSelectPage, so backing out
+    // lands where a real "MainPage -> Load ROM -> RomSelectPage" navigation
+    // would have left it, instead of back at row 0.
+    void SelectIndex(int index);
+
     int PressedUp() override;
     int PressedDown() override;
     int PressedLeft() override;
     int PressedRight() override;
     int PressedEnter() override;
 
-    void ResetSelection() override
-    {
-        m_selectedIndex = 0;
-        m_firstVisible = 0;
-    }
+    void ResetSelection() override;
 
     void Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha) override;
 
 private:
-    int maxVisible() const;
+    float rowHeight(int index) const;
+    int maxVisibleFrom(int first) const;
     bool needsScrollbar() const;
 
     UiRenderer *m_ui;
@@ -241,8 +270,6 @@ private:
     const UiIconSet *m_icons;
     float m_posX, m_posY, m_width, m_height;
     float m_itemHeight;
-    static constexpr float kIconSize = 10.0f;
-    static constexpr float kIconTextGap = 4.0f;
     int m_selectedIndex = 0;
     int m_firstVisible = 0;
     float m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init

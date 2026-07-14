@@ -745,11 +745,11 @@ void UiRenderer::DrawImageRegion(UiImageHandle imageHandle, float x, float y, fl
                  x, y, w, h, u0, v0, u1, v1, XrColor4f{tint.r, tint.g, tint.b, alpha});
 }
 
-void UiRenderer::DrawImageRounded(UiImageHandle imageHandle, float x, float y, float w, float h, float cornerRadiusPx)
+void UiRenderer::DrawImageRounded(UiImageHandle imageHandle, float x, float y, float w, float h, float cornerRadiusPx, float alpha)
 {
     if (!imageHandle.IsValid())
         return;
     const Image &img = m_images[imageHandle.id];
     DrawUnitQuad(m_imageRoundedPipeline, m_textPipelineLayout, img.descriptorSet,
-                 x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}, cornerRadiusPx);
+                 x, y, w, h, 0.0f, 0.0f, 1.0f, 1.0f, XrColor4f{1.0f, 1.0f, 1.0f, alpha}, cornerRadiusPx);
 }

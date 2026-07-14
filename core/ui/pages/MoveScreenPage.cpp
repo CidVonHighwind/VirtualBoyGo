@@ -30,18 +30,25 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    list->AddEntry("Yaw: 0 deg", nullptr,
+    // Select acts like Right on every adjustable row below - advances the
+    // value the same as pressing right, rather than doing nothing.
+    list->AddEntry("Yaw: 0 deg", [this](MenuItem *) { ChangeYaw(kRotationStep); },
         [this](MenuItem *) { ChangeYaw(-kRotationStep); }, [this](MenuItem *) { ChangeYaw(kRotationStep); }, UiIconId::LeftRight);
-    list->AddEntry("Pitch: 0 deg", nullptr,
+    list->AddEntry("Pitch: 0 deg", [this](MenuItem *) { ChangePitch(kRotationStep); },
         [this](MenuItem *) { ChangePitch(-kRotationStep); }, [this](MenuItem *) { ChangePitch(kRotationStep); }, UiIconId::UpDown);
-    list->AddEntry("Roll: 0 deg", nullptr,
+    list->AddEntry("Roll: 0 deg", [this](MenuItem *) { ChangeRoll(kRotationStep); },
         [this](MenuItem *) { ChangeRoll(-kRotationStep); }, [this](MenuItem *) { ChangeRoll(kRotationStep); }, UiIconId::Reset);
-    list->AddEntry("Distance: 2.20", nullptr,
+
+    list->AddSpacer(kMenuSpacerSize);
+
+    list->AddEntry("Distance: 2.20", [this](MenuItem *) { ChangeDistance(kDistanceStep); },
         [this](MenuItem *) { ChangeDistance(-kDistanceStep); }, [this](MenuItem *) { ChangeDistance(kDistanceStep); }, UiIconId::Distance);
-    list->AddEntry("Scale: 1.00x", nullptr,
+    list->AddEntry("Scale: 1.00x", [this](MenuItem *) { ChangeScale(kScaleStep); },
         [this](MenuItem *) { ChangeScale(-kScaleStep); }, [this](MenuItem *) { ChangeScale(kScaleStep); }, UiIconId::Scale);
+
+    list->AddSpacer(kMenuSpacerSize);
+
     list->AddEntry("Reset View", [this](MenuItem *) { ResetView(); }, nullptr, nullptr, UiIconId::ResetView);
-    list->AddEntry("Back", [this](MenuItem *) { if (settingsPage) Navigate(settingsPage, -1); }, nullptr, nullptr, UiIconId::Back);
 
     m_menu.MenuItems.push_back(list);
     m_list = list;
@@ -110,4 +117,6 @@ void MoveScreenPage::RefreshLabels()
     m_list->SetEntryText(kRollIndex, FormatDeg("Roll: ", m_settings->screenRoll));
     m_list->SetEntryText(kDistanceIndex, FormatValue("Distance: ", m_settings->screenDistance));
     m_list->SetEntryText(kScaleIndex, FormatValue("Scale: ", m_settings->screenScale, "x"));
+
+    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

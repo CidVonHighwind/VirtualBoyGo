@@ -13,24 +13,26 @@ struct ButtonRow
     uint32_t vbBit; // VBButtonBit constant - index into AppSettings::vbButtons
 };
 
-// Only A/B have a fixed icon (matches the original) - the rest were picked
-// dynamically from the emulator's own button_icons there, which isn't wired
-// up yet, so they stay icon-less for now.
+// Matches the reference's button_icons[] (Emulator.cpp) - a fixed icon per
+// VB button, keyed by the VB button itself rather than whatever physical
+// input it's currently bound to. The Map* icons already existed in the
+// atlas (packed from reference/VirtualBoyGoMaster/assets/icons/mapping/*)
+// but were never wired up here until now.
 const ButtonRow kButtons[] = {
     {"A", UiIconId::ButtonA, VBButtonBit::A},
     {"B", UiIconId::ButtonB, VBButtonBit::B},
-    {"L", UiIconId::None, VBButtonBit::L},
-    {"R", UiIconId::None, VBButtonBit::R},
-    {"Up", UiIconId::None, VBButtonBit::LeftUp},
-    {"Down", UiIconId::None, VBButtonBit::LeftDown},
-    {"Left", UiIconId::None, VBButtonBit::LeftLeft},
-    {"Right", UiIconId::None, VBButtonBit::LeftRight},
-    {"R-Up", UiIconId::None, VBButtonBit::RightUp},
-    {"R-Down", UiIconId::None, VBButtonBit::RightDown},
-    {"R-Left", UiIconId::None, VBButtonBit::RightLeft},
-    {"R-Right", UiIconId::None, VBButtonBit::RightRight},
-    {"Start", UiIconId::None, VBButtonBit::Start},
-    {"Select", UiIconId::None, VBButtonBit::Select},
+    {"L", UiIconId::MapTriggerLeft, VBButtonBit::L},
+    {"R", UiIconId::MapTriggerRight, VBButtonBit::R},
+    {"Up", UiIconId::MapLeftUp, VBButtonBit::LeftUp},
+    {"Down", UiIconId::MapLeftDown, VBButtonBit::LeftDown},
+    {"Left", UiIconId::MapLeftLeft, VBButtonBit::LeftLeft},
+    {"Right", UiIconId::MapLeftRight, VBButtonBit::LeftRight},
+    {"R-Up", UiIconId::MapRightUp, VBButtonBit::RightUp},
+    {"R-Down", UiIconId::MapRightDown, VBButtonBit::RightDown},
+    {"R-Left", UiIconId::MapRightLeft, VBButtonBit::RightLeft},
+    {"R-Right", UiIconId::MapRightRight, VBButtonBit::RightRight},
+    {"Start", UiIconId::MapStart, VBButtonBit::Start},
+    {"Select", UiIconId::MapSelect, VBButtonBit::Select},
 };
 constexpr int kButtonCount = static_cast<int>(sizeof(kButtons) / sizeof(kButtons[0]));
 
@@ -59,8 +61,9 @@ void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resource
             nullptr, nullptr, row.icon);
     }
 
+    list->AddSpacer(kMenuSpacerSize);
+
     list->AddEntry("Reset Mapping", [this](MenuItem *) { ResetMapping(); }, nullptr, nullptr, UiIconId::ResetView);
-    list->AddEntry("Back", [this](MenuItem *) { if (settingsPage) Navigate(settingsPage, -1); }, nullptr, nullptr, UiIconId::Back);
 
     m_menu.MenuItems.push_back(list);
     m_list = list;
@@ -124,4 +127,6 @@ void EmulatorButtonMapPage::RefreshLabels()
         return;
     for (int i = 0; i < kButtonCount; ++i)
         m_list->SetEntryText(i, FormatBinding(kButtons[i].name, m_settings->vbButtons[kButtons[i].vbBit]));
+
+    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

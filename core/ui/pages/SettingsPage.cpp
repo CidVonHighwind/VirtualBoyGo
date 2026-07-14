@@ -7,11 +7,47 @@
 
 namespace
 {
-std::string FormatFloat(const char *prefix, float value, const char *suffix = "")
+std::string FormatFloat(const char *prefix, float value, int precision = 3, const char *suffix = "")
 {
     char buf[48];
-    std::snprintf(buf, sizeof(buf), "%s%.3f%s", prefix, value, suffix);
+    std::snprintf(buf, sizeof(buf), "%s%.*f%s", prefix, precision, value, suffix);
     return buf;
+}
+
+// Preview swatches drawn directly on the "Color Palette" row, immediately
+// after its icon+label (not right-aligned against the row edge), showing
+// the VB's 4 brightness levels (black up to the full tint) - stands in for
+// the selected-palette index (nobody reads "7/11"; the colors themselves
+// are what matters). Reads AppSettings live each frame, so it tracks
+// palette/R/G/B edits immediately.
+constexpr float kSwatchSize = 11.0f;
+constexpr float kSwatchGap = 2.0f;
+constexpr float kSwatchLeftGap = 6.0f;
+constexpr const char *kColorPaletteLabel = "Color Palette";
+
+// The real hardware doesn't space its 4 brightness levels evenly (0, 1/3,
+// 2/3, 1) - it's levels 0x00/0x63/0x87 out of a 0xff full intensity (level 3
+// is whatever colorR/G/B is currently set to, since that already stands in
+// for "full brightness" everywhere else in this app - the tint applied to
+// the actual game screen).
+constexpr float kBrightnessLevels[4] = {0.0f, 0x63 / 255.0f, 0x87 / 255.0f, 1.0f};
+
+void DrawColorPreview(UiRenderer &ui, UiFontHandle labelFont, AppSettings *settings, float rowX, float rowY, float rowW, float rowH, float alpha)
+{
+    if (!settings)
+        return;
+
+    const float labelWidth = ui.GetTextWidth(labelFont, kColorPaletteLabel);
+    float x = rowX + MenuList::kIconSize + MenuList::kIconTextGap + labelWidth + kSwatchLeftGap;
+    const float y = rowY + (rowH - kSwatchSize) / 2.0f;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        const float level = kBrightnessLevels[i];
+        const XrColor4f c{settings->colorR * level, settings->colorG * level, settings->colorB * level, alpha};
+        ui.DrawQuadRounded(x, y, kSwatchSize, kSwatchSize, c, 1.0f);
+        x += kSwatchSize + kSwatchGap;
+    }
 }
 } // namespace
 
@@ -28,33 +64,43 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
                    { if (menuButtonMapPage)    Navigate(menuButtonMapPage,    1); }, nullptr, nullptr, UiIconId::Mapping);
     list->AddEntry("Emulator Button Mapping", [this](MenuItem *)
                    { if (emulatorButtonMapPage) Navigate(emulatorButtonMapPage, 1); }, nullptr, nullptr, UiIconId::Mapping);
+
+    list->AddSpacer(kMenuSpacerSize);
+
     list->AddEntry("Move Screen", [this](MenuItem *)
                    { if (moveScreenPage)        Navigate(moveScreenPage,        1); }, nullptr, nullptr, UiIconId::Move);
-    list->AddEntry("Follow Head: No", nullptr,
+    list->AddEntry("Follow Head: No", [this](MenuItem *) { ToggleFollowHead(); }, // Select acts like Right - same toggle
         [this](MenuItem *) { ToggleFollowHead(); }, [this](MenuItem *) { ToggleFollowHead(); }, UiIconId::FollowHead);
+
+    list->AddSpacer(kMenuSpacerSize);
 
     // Rows below mirror FrontendGo's Emulator::InitSettingsMenu, which sat
     // between Follow Head and Save and Back there too - screen 3D/2D mode,
     // IPD (stereo eye-separation) offset, VB screen color palette + custom
     // R/G/B tint.
-    list->AddEntry("3D Screen: Yes", nullptr,
+    list->AddEntry("3D Screen: Yes", [this](MenuItem *) { ToggleThreeDeeMode(); }, // Select acts like Right - same toggle
         [this](MenuItem *) { ToggleThreeDeeMode(); }, [this](MenuItem *) { ToggleThreeDeeMode(); }, UiIconId::ThreeD);
+    // IPD is the one exception to "Select acts like Right" - press already
+    // has a distinct, meaningful action (reset to 0), so it stays that way
+    // rather than doubling up with Right's step.
     list->AddEntry("IPD offset: 0.000", [this](MenuItem *) { ChangeIpd(0); /* press resets - see ChangeIpd */ },
         [this](MenuItem *) { ChangeIpd(-1); }, [this](MenuItem *) { ChangeIpd(1); }, UiIconId::Ipd);
-    list->AddEntry("Color Palette", nullptr,
-        [this](MenuItem *) { ChangePalette(-1); }, [this](MenuItem *) { ChangePalette(1); }, UiIconId::Palette);
-    list->AddEntry("R: 1.000", nullptr,
+
+    list->AddSpacer(kMenuSpacerSize);
+
+    UiFontHandle menuFont = resources.menuFont;
+    list->AddEntry(kColorPaletteLabel, [this](MenuItem *) { ChangePalette(1); }, // Select acts like Right - advance the palette
+        [this](MenuItem *) { ChangePalette(-1); }, [this](MenuItem *) { ChangePalette(1); }, UiIconId::Palette,
+        [this, menuFont](UiRenderer &ui, float x, float y, float w, float h, float a) { DrawColorPreview(ui, menuFont, m_settings, x, y, w, h, a); });
+    list->AddEntry("Red: 1.00", [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorR, kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorR, -kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorR, kColorStep); });
-    list->AddEntry("G: 1.000", nullptr,
+    list->AddEntry("Green: 1.00", [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorG, kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorG, -kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorG, kColorStep); });
-    list->AddEntry("B: 1.000", nullptr,
+    list->AddEntry("Blue: 1.00", [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, -kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, kColorStep); });
-
-    list->AddEntry("Save and Back", [this](MenuItem *)
-                   { if (m_settings) m_settings->Save(); if (mainPage) Navigate(mainPage, -1); }, nullptr, nullptr, UiIconId::Back);
 
     m_menu.MenuItems.push_back(list);
     m_list = list;
@@ -147,11 +193,14 @@ void SettingsPage::RefreshLabels()
     m_list->SetEntryText(kFollowHeadIndex, m_settings->followHead ? "Follow Head: Yes" : "Follow Head: No");
     m_list->SetEntryText(kThreeDeeModeIndex, m_settings->useThreeDeeMode ? "3D Screen: Yes" : "3D Screen: No");
     m_list->SetEntryText(kIpdIndex, FormatFloat("IPD offset: ", m_settings->ipdOffset));
-    m_list->SetEntryText(kPaletteIndex,
-                         m_settings->selectedPalette >= 0
-                             ? "Color Palette: " + std::to_string(m_settings->selectedPalette + 1) + "/11"
-                             : "Color Palette: Custom");
-    m_list->SetEntryText(kColorRIndex, FormatFloat("R: ", m_settings->colorR));
-    m_list->SetEntryText(kColorGIndex, FormatFloat("G: ", m_settings->colorG));
-    m_list->SetEntryText(kColorBIndex, FormatFloat("B: ", m_settings->colorB));
+    // Color Palette's label stays static ("Color Palette") - its row draws
+    // the actual colors via DrawColorPreview instead of a selected-index
+    // number (see AddEntry's accessoryDraw above).
+    // 2 decimals, not 3 - kColorStep is 0.05, so the third decimal is always
+    // 0 and never actually reachable by adjusting the value.
+    m_list->SetEntryText(kColorRIndex, FormatFloat("Red: ", m_settings->colorR, 2));
+    m_list->SetEntryText(kColorGIndex, FormatFloat("Green: ", m_settings->colorG, 2));
+    m_list->SetEntryText(kColorBIndex, FormatFloat("Blue: ", m_settings->colorB, 2));
+
+    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

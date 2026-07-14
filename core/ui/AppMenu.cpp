@@ -2,6 +2,7 @@
 #include "AssetLoader.h"
 #include "../Settings.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
@@ -104,7 +105,13 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulat
                                                 static_cast<uint32_t>(kMenuHeight * m_menuScale), targetFormat);
 
     InitPages(ui);
-    m_currentPage = &m_mainPage;
+    // Start on ROM selection, not MainPage - nothing's loaded yet at boot,
+    // so Resume/Save/Load would just be dead buttons; picking a ROM already
+    // navigates back to MainPage afterward (see RomSelectPage::Init).
+    m_currentPage = &m_romSelectPage;
+    // Pre-select MainPage's "Load ROM" row so backing out of RomSelectPage
+    // lands there instead of row 0 - see SelectLoadRomEntry's doc comment.
+    m_mainPage.SelectLoadRomEntry();
 }
 
 void AppMenu::SetMenuScale(UiRenderer &ui, float scale)
@@ -191,13 +198,15 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 
     if (!m_open)
     {
-        // Menu isn't visible (e.g. RomSelectPage hides the menu then
-        // navigates back to MainPage in the same callback) - Update()
-        // doesn't tick the transition while closed, so animating here would
-        // just leave it paused mid-slide and replay on the next reopen.
-        // Nothing to see, so jump straight to the target instead.
-        m_currentPage = target;
-        m_currentPage->ResetSelection();
+        // Closing (e.g. RomSelectPage hides the menu then navigates back to
+        // MainPage in the same callback) - the close animation still shows
+        // whatever m_currentPage is for the next ~kOpenCloseSpeed seconds
+        // (see IsVisible()), so switching pages right now would fade out
+        // MainPage instead of RomSelectPage - the wrong page flashing up
+        // right as the menu disappears. Defer the switch instead: keep
+        // showing the current page through the fade, and apply the pending
+        // one only once the menu actually reopens (see Update()).
+        m_pendingPage = target;
         return;
     }
 
@@ -211,6 +220,28 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 
 void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds)
 {
+    // Animate the open/close fade regardless of m_open, so Hide() eases the
+    // panel out instead of popping it away the instant gameplay input
+    // resumes (see IsOpen() vs IsVisible()'s doc comment).
+    const float visibilityTarget = m_open ? 1.0f : 0.0f;
+    if (m_visibility != visibilityTarget)
+    {
+        const float step = deltaSeconds / kOpenCloseSpeed;
+        m_visibility = (m_visibility < visibilityTarget) ? std::min(visibilityTarget, m_visibility + step)
+                                                          : std::max(visibilityTarget, m_visibility - step);
+    }
+
+    if (m_open && m_pendingPage)
+    {
+        // Apply a page switch deferred by StartTransition while closed (see
+        // its doc comment) - now that we're open again, swap before this
+        // frame renders so the reopen shows the target page directly
+        // instead of briefly flashing whatever was showing when it closed.
+        m_currentPage = m_pendingPage;
+        m_pendingPage = nullptr;
+        m_currentPage->ResetSelection();
+    }
+
     if (!m_open)
         return; // closed - no page should react to input meant for gameplay
 
@@ -241,6 +272,45 @@ void AppMenu::RenderContent(UiRenderer &ui)
     ui.DrawQuad(0, 0, kMenuWidth, kHeaderHeight, kMenuOverlayColor);
     ui.DrawQuad(0, kHeaderHeight, kMenuWidth, kMenuHeight - kHeaderHeight - kBottomHeight, kMenuBodyColor);
     ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kMenuOverlayColor);
+
+    // Bottom-bar button hints ("[A] Select" / "[B] Back") - helps players
+    // navigate without having to guess which button does what. Icon choice
+    // tracks whichever physical button currently maps to select/back (see
+    // Menu::Update's SwapSelectBackButton branch); "Back" only shows on
+    // pages that actually have somewhere to go (MainPage is the root).
+    // Right-anchored near the edge with both groups pulled close together -
+    // measured off the actual text width so the gap stays tight regardless
+    // of font metrics, rather than hand-picked fixed positions.
+    {
+        const bool swapped = m_resources.settings && m_resources.settings->swapSelectBackButton;
+        const UiIconId selectIcon = swapped ? UiIconId::ButtonB : UiIconId::ButtonA;
+        const UiIconId backIcon = swapped ? UiIconId::ButtonA : UiIconId::ButtonB;
+        const bool showBack = m_currentPage && m_currentPage->HasBackAction();
+
+        constexpr float kHintIconSize = 9.0f;
+        constexpr float kHintIconGap = 2.0f;
+        constexpr float kHintRightMargin = 8.0f;
+        constexpr float kHintGroupGap = 4.0f;
+
+        const float barCenterY = kMenuHeight - kBottomHeight / 2.0f;
+        const float iconY = barCenterY - kHintIconSize / 2.0f;
+        const float textY = barCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f - ui.GetFontPStart(m_resources.smallFont);
+
+        const float selectTextW = ui.GetTextWidth(m_resources.smallFont, "Select");
+        const float selectGroupW = kHintIconSize + kHintIconGap + selectTextW;
+        const float selectX = kMenuWidth - kHintRightMargin - selectGroupW;
+
+        if (showBack)
+        {
+            const float backTextW = ui.GetTextWidth(m_resources.smallFont, "Back");
+            const float backGroupW = kHintIconSize + kHintIconGap + backTextW;
+            const float backX = selectX - kHintGroupGap - backGroupW;
+            m_icons.Draw(ui, backIcon, backX, iconY, kHintIconSize);
+            ui.DrawText(m_resources.smallFont, "Back", backX + kHintIconSize + kHintIconGap, textY, 1.0f, kMenuTextColor);
+        }
+        m_icons.Draw(ui, selectIcon, selectX, iconY, kHintIconSize);
+        ui.DrawText(m_resources.smallFont, "Select", selectX + kHintIconSize + kHintIconGap, textY, 1.0f, kMenuTextColor);
+    }
 
     // Centred header title
     const float headerTextY = kHeaderHeight / 2.0f - ui.GetFontPHeight(m_titleFont) / 2.0f - ui.GetFontPStart(m_titleFont);
@@ -312,13 +382,28 @@ void AppMenu::RenderToBuffer(UiRenderer &ui)
 
 void AppMenu::Draw(UiRenderer &ui, float x, float y)
 {
-    // 1:1 - m_offscreenTexture is already the full kMenuWidth*m_menuScale
-    // physical size, so no scaling happens at composite time (see Initialize).
+    if (m_visibility <= 0.0f)
+        return; // fully closed - nothing to composite
+
+    // Open/close animation: fades in/out while growing in from kMinScale (and
+    // shrinking back down on close), eased the same way as the page-slide
+    // transition (see StartTransition's doc comment) so both feel consistent.
+    constexpr float kMinScale = 0.9f;
+    const float eased = std::sinf(m_visibility * (3.14159265f / 2.0f));
+    const float scale = kMinScale + (1.0f - kMinScale) * eased;
+
+    // 1:1 at scale=1 - m_offscreenTexture is already the full kMenuWidth*
+    // m_menuScale physical size, so no scaling happens at composite time
+    // beyond the open/close animation above (see Initialize).
     // kPanelCornerRadiusPx itself DOES need scaling here though, unlike the
     // battery/scrollbar corner radii - this draw call composites onto the
     // real (physical) target, not into the logical-space offscreen buffer,
     // so nothing else scales it up automatically the way BeginOffscreenFrame's
     // logicalWidth/logicalHeight trick does for everything drawn inside RenderContent.
-    ui.DrawImageRounded(m_offscreenTexture, x, y, kMenuWidth * m_menuScale, kMenuHeight * m_menuScale,
-                        kPanelCornerRadiusPx * m_menuScale);
+    const float fullW = kMenuWidth * m_menuScale;
+    const float fullH = kMenuHeight * m_menuScale;
+    const float w = fullW * scale;
+    const float h = fullH * scale;
+    ui.DrawImageRounded(m_offscreenTexture, x + (fullW - w) / 2.0f, y + (fullH - h) / 2.0f, w, h,
+                        kPanelCornerRadiusPx * m_menuScale, eased);
 }

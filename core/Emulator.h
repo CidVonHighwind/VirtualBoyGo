@@ -120,9 +120,10 @@ class Emulator
     void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both,
                     const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}) const;
 
-    // UI slots are 1-9, shifted by one internally so slot 1 maps to
-    // FrontendGo's unsuffixed slot 0 (see StateFilePath). Raw
-    // retro_serialize dump, binary-compatible with FrontendGo's .state[N].
+    // UI slots are 0-9 (10 total, matching FrontendGo's saveStates[10]) -
+    // slot 0 is unsuffixed on disk, same as FrontendGo's slot 0 (see
+    // StateFilePath). Raw retro_serialize dump, binary-compatible with
+    // FrontendGo's .state[N].
     bool SaveState(int uiSlot);
     bool LoadState(int uiSlot);
     bool SaveStateExists(int uiSlot) const;
@@ -143,7 +144,7 @@ class Emulator
 
    private:
     // <m_romStateDir>/<m_romBaseName>.<ext><suffix>; suffix empty for
-    // uiSlot==1, else uiSlot-1.
+    // uiSlot==0, else uiSlot itself.
     std::string StateFilePath(int uiSlot, const char *ext) const;
 
     void CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const;

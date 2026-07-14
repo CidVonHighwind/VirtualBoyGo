@@ -43,6 +43,11 @@ public:
     // save preview here.
     virtual void ResetSelection() { m_menu.ResetSelection(); }
 
+    // Whether this page has anywhere for B (or A, if swapped) to go - drives
+    // the bottom-bar "Back" hint (see AppMenu::RenderContent). MainPage has
+    // no BackPress (it's the root), every other page navigates back to it.
+    bool HasBackAction() const { return static_cast<bool>(m_menu.BackPress); }
+
     void SetSwapSelectBackButton(bool swap) { m_menu.SwapSelectBackButton = swap; }
 
     void SetExtraSelectButtons(const ButtonMapper::MappedButton &b1, const ButtonMapper::MappedButton &b2)

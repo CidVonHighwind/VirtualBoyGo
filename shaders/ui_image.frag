@@ -24,16 +24,23 @@ vec4 SamplePixelPerfectAA(sampler2D tex, vec2 uv) {
 }
 
 void main() {
-    // Unlike ui_solid.frag/ui_text.frag, no manual gamma decode here: the
-    // source image is uploaded as an _SRGB format texture, so the sampler
-    // already linearizes on read, and the sRGB swapchain target re-encodes
-    // on write - the two conversions cancel out correctly on their own.
+    // The sampled pixel itself needs no manual gamma decode here (unlike
+    // ui_solid.frag/ui_text.frag): the source image is uploaded as an _SRGB
+    // format texture, so the sampler already linearizes on read, and the
+    // sRGB swapchain target re-encodes on write - the two conversions
+    // cancel out correctly on their own.
     outColor = SamplePixelPerfectAA(uImage, vUV);
     // vColor.a lets callers fade a drawn region (e.g. UiIconSet icons during
     // a page transition) without touching the source pixels' own colour -
     // DrawImage/DrawImageRounded always pass a=1, so this is a no-op there.
     outColor.a *= vColor.a;
     // vColor.rgb lets callers tint a drawn region (e.g. Emulator::DrawScreen's
-    // VB color palette) - most callers pass white (1,1,1), a no-op multiply.
-    outColor.rgb *= vColor.rgb;
+    // VB color palette, or MenuList tinting a selected row's icon to
+    // SelectionColor) - most callers pass white (1,1,1), a no-op multiply.
+    // Unlike the sampled pixel, vColor itself is authored in gamma space
+    // (same as ui_solid.frag/ui_text.frag's vColor) and isn't read through
+    // an _SRGB view, so it needs the same manual pre-decode those do -
+    // otherwise an identical gamma-space color (e.g. SelectionColor) ends
+    // up visually different when applied here vs. via DrawText/DrawQuad.
+    outColor.rgb *= pow(vColor.rgb, vec3(2.2));
 }

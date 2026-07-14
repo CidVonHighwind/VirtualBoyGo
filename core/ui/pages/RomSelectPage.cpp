@@ -7,11 +7,11 @@
 
 void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
-    // No icon-bearing entries yet - still a placeholder page.
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
-                                           kMenuItemSize);
+                                           kMenuItemSize, resources.icons);
     list->Color = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
+    list->TintIconOnSelect = false; // cartridge glyph, not a status indicator - stays put when a row is selected
 
     const std::vector<RomEntry> roms = ScanRoms();
     if (roms.empty())
@@ -30,7 +30,7 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
                     appMenu->Hide(); // go straight to the game instead of back to the menu
                 if (mainPage)
                     Navigate(mainPage, -1);
-            });
+            }, nullptr, nullptr, UiIconId::VbCartridge);
         }
     }
 

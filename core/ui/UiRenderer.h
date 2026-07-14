@@ -152,7 +152,7 @@ public:
     // intended way to composite a whole pre-rendered buffer (e.g. an
     // offscreen-rendered AppMenu) as a single rounded panel, instead of
     // rounding each shape inside it separately.
-    void DrawImageRounded(UiImageHandle image, float x, float y, float w, float h, float cornerRadiusPx);
+    void DrawImageRounded(UiImageHandle image, float x, float y, float w, float h, float cornerRadiusPx, float alpha = 1.0f);
     void EndFrame();
 
     // Drops all cached per-image framebuffers (see GetOrCreateRenderTarget).

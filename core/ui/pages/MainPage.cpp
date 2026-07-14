@@ -28,7 +28,11 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->AddEntry("Resume", [appMenu](MenuItem *) { if (appMenu) appMenu->Hide(); },
         nullptr, nullptr, UiIconId::Resume);
     list->AddEntry("Reset Game", nullptr, nullptr, nullptr, UiIconId::Reset);
-    list->AddEntry("Save Slot: " + std::to_string(m_saveSlot), nullptr,
+
+    list->AddSpacer(kMenuSpacerSize);
+
+    list->AddEntry("Save Slot: " + std::to_string(m_saveSlot),
+        [this](MenuItem *) { ChangeSaveSlot(1); }, // Select acts like Right - advance the slot
         [this](MenuItem *) { ChangeSaveSlot(-1); },
         [this](MenuItem *) { ChangeSaveSlot(1); },
         UiIconId::SaveSlot);
@@ -39,14 +43,24 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
             RefreshSavePreview();
         }
     }, nullptr, nullptr, UiIconId::Save);
-    list->AddEntry("Load", [this](MenuItem *) { if (m_emulator) m_emulator->LoadState(m_saveSlot); },
-        nullptr, nullptr, UiIconId::Load);
+    list->AddEntry("Load", [this, appMenu](MenuItem *) {
+        if (!m_emulator || !m_emulator->SaveStateExists(m_saveSlot))
+            return; // nothing to load in this slot - do nothing rather than load garbage
+        m_emulator->LoadState(m_saveSlot);
+        if (appMenu) appMenu->Hide(); // nothing left to do in the menu once a state is loaded - back to gameplay
+    }, nullptr, nullptr, UiIconId::Load);
+
+    list->AddSpacer(kMenuSpacerSize);
+
     list->AddEntry("Load ROM", [this](MenuItem *) { if (romSelectPage) Navigate(romSelectPage, 1); },
         nullptr, nullptr, UiIconId::RomList);
-    list->AddEntry("Reset View", nullptr, nullptr, nullptr, UiIconId::ResetView);
+
+    list->AddSpacer(kMenuSpacerSize);
+
     list->AddEntry("Settings",  [this](MenuItem *) { if (settingsPage)  Navigate(settingsPage,  1); },
         nullptr, nullptr, UiIconId::Settings);
-    list->AddEntry("Exit", nullptr, nullptr, nullptr, UiIconId::Exit);
+    list->AddEntry("Exit", [appMenu](MenuItem *) { if (appMenu) appMenu->RequestExit(); },
+        nullptr, nullptr, UiIconId::Exit);
 
     m_menu.MenuItems.push_back(list);
 
@@ -69,6 +83,12 @@ void MainPage::ResetSelection()
 {
     MenuPage::ResetSelection();
     RefreshSavePreview();
+}
+
+void MainPage::SelectLoadRomEntry()
+{
+    if (m_list)
+        m_list->SelectIndex(kLoadRomEntryIndex);
 }
 
 void MainPage::ChangeSaveSlot(int delta)

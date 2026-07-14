@@ -8,7 +8,7 @@ class MenuImage;
 class Emulator;
 
 // Main in-game menu: Resume, Reset, Save Slot, Save, Load, Load ROM,
-// Reset View, Settings, Exit.
+// Settings, Exit.
 // Navigation out: Load ROM → RomSelectPage, Settings → SettingsPage.
 class MainPage : public MenuPage
 {
@@ -20,10 +20,19 @@ public:
     void Init(UiRenderer &ui, const UiMenuResources &resources) override;
     void ResetSelection() override;
 
+    // AppMenu boots straight into RomSelectPage (nothing's loaded yet, so
+    // Resume/Save/Load would be dead) rather than going through MainPage's
+    // own "Load ROM" row first - call this once at boot so backing out of
+    // RomSelectPage still lands on "Load ROM" instead of row 0 ("Resume"),
+    // matching what a real MainPage -> Load ROM -> RomSelectPage trip would
+    // have left selected.
+    void SelectLoadRomEntry();
+
 private:
-    static constexpr int kMinSaveSlot = 1;
-    static constexpr int kMaxSaveSlot = 9;
-    static constexpr int kSaveSlotEntryIndex = 2; // Resume, Reset Game, Save Slot, ...
+    static constexpr int kMinSaveSlot = 0;
+    static constexpr int kMaxSaveSlot = 9; // 10 slots total (0-9), matches FrontendGo's saveStates[10]
+    static constexpr int kSaveSlotEntryIndex = 3; // Resume, Reset Game, [spacer], Save Slot, ...
+    static constexpr int kLoadRomEntryIndex = 7;  // ...Load, [spacer], Load ROM, ...
 
     void ChangeSaveSlot(int delta);
     void RefreshSavePreview();

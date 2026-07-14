@@ -12,7 +12,8 @@ class UiIconSet
 public:
     void Load(UiRenderer &ui);
 
-    void Draw(UiRenderer &ui, UiIconId id, float x, float y, float size, float alpha = 1.0f) const;
+    void Draw(UiRenderer &ui, UiIconId id, float x, float y, float size, float alpha = 1.0f,
+              const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}) const;
 
 private:
     UiImageHandle m_atlas;

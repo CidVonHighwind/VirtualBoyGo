@@ -291,16 +291,6 @@ void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Ey
     else if (eye == Eye::Right)
         u0 = fullU1 * 0.5f;
 
-    // TEMP debug: confirm DrawScreen is actually being called and with what
-    // rect/UV crop.
-    static int drawCount = 0;
-    if (drawCount < 5 || drawCount % 120 == 0)
-    {
-        std::fprintf(stderr, "[Emulator] DrawScreen #%d: rect=(%.1f,%.1f,%.1f,%.1f) uv=(%.3f,%.3f) romLoaded=%d\n",
-                    drawCount, x, y, w, h, u0, u1, m_romLoaded ? 1 : 0);
-    }
-    ++drawCount;
-
     ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
 }
 
@@ -310,8 +300,8 @@ std::string Emulator::StateFilePath(int uiSlot, const char *ext) const
     std::filesystem::create_directories(m_romStateDir, ec);
 
     std::string path = m_romStateDir + "/" + m_romBaseName + "." + ext;
-    if (uiSlot != 1)
-        path += std::to_string(uiSlot - 1);
+    if (uiSlot != 0)
+        path += std::to_string(uiSlot);
     return path;
 }
 
