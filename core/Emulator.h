@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioOutput.h"
 #include "ui/UiRenderer.h"
 
 #include <cstdint>
@@ -37,7 +38,8 @@ namespace VBButtonBit
 // folder's COPYING for its GPL-2.0 license), statically linked and called
 // directly through its standard libretro.h API (retro_load_game/retro_run/
 // etc.), not dlopen'd. See RunFrame/the retro_* callback implementations in
-// Emulator.cpp for what's still stubbed (audio is discarded).
+// Emulator.cpp for how the core's video/audio output reaches the screen/
+// speakers.
 //
 // The core always renders in "side-by-side" 3D mode (forced via this
 // class's environment callback) - both VB eyes packed into one wide
@@ -138,8 +140,9 @@ class Emulator
     // FrontendGo; palette tint is applied at display time, not baked in.
     bool LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const;
 
-    // Flushes cart SRAM for the currently-loaded ROM, if any - call once on
-    // app exit (LoadRom already flushes on every ROM switch).
+    // Flushes cart SRAM for the currently-loaded ROM, if any, and stops
+    // audio playback - call once on app exit (LoadRom already flushes SRAM
+    // on every ROM switch).
     void Shutdown();
 
    private:
@@ -190,4 +193,12 @@ class Emulator
     // uploading the core's buffer directly, or the screen renders fully
     // transparent (black, since nothing else is behind it).
     std::vector<uint8_t> m_frameBufferRgba;
+
+    // Plays whatever the audio_sample_batch callback forwards to it - see
+    // Emulator.cpp's RetroAudioSampleBatch. Owned here (not a global) since
+    // it needs real construction/destruction (the ring buffer, the
+    // platform device), unlike the plain data the other retro_* callbacks
+    // touch; a global pointer to it is still needed for those free
+    // functions to reach it (see Emulator.cpp's g_audioOutput).
+    AudioOutput m_audioOutput;
 };

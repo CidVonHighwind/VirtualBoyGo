@@ -33,6 +33,15 @@ bool g_frameReady = false;
 // RetroInputState - see VBButtonBit in Emulator.h for what each bit means.
 uint32_t g_joypadBitmask = 0;
 
+// Set by Emulator::Initialize to &m_audioOutput - same "necessarily global"
+// reasoning as the rest of this block; RetroAudioSampleBatch forwards the
+// core's samples through it. Null (and RetroAudioSampleBatch a no-op) until
+// then, and whenever AudioOutput::Initialize() itself failed (e.g. no
+// audio device on this machine) - PushSamples nonetheless already no-ops
+// when uninitialized, but the null check here also covers Emulator not
+// having called Initialize() at all yet.
+AudioOutput *g_audioOutput = nullptr;
+
 // The core has at least one call site (SettingChanged's "3D mode changed"
 // log line) that calls log_cb unconditionally with no null check, unlike
 // every other log_cb use in libretro.cpp - so GET_LOG_INTERFACE can't just
@@ -134,11 +143,17 @@ void RetroVideoRefresh(const void *data, unsigned width, unsigned height, size_t
     g_frameReady = true;
 }
 
+// The core only ever calls the batch variant below (see libretro.cpp's
+// audio_batch_cb usage) - this one's wired up solely because
+// retro_set_audio_sample still requires a non-null callback.
 void RetroAudioSampleNoop(int16_t, int16_t) {}
 
-// Audio is silent this pass - discard everything, report all frames consumed
-// (some frontends validate the return value against what they passed in).
-size_t RetroAudioSampleBatchNoop(const int16_t *, size_t frames) { return frames; }
+size_t RetroAudioSampleBatch(const int16_t *data, size_t frames)
+{
+    if (g_audioOutput)
+        g_audioOutput->PushSamples(data, frames);
+    return frames;
+}
 
 // No-op: g_joypadBitmask is refreshed once per app frame by
 // Emulator::SetGameplayInput (called before RunFrame's retro_run() calls),
@@ -160,11 +175,16 @@ void Emulator::Initialize(UiRenderer &ui)
     retro_set_environment(RetroEnvironment);
     retro_set_video_refresh(RetroVideoRefresh);
     retro_set_audio_sample(RetroAudioSampleNoop);
-    retro_set_audio_sample_batch(RetroAudioSampleBatchNoop);
+    retro_set_audio_sample_batch(RetroAudioSampleBatch);
     retro_set_input_poll(RetroInputPollNoop);
     retro_set_input_state(RetroInputState);
     retro_init();
     m_coreInitialized = true;
+
+    // Failure (e.g. no audio device on this machine) isn't fatal - g_audioOutput
+    // stays set either way, PushSamples itself no-ops while uninitialized.
+    m_audioOutput.Initialize();
+    g_audioOutput = &m_audioOutput;
 
     // Fixed max-size streaming texture (see UiRenderer::CreateStreamingImage)
     // - big enough for any 3D mode the core supports, even though we only
@@ -468,4 +488,6 @@ void Emulator::Shutdown()
 {
     if (m_romLoaded)
         SaveRam();
+    g_audioOutput = nullptr;
+    m_audioOutput.Shutdown();
 }

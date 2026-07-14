@@ -177,6 +177,7 @@ add_library(vbgo_app STATIC
     core/Settings.cpp
     core/XrInput.cpp
     core/Emulator.cpp
+    core/AudioOutput.cpp
     core/ui/UiRenderer.cpp
     core/ui/UiRendererPipelines.cpp
     core/ui/UiFontManager.cpp
