@@ -25,6 +25,7 @@ private:
     // buttonIndex: row into kButtons; column: 0 = primary, 1 = secondary.
     void StartCapture(int buttonIndex, int column);
     void ResetMapping();
+    void ApplyDefaultMapping(bool overwrite);
     void RefreshLabels();
 
     std::shared_ptr<MenuList> m_list; // kept for GetActiveColumn() at press time

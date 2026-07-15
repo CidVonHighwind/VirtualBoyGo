@@ -202,6 +202,10 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 
 void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds)
 {
+    for (int device = 0; device < 3; ++device)
+        if ((buttonStates[device] & m_suppressedSelectButtons[device]) == 0)
+            m_suppressedSelectButtons[device] = 0;
+
     // Animate the open/close fade regardless of m_open, so Hide() eases the
     // panel out instead of popping it away the instant gameplay input
     // resumes (see IsOpen() vs IsVisible()'s doc comment).
@@ -239,8 +243,21 @@ void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], flo
         return; // don't process input during transition
     }
 
+    const bool wasOpen = m_open;
     if (m_currentPage)
         m_currentPage->Update(buttonStates, lastButtonStates, deltaSeconds);
+    if (wasOpen && !m_open)
+    {
+        const uint32_t selectMask = ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_A];
+        m_suppressedSelectButtons[ButtonMapper::DeviceGamepad] = buttonStates[ButtonMapper::DeviceGamepad] & selectMask;
+        m_suppressedSelectButtons[ButtonMapper::DeviceRightTouch] = buttonStates[ButtonMapper::DeviceRightTouch] & selectMask;
+    }
+}
+
+void AppMenu::ApplyGameplayInputSuppression(uint32_t buttonStates[3]) const
+{
+    for (int device = 0; device < 3; ++device)
+        buttonStates[device] &= ~m_suppressedSelectButtons[device];
 }
 
 void AppMenu::SubmitRawMappingInput(const ButtonMapper::MappedButton &button)

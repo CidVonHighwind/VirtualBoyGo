@@ -228,6 +228,17 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
 
 void Emulator::SetGameplayInput(uint32_t joypadBitmask) { g_joypadBitmask = joypadBitmask; }
 
+bool Emulator::ResetGame()
+{
+    if (!m_romLoaded)
+        return false;
+    g_joypadBitmask = 0;
+    m_frameAccumulator = 0.0f;
+    g_frameReady = false;
+    retro_reset();
+    return true;
+}
+
 void Emulator::RunFrame(float deltaSeconds)
 {
     if (!m_romLoaded)

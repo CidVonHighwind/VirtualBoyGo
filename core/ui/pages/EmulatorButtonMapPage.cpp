@@ -70,31 +70,6 @@ std::string BindingStr(const ButtonMapper::MappedButton &b, ButtonMappingProfile
             return "Key " + std::to_string(b.ButtonIndex);
         }
     }
-    if (profile == ButtonMappingProfile::Desktop && b.InputDevice == ButtonMapper::DeviceLeftTouch)
-    {
-        static const char *keyboardNames[ButtonMapper::EmuButtonCount] = {};
-        static bool initialized = false;
-        if (!initialized)
-        {
-            keyboardNames[ButtonMapper::EmuButton_A] = "X";
-            keyboardNames[ButtonMapper::EmuButton_B] = "Z";
-            keyboardNames[ButtonMapper::EmuButton_LShoulder] = "Q";
-            keyboardNames[ButtonMapper::EmuButton_RShoulder] = "E";
-            keyboardNames[ButtonMapper::EmuButton_Up] = "Up Arrow";
-            keyboardNames[ButtonMapper::EmuButton_Down] = "Down Arrow";
-            keyboardNames[ButtonMapper::EmuButton_Left] = "Left Arrow";
-            keyboardNames[ButtonMapper::EmuButton_Right] = "Right Arrow";
-            keyboardNames[ButtonMapper::EmuButton_LeftStickUp] = "W";
-            keyboardNames[ButtonMapper::EmuButton_LeftStickDown] = "S";
-            keyboardNames[ButtonMapper::EmuButton_LeftStickLeft] = "A";
-            keyboardNames[ButtonMapper::EmuButton_LeftStickRight] = "D";
-            keyboardNames[ButtonMapper::EmuButton_Enter] = "Enter";
-            keyboardNames[ButtonMapper::EmuButton_Back] = "Backspace";
-            initialized = true;
-        }
-        if (b.ButtonIndex >= 0 && b.ButtonIndex < ButtonMapper::EmuButtonCount && keyboardNames[b.ButtonIndex])
-            return keyboardNames[b.ButtonIndex];
-    }
     return ButtonMapper::MapButtonStr[b.InputDevice * 32 + b.ButtonIndex];
 }
 } // namespace
@@ -128,12 +103,16 @@ void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resource
     auto resetEntry = list->AddEntry("Reset Mapping", [this](MenuItem *) { ResetMapping(); }, nullptr, nullptr,
                                      UiIconId::ResetView);
     resetEntry->centered = true;
+    resetEntry->tintIconOnSelect = true;
 
     m_menu.MenuItems.push_back(list);
     m_list = list;
     m_menu.BackPress = [this]() { if (settingsPage) Navigate(settingsPage, -1); };
     m_menu.Init();
 
+    // Fill every untouched slot from the same table used by Reset Mapping.
+    // Existing user bindings are preserved.
+    ApplyDefaultMapping(false);
     RefreshLabels();
 }
 
@@ -163,30 +142,15 @@ void EmulatorButtonMapPage::StartCapture(int buttonIndex, int column)
         SetCaptureHook(nullptr);
         SetRawCaptureHook(nullptr);
     });
-    SetCaptureHook([this, vbBit, column, waitingForRelease](uint32_t *buttonState, uint32_t *lastButtonState) -> bool
+    SetCaptureHook([waitingForRelease](uint32_t *buttonState, uint32_t *) -> bool
     {
         if (*waitingForRelease)
         {
             if (!buttonState[0] && !buttonState[1] && !buttonState[2])
                 *waitingForRelease = false;
-            return true;
         }
-
-        for (int device = 0; device < 3; ++device)
-        {
-            for (uint32_t bit = 0; bit < static_cast<uint32_t>(ButtonMapper::EmuButtonCount); ++bit)
-            {
-                const uint32_t mask = ButtonMapper::ButtonMapping[bit];
-                if ((buttonState[device] & mask) && !(lastButtonState[device] & mask))
-                {
-                    m_settings->vbButtons[vbBit].Buttons[column] = {true, device, static_cast<int>(bit)};
-                    RefreshLabels();
-                    SetCaptureHook(nullptr);
-                    SetRawCaptureHook(nullptr);
-                    return false;
-                }
-            }
-        }
+        // This hook only suspends menu navigation and waits for release.
+        // Actual bindings exclusively arrive through RawCaptureHook.
         return true;
     });
 }
@@ -196,13 +160,25 @@ void EmulatorButtonMapPage::ResetMapping()
     if (!m_settings)
         return;
 
-    for (auto &pair : m_settings->vbButtons)
-        pair = {};
+    ApplyDefaultMapping(true);
+    RefreshLabels();
+}
+
+void EmulatorButtonMapPage::ApplyDefaultMapping(bool overwrite)
+{
+    if (!m_settings)
+        return;
+
+    if (overwrite)
+        for (auto &pair : m_settings->vbButtons)
+            pair = {};
 
     using namespace ButtonMapper;
     auto bind = [this](uint32_t vbBit, int slot, int device, uint32_t button)
     {
-        m_settings->vbButtons[vbBit].Buttons[slot] = {true, device, static_cast<int>(button)};
+        ButtonMapper::MappedButton &binding = m_settings->vbButtons[vbBit].Buttons[slot];
+        if (!binding.IsSet)
+            binding = {true, device, static_cast<int>(button)};
     };
 
     // Slot 1 is the conventional gamepad layout on every platform.
@@ -257,7 +233,6 @@ void EmulatorButtonMapPage::ResetMapping()
         bind(VBButtonBit::Start,      0, DeviceLeftTouch, EmuButton_Y);
         bind(VBButtonBit::Select,     0, DeviceLeftTouch, EmuButton_X);
     }
-    RefreshLabels();
 }
 
 void EmulatorButtonMapPage::RefreshLabels()

@@ -577,7 +577,8 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
             const bool sel = (idx == m_selectedIndex);
             const float x = m_posX + offsetX + (sel ? 2.5f : 0.0f);
             const float y = rowY + m_textRowOffset;
-            const float textX = (m_icons && entry.icon != UiIconId::None) ? x + kIconSize + kIconTextGap : x;
+            const bool hasIconSpace = entry.reserveIconSpace || (m_icons && entry.icon != UiIconId::None);
+            const float textX = hasIconSpace ? x + kIconSize + kIconTextGap : x;
 
             const XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
             auto drawLabel = [&](const std::string &txt, float lx, bool highlight)
@@ -611,8 +612,8 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
                 {
                     const float iconX = rowX + (iconColumnWidth - kIconSize) / 2.0f;
                     const float iconY = rowY + (h - kIconSize) / 2.0f;
-                    m_icons->Draw(ui, entry.icon, iconX, iconY, kIconSize, alpha,
-                                  XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
+                    const XrColor4f iconTint = sel ? SelectionColor : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+                    m_icons->Draw(ui, entry.icon, iconX, iconY, kIconSize, alpha, iconTint);
                 }
             }
             else
@@ -631,7 +632,9 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
             if (!entry.twoColumn && m_icons && entry.icon != UiIconId::None)
             {
                 const float iconY = rowY + (h - kIconSize) / 2.0f;
-                const XrColor4f iconTint = (sel && TintIconOnSelect) ? SelectionColor : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+                const XrColor4f iconTint = (sel && (TintIconOnSelect || entry.tintIconOnSelect))
+                                                ? SelectionColor
+                                                : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
                 const float iconX = entry.centered ? singleLabelX - kIconTextGap - kIconSize : x;
                 m_icons->Draw(ui, entry.icon, iconX, iconY, kIconSize, alpha, iconTint);
             }

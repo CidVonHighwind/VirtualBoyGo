@@ -537,6 +537,22 @@ void OpenXrApp::RenderFrame()
 
     m_appMenu.Update(m_buttonStates, m_lastButtonStates, deltaSeconds);
 
+    // Mapping capture receives only real, hand-specific controller inputs.
+    // Generic direction bits exist solely for menu navigation and are
+    // deliberately excluded so they can never be saved as a gameplay bind.
+    for (int device : {ButtonMapper::DeviceLeftTouch, ButtonMapper::DeviceRightTouch})
+    {
+        for (int bit = 0; bit < ButtonMapper::EmuButtonCount; ++bit)
+        {
+            if (bit >= static_cast<int>(ButtonMapper::EmuButton_Up) &&
+                bit <= static_cast<int>(ButtonMapper::EmuButton_Right))
+                continue;
+            const uint32_t mask = ButtonMapper::ButtonMapping[bit];
+            if ((m_buttonStates[device] & mask) && !(m_lastButtonStates[device] & mask))
+                m_appMenu.SubmitRawMappingInput({true, device, bit});
+        }
+    }
+
     // Translated from m_buttonStates (already populated above by
     // m_input.GetButtonStates, extended in XrInput::Sync to also carry
     // per-hand stick/trigger/X/Y bits) via AppSettings::vbButtons - see
@@ -546,7 +562,11 @@ void OpenXrApp::RenderFrame()
     // D-Pad, right thumbstick -> Right D-Pad, A/B -> VB A/B, X/Y ->
     // Select/Start, left/right index triggers -> L/R. Only fed to the core
     // while the menu is closed, same reasoning as pc2d's Main.cpp.
-    const uint32_t joypadBits = m_appMenu.IsOpen() ? 0 : ButtonMapper::TranslateToVBBitmask(m_buttonStates, m_settings.vbButtons);
+    uint32_t gameplayButtonStates[3] = {m_buttonStates[0], m_buttonStates[1], m_buttonStates[2]};
+    m_appMenu.ApplyGameplayInputSuppression(gameplayButtonStates);
+    const uint32_t joypadBits = m_appMenu.IsOpen()
+                                    ? 0
+                                    : ButtonMapper::TranslateToVBBitmask(gameplayButtonStates, m_settings.vbButtons);
     m_emulator.SetGameplayInput(joypadBits);
     m_emulator.RunFrame(deltaSeconds);
 

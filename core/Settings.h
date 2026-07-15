@@ -17,7 +17,7 @@ struct AppSettings
     // Bumped whenever the on-disk layout changes - Load() refuses (leaves
     // defaults in place) on a mismatch rather than attempting any migration,
     // same as FrontendGo's own SAVE_FILE_VERSION check.
-    static constexpr int kVersion = 4;
+    static constexpr int kVersion = 7;
 
     // Move Screen / Follow Head - ported from FrontendGo's LayerBuilder
     // (screenYaw/screenPitch/screenRoll/radiusMenuScreen/screenSize) and
@@ -35,8 +35,8 @@ struct AppSettings
     // threedeeIPD/color[3]/selectedPredefColor fields.
     bool useThreeDeeMode = true;
     float ipdOffset = 0.0f;  // meters, range/step match FrontendGo's IPD_STEP_SIZE/min/maxIPD
-    int selectedPalette = 9; // index into kPredefColors - 9 is {1,1,1} (classic/white), FrontendGo's default
-    float colorR = 1.0f, colorG = 1.0f, colorB = 1.0f;
+    int selectedPalette = 0; // authentic Virtual Boy red
+    float colorR = 1.0f, colorG = 0.0f, colorB = 0.0f;
 
     // VB gameplay button remapping - indexed directly by VBButtonBit
     // constants (see Emulator.h); some slots (1, 9) are unused gaps in that
@@ -58,7 +58,6 @@ struct AppSettings
 };
 
 // FrontendGo's 11 preset VB screen colors, ported verbatim from
-// VirtualBoyGoMaster/Src/Emulator.h's predefColors[11] table (index 9 -
-// {1,1,1} - is the plain/"classic" white VB look, hence AppSettings'
-// default selectedPalette above).
+// VirtualBoyGoMaster/Src/Emulator.h's predefColors[11] table. Index 0 is
+// the authentic red Virtual Boy display and is the factory default.
 extern const XrColor4f kPredefColors[11];

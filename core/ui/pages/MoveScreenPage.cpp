@@ -121,6 +121,9 @@ void MoveScreenPage::ResetView()
     m_settings->screenRoll = 0.0f;
     m_settings->screenDistance = 2.2f;
     m_settings->screenScale = 1.0f;
+    m_settings->followHead = false;
+    m_settings->useThreeDeeMode = true;
+    m_settings->ipdOffset = 0.0f;
     RefreshLabels();
 }
 

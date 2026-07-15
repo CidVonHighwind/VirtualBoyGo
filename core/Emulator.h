@@ -80,6 +80,10 @@ class Emulator
     // elsewhere.
     bool LoadRom(const std::string &romPath, const std::string &displayName = "");
 
+    // Cold-resets the currently loaded game through the libretro core.
+    // Returns false when no ROM is loaded.
+    bool ResetGame();
+
     // True once Initialize() has set up the streaming screen texture -
     // *not* tied to whether a ROM is loaded, so the screen quad layer/
     // texture exists (showing black) from app start, and DrawScreen doesn't

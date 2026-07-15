@@ -59,27 +59,6 @@ namespace
         menuKey(GLFW_KEY_S, EmuButton_A);
         menuKey(GLFW_KEY_A, EmuButton_B);
 
-        // Gameplay keyboard state is deliberately separate from menu state.
-        auto key = [&](int glfwKey, uint32_t emuButton)
-        {
-            if (glfwGetKey(window, glfwKey) == GLFW_PRESS)
-                buttonStates[DeviceLeftTouch] |= ButtonMapping[emuButton];
-        };
-        key(GLFW_KEY_UP, EmuButton_Up);
-        key(GLFW_KEY_DOWN, EmuButton_Down);
-        key(GLFW_KEY_LEFT, EmuButton_Left);
-        key(GLFW_KEY_RIGHT, EmuButton_Right);
-        key(GLFW_KEY_W, EmuButton_LeftStickUp);
-        key(GLFW_KEY_S, EmuButton_LeftStickDown);
-        key(GLFW_KEY_A, EmuButton_LeftStickLeft);
-        key(GLFW_KEY_D, EmuButton_LeftStickRight);
-        key(GLFW_KEY_X, EmuButton_A);
-        key(GLFW_KEY_Z, EmuButton_B);
-        key(GLFW_KEY_Q, EmuButton_LShoulder);
-        key(GLFW_KEY_E, EmuButton_RShoulder);
-        key(GLFW_KEY_ENTER, EmuButton_Enter);
-        key(GLFW_KEY_BACKSPACE, EmuButton_Back);
-
         GLFWgamepadstate pad{};
         if (glfwJoystickIsGamepad(GLFW_JOYSTICK_1) && glfwGetGamepadState(GLFW_JOYSTICK_1, &pad))
         {
@@ -124,17 +103,19 @@ namespace
     // Mapping menu page can actually rebind these - see
     // ApplyDefaultGameplayBindings for the default key<->EmuButton_* slot
     // assignment these physical keys are wired to.
-    uint32_t PollGameplayInput(GLFWwindow *window, const AppSettings &settings)
+    uint32_t PollGameplayInput(GLFWwindow *window, const AppSettings &settings, const AppMenu &appMenu)
     {
         using namespace ButtonMapper;
         uint32_t buttonStates[3] = {0, 0, 0};
         PollDesktopButtonState(window, buttonStates);
+        appMenu.ApplyGameplayInputSuppression(buttonStates);
         uint32_t result = TranslateToVBBitmask(buttonStates, settings.vbButtons);
         for (uint32_t vbBit = 0; vbBit < 16; ++vbBit)
             for (const MappedButton &binding : settings.vbButtons[vbBit].Buttons)
                 if (binding.IsSet && binding.InputDevice == DeviceKeyboard &&
                     binding.ButtonIndex >= 0 && binding.ButtonIndex <= GLFW_KEY_LAST &&
-                    glfwGetKey(window, binding.ButtonIndex) == GLFW_PRESS)
+                    glfwGetKey(window, binding.ButtonIndex) == GLFW_PRESS &&
+                    !(appMenu.SuppressesDesktopSelectKey() && binding.ButtonIndex == GLFW_KEY_S))
                     result |= (1u << vbBit);
         return result;
     }
@@ -373,6 +354,16 @@ int main()
             PollDesktopButtonState(window, buttonStates);
             appMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
 
+            // Gamepad mapping capture uses physical gamepad edges, never
+            // the synthetic keyboard/menu device slots.
+            for (int bit = 0; bit < ButtonMapper::EmuButtonCount; ++bit)
+            {
+                const uint32_t mask = ButtonMapper::ButtonMapping[bit];
+                if ((buttonStates[ButtonMapper::DeviceGamepad] & mask) &&
+                    !(lastButtonStates[ButtonMapper::DeviceGamepad] & mask))
+                    appMenu.SubmitRawMappingInput({true, ButtonMapper::DeviceGamepad, bit});
+            }
+
             // Raw key edges let the mapping page bind any GLFW keyboard key,
             // independent of the fixed menu-navigation controls above.
             for (int key = GLFW_KEY_SPACE; key <= GLFW_KEY_LAST; ++key)
@@ -387,7 +378,7 @@ int main()
             // keep advancing behind it.
             if (!appMenu.IsOpen())
             {
-                emulator.SetGameplayInput(PollGameplayInput(window, settings));
+                emulator.SetGameplayInput(PollGameplayInput(window, settings, appMenu));
                 emulator.RunFrame(deltaSeconds);
             }
 

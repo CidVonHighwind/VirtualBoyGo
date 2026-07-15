@@ -235,6 +235,8 @@ public:
         bool twoColumn = false;
         std::string textSecondary;
         bool centered = false; // centers the icon+label group within the row
+        bool tintIconOnSelect = false; // per-entry override when the list disables tint
+        bool reserveIconSpace = false; // align text with icon rows without drawing an icon
 
         // Sets the (primary) label and bakes any glyphs it needs. Prefer this
         // over assigning text directly for anything but pure ASCII (always

@@ -81,6 +81,9 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     m_colorBEntry = list->AddEntry("Blue: 1.00", [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, -kColorStep); },
         [this](MenuItem *) { ChangeColorChannel(&AppSettings::colorB, kColorStep); });
+    m_colorREntry->reserveIconSpace = true;
+    m_colorGEntry->reserveIconSpace = true;
+    m_colorBEntry->reserveIconSpace = true;
 
 #if defined(__ANDROID__)
     // Way back into the ROMs-folder picker (SAF, see RomScanner.h). Clears
