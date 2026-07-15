@@ -40,26 +40,77 @@ namespace
         }
     }
 
-    void PollKeyboardButtonState(GLFWwindow *window, uint32_t buttonStates[3])
+    void PollDesktopButtonState(GLFWwindow *window, uint32_t buttonStates[3])
     {
         using namespace ButtonMapper;
         buttonStates[DeviceGamepad] = 0;
         buttonStates[DeviceLeftTouch] = 0;
         buttonStates[DeviceRightTouch] = 0;
 
-        uint32_t &bits = buttonStates[DeviceRightTouch];
-        if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_Up];
-        if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_Down];
-        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_Left];
-        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_Right];
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_A];
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            bits |= ButtonMapping[EmuButton_B];
+        auto menuKey = [&](int glfwKey, uint32_t emuButton)
+        {
+            if (glfwGetKey(window, glfwKey) == GLFW_PRESS)
+                buttonStates[DeviceRightTouch] |= ButtonMapping[emuButton];
+        };
+        menuKey(GLFW_KEY_UP, EmuButton_Up);
+        menuKey(GLFW_KEY_DOWN, EmuButton_Down);
+        menuKey(GLFW_KEY_LEFT, EmuButton_Left);
+        menuKey(GLFW_KEY_RIGHT, EmuButton_Right);
+        menuKey(GLFW_KEY_S, EmuButton_A);
+        menuKey(GLFW_KEY_A, EmuButton_B);
+
+        // Gameplay keyboard state is deliberately separate from menu state.
+        auto key = [&](int glfwKey, uint32_t emuButton)
+        {
+            if (glfwGetKey(window, glfwKey) == GLFW_PRESS)
+                buttonStates[DeviceLeftTouch] |= ButtonMapping[emuButton];
+        };
+        key(GLFW_KEY_UP, EmuButton_Up);
+        key(GLFW_KEY_DOWN, EmuButton_Down);
+        key(GLFW_KEY_LEFT, EmuButton_Left);
+        key(GLFW_KEY_RIGHT, EmuButton_Right);
+        key(GLFW_KEY_W, EmuButton_LeftStickUp);
+        key(GLFW_KEY_S, EmuButton_LeftStickDown);
+        key(GLFW_KEY_A, EmuButton_LeftStickLeft);
+        key(GLFW_KEY_D, EmuButton_LeftStickRight);
+        key(GLFW_KEY_X, EmuButton_A);
+        key(GLFW_KEY_Z, EmuButton_B);
+        key(GLFW_KEY_Q, EmuButton_LShoulder);
+        key(GLFW_KEY_E, EmuButton_RShoulder);
+        key(GLFW_KEY_ENTER, EmuButton_Enter);
+        key(GLFW_KEY_BACKSPACE, EmuButton_Back);
+
+        GLFWgamepadstate pad{};
+        if (glfwJoystickIsGamepad(GLFW_JOYSTICK_1) && glfwGetGamepadState(GLFW_JOYSTICK_1, &pad))
+        {
+            uint32_t &bits = buttonStates[DeviceGamepad];
+            auto button = [&](int glfwButton, uint32_t emuButton)
+            {
+                if (pad.buttons[glfwButton] == GLFW_PRESS)
+                    bits |= ButtonMapping[emuButton];
+            };
+            button(GLFW_GAMEPAD_BUTTON_A, EmuButton_A);
+            button(GLFW_GAMEPAD_BUTTON_B, EmuButton_B);
+            button(GLFW_GAMEPAD_BUTTON_X, EmuButton_X);
+            button(GLFW_GAMEPAD_BUTTON_Y, EmuButton_Y);
+            button(GLFW_GAMEPAD_BUTTON_LEFT_BUMPER, EmuButton_LShoulder);
+            button(GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER, EmuButton_RShoulder);
+            button(GLFW_GAMEPAD_BUTTON_BACK, EmuButton_Back);
+            button(GLFW_GAMEPAD_BUTTON_START, EmuButton_Enter);
+            button(GLFW_GAMEPAD_BUTTON_DPAD_UP, EmuButton_Up);
+            button(GLFW_GAMEPAD_BUTTON_DPAD_DOWN, EmuButton_Down);
+            button(GLFW_GAMEPAD_BUTTON_DPAD_LEFT, EmuButton_Left);
+            button(GLFW_GAMEPAD_BUTTON_DPAD_RIGHT, EmuButton_Right);
+            constexpr float deadzone = 0.5f;
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] < -deadzone) bits |= ButtonMapping[EmuButton_LeftStickLeft];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] >  deadzone) bits |= ButtonMapping[EmuButton_LeftStickRight];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] < -deadzone) bits |= ButtonMapping[EmuButton_LeftStickUp];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] >  deadzone) bits |= ButtonMapping[EmuButton_LeftStickDown];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] < -deadzone) bits |= ButtonMapping[EmuButton_RightStickLeft];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] >  deadzone) bits |= ButtonMapping[EmuButton_RightStickRight];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] < -deadzone) bits |= ButtonMapping[EmuButton_RightStickUp];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] >  deadzone) bits |= ButtonMapping[EmuButton_RightStickDown];
+        }
     }
 
     // VB gameplay input - separate key layout from menu navigation (the VB
@@ -77,29 +128,15 @@ namespace
     {
         using namespace ButtonMapper;
         uint32_t buttonStates[3] = {0, 0, 0};
-        uint32_t &bits = buttonStates[DeviceRightTouch];
-
-        auto setIf = [&](int key, uint32_t emuButton)
-        {
-            if (glfwGetKey(window, key) == GLFW_PRESS)
-                bits |= ButtonMapping[emuButton];
-        };
-        setIf(GLFW_KEY_UP, EmuButton_Up);
-        setIf(GLFW_KEY_DOWN, EmuButton_Down);
-        setIf(GLFW_KEY_LEFT, EmuButton_Left);
-        setIf(GLFW_KEY_RIGHT, EmuButton_Right);
-        setIf(GLFW_KEY_W, EmuButton_LeftStickUp);
-        setIf(GLFW_KEY_S, EmuButton_LeftStickDown);
-        setIf(GLFW_KEY_A, EmuButton_LeftStickLeft);
-        setIf(GLFW_KEY_D, EmuButton_LeftStickRight);
-        setIf(GLFW_KEY_X, EmuButton_A);
-        setIf(GLFW_KEY_Z, EmuButton_B);
-        setIf(GLFW_KEY_Q, EmuButton_LShoulder);
-        setIf(GLFW_KEY_E, EmuButton_RShoulder);
-        setIf(GLFW_KEY_ENTER, EmuButton_Enter);
-        setIf(GLFW_KEY_BACKSPACE, EmuButton_Back);
-
-        return TranslateToVBBitmask(buttonStates, settings.vbButtons);
+        PollDesktopButtonState(window, buttonStates);
+        uint32_t result = TranslateToVBBitmask(buttonStates, settings.vbButtons);
+        for (uint32_t vbBit = 0; vbBit < 16; ++vbBit)
+            for (const MappedButton &binding : settings.vbButtons[vbBit].Buttons)
+                if (binding.IsSet && binding.InputDevice == DeviceKeyboard &&
+                    binding.ButtonIndex >= 0 && binding.ButtonIndex <= GLFW_KEY_LAST &&
+                    glfwGetKey(window, binding.ButtonIndex) == GLFW_PRESS)
+                    result |= (1u << vbBit);
+        return result;
     }
 
     // Fills in vbButtons/menu-button slots that have never been bound yet
@@ -114,28 +151,28 @@ namespace
         using namespace ButtonMapper;
         auto setDefault = [&](uint32_t vbBit, uint32_t emuButton)
         {
-            MappedButton &b = settings.vbButtons[vbBit];
+            MappedButton &b = settings.vbButtons[vbBit].Buttons[0];
             if (!b.IsSet)
             {
                 b.IsSet = true;
-                b.InputDevice = DeviceRightTouch;
+                b.InputDevice = DeviceKeyboard;
                 b.ButtonIndex = static_cast<int>(emuButton);
             }
         };
-        setDefault(VBButtonBit::LeftUp, EmuButton_Up);
-        setDefault(VBButtonBit::LeftDown, EmuButton_Down);
-        setDefault(VBButtonBit::LeftLeft, EmuButton_Left);
-        setDefault(VBButtonBit::LeftRight, EmuButton_Right);
-        setDefault(VBButtonBit::RightUp, EmuButton_LeftStickUp);
-        setDefault(VBButtonBit::RightDown, EmuButton_LeftStickDown);
-        setDefault(VBButtonBit::RightLeft, EmuButton_LeftStickLeft);
-        setDefault(VBButtonBit::RightRight, EmuButton_LeftStickRight);
-        setDefault(VBButtonBit::A, EmuButton_A);
-        setDefault(VBButtonBit::B, EmuButton_B);
-        setDefault(VBButtonBit::L, EmuButton_LShoulder);
-        setDefault(VBButtonBit::R, EmuButton_RShoulder);
-        setDefault(VBButtonBit::Start, EmuButton_Enter);
-        setDefault(VBButtonBit::Select, EmuButton_Back);
+        setDefault(VBButtonBit::LeftUp, GLFW_KEY_UP);
+        setDefault(VBButtonBit::LeftDown, GLFW_KEY_DOWN);
+        setDefault(VBButtonBit::LeftLeft, GLFW_KEY_LEFT);
+        setDefault(VBButtonBit::LeftRight, GLFW_KEY_RIGHT);
+        setDefault(VBButtonBit::RightUp, GLFW_KEY_W);
+        setDefault(VBButtonBit::RightDown, GLFW_KEY_S);
+        setDefault(VBButtonBit::RightLeft, GLFW_KEY_A);
+        setDefault(VBButtonBit::RightRight, GLFW_KEY_D);
+        setDefault(VBButtonBit::A, GLFW_KEY_X);
+        setDefault(VBButtonBit::B, GLFW_KEY_Z);
+        setDefault(VBButtonBit::L, GLFW_KEY_Q);
+        setDefault(VBButtonBit::R, GLFW_KEY_E);
+        setDefault(VBButtonBit::Start, GLFW_KEY_ENTER);
+        setDefault(VBButtonBit::Select, GLFW_KEY_BACKSPACE);
     }
 
 } // namespace
@@ -278,7 +315,7 @@ int main()
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
                               renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
         emulator.Initialize(uiRenderer);
-        appMenu.Initialize(uiRenderer, chosen.format, emulator, settings);
+        appMenu.Initialize(uiRenderer, chosen.format, emulator, settings, ButtonMappingProfile::Desktop);
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");
@@ -301,8 +338,9 @@ int main()
         // doesn't read input for (see AppMenu::Show/Hide/ToggleOpen).
         // Edge-triggered so holding the key doesn't spam-toggle every frame.
         bool tabWasPressed = false;
+        bool keyboardWasDown[GLFW_KEY_LAST + 1]{};
 
-        while (!glfwWindowShouldClose(window) && !appMenu.IsExitRequested())
+        while (!glfwWindowShouldClose(window))
         {
             glfwPollEvents();
 
@@ -332,8 +370,18 @@ int main()
             tabWasPressed = tabPressed;
 
             std::memcpy(lastButtonStates, buttonStates, sizeof(buttonStates));
-            PollKeyboardButtonState(window, buttonStates);
+            PollDesktopButtonState(window, buttonStates);
             appMenu.Update(buttonStates, lastButtonStates, deltaSeconds);
+
+            // Raw key edges let the mapping page bind any GLFW keyboard key,
+            // independent of the fixed menu-navigation controls above.
+            for (int key = GLFW_KEY_SPACE; key <= GLFW_KEY_LAST; ++key)
+            {
+                const bool down = glfwGetKey(window, key) == GLFW_PRESS;
+                if (down && !keyboardWasDown[key])
+                    appMenu.SubmitRawMappingInput({true, ButtonMapper::DeviceKeyboard, key});
+                keyboardWasDown[key] = down;
+            }
 
             // Pause emulation while the menu is open so gameplay doesn't
             // keep advancing behind it.

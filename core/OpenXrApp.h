@@ -35,11 +35,6 @@ class OpenXrApp {
 
     bool IsSessionRunning() const { return m_sessionRunning; }
 
-    // Set by the in-menu "Exit" entry (AppMenu::RequestExit) - the platform
-    // main loop (platform/pc/Main.cpp) checks this each iteration since
-    // OpenXrApp itself has no loop of its own to break out of.
-    bool IsExitRequested() const { return m_appMenu.IsExitRequested(); }
-
     void RenderFrame();
 
    private:

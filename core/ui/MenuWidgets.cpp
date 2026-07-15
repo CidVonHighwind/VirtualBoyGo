@@ -238,8 +238,17 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
 {
     using namespace ButtonMapper;
 
-    if (CaptureHook && CaptureHook(buttonState, lastButtonState))
-        return; // still waiting for a button press - normal navigation suspended
+    if (CaptureHook)
+    {
+        // The frame that completes a capture must be consumed too. In
+        // particular, binding Up/Down/Left/Right must not immediately feed
+        // that same edge into normal menu navigation below.
+        // Keep a local copy alive because a completing hook may clear the
+        // member from inside its callback.
+        const auto captureHook = CaptureHook;
+        captureHook(buttonState, lastButtonState);
+        return;
+    }
 
     MenuItems[CurrentSelection]->Unselect();
 
@@ -285,23 +294,16 @@ void Menu::Update(uint32_t *buttonState, uint32_t *lastButtonState, float deltaS
         MenuItems[CurrentSelection]->PressedRight();
     }
 
-    bool selectPressed =
-        ButtonPressed(buttonState, lastButtonState, DeviceGamepad, SwapSelectBackButton ? EmuButton_B : EmuButton_A) ||
-        ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, SwapSelectBackButton ? EmuButton_B : EmuButton_A);
-    if (!selectPressed && ExtraSelectButton1.IsSet)
-        selectPressed = ButtonPressed(buttonState, lastButtonState, static_cast<uint32_t>(ExtraSelectButton1.InputDevice),
-                                      static_cast<uint32_t>(ExtraSelectButton1.ButtonIndex));
-    if (!selectPressed && ExtraSelectButton2.IsSet)
-        selectPressed = ButtonPressed(buttonState, lastButtonState, static_cast<uint32_t>(ExtraSelectButton2.InputDevice),
-                                      static_cast<uint32_t>(ExtraSelectButton2.ButtonIndex));
+    const bool selectPressed = ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_A) ||
+                               ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, EmuButton_A);
 
     if (selectPressed)
     {
         buttonDownCount -= MenuItems[CurrentSelection]->ScrollTimeH;
         MenuItems[CurrentSelection]->PressedEnter();
     }
-    else if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, SwapSelectBackButton ? EmuButton_A : EmuButton_B) ||
-             ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, SwapSelectBackButton ? EmuButton_A : EmuButton_B))
+    else if (ButtonPressed(buttonState, lastButtonState, DeviceGamepad, EmuButton_B) ||
+             ButtonPressed(buttonState, lastButtonState, DeviceRightTouch, EmuButton_B))
     {
         if (BackPress != nullptr)
             BackPress();
@@ -359,6 +361,13 @@ void MenuList::Entry::SetText(const std::string &newText)
     text = newText;
     // Bake any glyphs the new label needs (a no-op for pure ASCII, which is
     // always pre-baked). See UiFontManager::EnsureGlyphsForText.
+    if (m_owner)
+        m_owner->m_ui->EnsureGlyphsForText(m_owner->m_font, newText);
+}
+
+void MenuList::Entry::SetSecondaryText(const std::string &newText)
+{
+    textSecondary = newText;
     if (m_owner)
         m_owner->m_ui->EnsureGlyphsForText(m_owner->m_font, newText);
 }
@@ -433,6 +442,7 @@ bool MenuList::needsScrollbar() const { return maxVisibleFrom(0) < (int)m_entrie
 void MenuList::ResetSelection()
 {
     m_selectedIndex = 0;
+    m_activeColumn = 0;
     while (m_selectedIndex < (int)m_entries.size() - 1 && m_entries[m_selectedIndex]->isSpacer)
         ++m_selectedIndex;
     m_firstVisible = 0;
@@ -495,6 +505,11 @@ int MenuList::PressedLeft()
     if (m_entries.empty())
         return 0;
     const Entry &entry = *m_entries[m_selectedIndex];
+    if (entry.twoColumn)
+    {
+        m_activeColumn = 0; // move highlight to the first binding column
+        return 1;
+    }
     if (entry.leftFunction)
     {
         entry.leftFunction(this);
@@ -508,6 +523,11 @@ int MenuList::PressedRight()
     if (m_entries.empty())
         return 0;
     const Entry &entry = *m_entries[m_selectedIndex];
+    if (entry.twoColumn)
+    {
+        m_activeColumn = 1; // move highlight to the second binding column
+        return 1;
+    }
     if (entry.rightFunction)
     {
         entry.rightFunction(this);
@@ -559,17 +579,61 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
             const float y = rowY + m_textRowOffset;
             const float textX = (m_icons && entry.icon != UiIconId::None) ? x + kIconSize + kIconTextGap : x;
 
-            XrColor4f c = sel ? SelectionColor : Color;
-            c.a *= alpha;
-            XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
-            ui.DrawText(m_font, entry.text, textX + 0.5f, y + 0.5f, 1.0f, shadow);
-            ui.DrawText(m_font, entry.text, textX, y, 1.0f, c);
+            const XrColor4f shadow = {0.0f, 0.0f, 0.0f, 0.45f * alpha};
+            auto drawLabel = [&](const std::string &txt, float lx, bool highlight)
+            {
+                XrColor4f c = highlight ? SelectionColor : Color;
+                c.a *= alpha;
+                ui.DrawText(m_font, txt, lx + 0.5f, y + 0.5f, 1.0f, shadow);
+                ui.DrawText(m_font, txt, lx, y, 1.0f, c);
+            };
+            float singleLabelX = textX;
 
-            if (m_icons && entry.icon != UiIconId::None)
+            if (entry.twoColumn)
+            {
+                // Narrow icon gutter, then two evenly-sized binding columns.
+                const float rightPad = needsScrollbar() ? (kScrollbarWidth + kScrollbarGap) : 0.0f;
+                const float rowX = m_posX + offsetX;
+                const float iconColumnWidth = kIconSize + kIconTextGap;
+                const float colWidth = (m_width - rightPad - iconColumnWidth) / 2.0f;
+                auto centeredTextX = [&](const std::string &txt, int column)
+                {
+                    return rowX + iconColumnWidth + colWidth * column +
+                           (colWidth - ui.GetTextWidth(m_font, txt)) / 2.0f;
+                };
+                drawLabel(entry.text, centeredTextX(entry.text, 0) + (sel && m_activeColumn == 0 ? 2.5f : 0.0f),
+                          sel && m_activeColumn == 0);
+                drawLabel(entry.textSecondary,
+                          centeredTextX(entry.textSecondary, 1) + (sel && m_activeColumn == 1 ? 2.5f : 0.0f),
+                          sel && m_activeColumn == 1);
+
+                if (m_icons && entry.icon != UiIconId::None)
+                {
+                    const float iconX = rowX + (iconColumnWidth - kIconSize) / 2.0f;
+                    const float iconY = rowY + (h - kIconSize) / 2.0f;
+                    m_icons->Draw(ui, entry.icon, iconX, iconY, kIconSize, alpha,
+                                  XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
+                }
+            }
+            else
+            {
+                if (entry.centered)
+                {
+                    const float iconWidth = (m_icons && entry.icon != UiIconId::None) ? kIconSize + kIconTextGap : 0.0f;
+                    const float rightPad = needsScrollbar() ? (kScrollbarWidth + kScrollbarGap) : 0.0f;
+                    const float groupWidth = iconWidth + ui.GetTextWidth(m_font, entry.text);
+                    singleLabelX = m_posX + offsetX + (m_width - rightPad - groupWidth) / 2.0f + iconWidth;
+                    if (sel) singleLabelX += 2.5f;
+                }
+                drawLabel(entry.text, singleLabelX, sel);
+            }
+
+            if (!entry.twoColumn && m_icons && entry.icon != UiIconId::None)
             {
                 const float iconY = rowY + (h - kIconSize) / 2.0f;
                 const XrColor4f iconTint = (sel && TintIconOnSelect) ? SelectionColor : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
-                m_icons->Draw(ui, entry.icon, x, iconY, kIconSize, alpha, iconTint);
+                const float iconX = entry.centered ? singleLabelX - kIconTextGap - kIconSize : x;
+                m_icons->Draw(ui, entry.icon, iconX, iconY, kIconSize, alpha, iconTint);
             }
 
             if (entry.accessoryDraw)

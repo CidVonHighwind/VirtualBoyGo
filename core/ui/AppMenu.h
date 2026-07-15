@@ -5,7 +5,6 @@
 #include "pages/MainPage.h"
 #include "pages/SettingsPage.h"
 #include "pages/RomSelectPage.h"
-#include "pages/MenuButtonMapPage.h"
 #include "pages/EmulatorButtonMapPage.h"
 #include "pages/MoveScreenPage.h"
 #include "UiRenderer.h"
@@ -31,8 +30,10 @@ public:
     static constexpr float kTransitionSpeed = 0.15f;
     static constexpr float kOpenCloseSpeed = 0.15f;
 
-    void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings);
+    void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings,
+                    ButtonMappingProfile mappingProfile = ButtonMappingProfile::Vr);
     void Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds);
+    void SubmitRawMappingInput(const ButtonMapper::MappedButton &button);
     void RenderToBuffer(UiRenderer &ui);
     void Draw(UiRenderer &ui, float x, float y);
 
@@ -77,16 +78,6 @@ public:
     // Composite callers multiply this into the panel's draw alpha.
     float GetVisibility() const { return m_visibility; }
 
-    // Pushes swapSelectBackButton/menuButton1/2 out to every page's Menu.
-    void ApplyMenuButtonSettings();
-
-    // Set by MainPage's "Exit" entry - AppMenu has no way to actually quit
-    // the process itself (that's platform-specific: glfwSetWindowShouldClose
-    // for pc2d, breaking the OpenXR poll loop for pc/Android), so callers'
-    // own main loops must check this each iteration and stop when it's true.
-    bool IsExitRequested() const { return m_exitRequested; }
-    void RequestExit() { m_exitRequested = true; }
-
 private:
     void InitPages(UiRenderer &ui);
     void StartTransition(MenuPage *target, int dir);
@@ -95,7 +86,6 @@ private:
     MainPage m_mainPage;
     SettingsPage m_settingsPage;
     RomSelectPage m_romSelectPage;
-    MenuButtonMapPage m_menuButtonMapPage;
     EmulatorButtonMapPage m_emulatorButtonMapPage;
     MoveScreenPage m_moveScreenPage;
 
@@ -116,5 +106,4 @@ private:
     int m_batteryPercent = -1;
     bool m_open = true;
     float m_visibility = 1.0f; // see IsVisible/GetVisibility - starts matching m_open, no animation at boot
-    bool m_exitRequested = false;
 };

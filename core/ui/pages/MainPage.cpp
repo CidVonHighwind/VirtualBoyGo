@@ -59,8 +59,6 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     list->AddEntry("Settings",  [this](MenuItem *) { if (settingsPage)  Navigate(settingsPage,  1); },
         nullptr, nullptr, UiIconId::Settings);
-    list->AddEntry("Exit", [appMenu](MenuItem *) { if (appMenu) appMenu->RequestExit(); },
-        nullptr, nullptr, UiIconId::Exit);
 
     m_menu.MenuItems.push_back(list);
 

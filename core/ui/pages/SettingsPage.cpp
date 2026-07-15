@@ -61,31 +61,10 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    list->AddEntry("Menu Button Mapping", [this](MenuItem *)
-                   { if (menuButtonMapPage)    Navigate(menuButtonMapPage,    1); }, nullptr, nullptr, UiIconId::Mapping);
-    list->AddEntry("Emulator Button Mapping", [this](MenuItem *)
+    list->AddEntry("Button Mapping", [this](MenuItem *)
                    { if (emulatorButtonMapPage) Navigate(emulatorButtonMapPage, 1); }, nullptr, nullptr, UiIconId::Mapping);
-
-    list->AddSpacer(kMenuSpacerSize);
-
-    list->AddEntry("Move Screen", [this](MenuItem *)
-                   { if (moveScreenPage)        Navigate(moveScreenPage,        1); }, nullptr, nullptr, UiIconId::Move);
-    m_followHeadEntry = list->AddEntry("Follow Head: No", [this](MenuItem *) { ToggleFollowHead(); }, // Select acts like Right - same toggle
-        [this](MenuItem *) { ToggleFollowHead(); }, [this](MenuItem *) { ToggleFollowHead(); }, UiIconId::FollowHead);
-
-    list->AddSpacer(kMenuSpacerSize);
-
-    // Rows below mirror FrontendGo's Emulator::InitSettingsMenu, which sat
-    // between Follow Head and Save and Back there too - screen 3D/2D mode,
-    // IPD (stereo eye-separation) offset, VB screen color palette + custom
-    // R/G/B tint.
-    m_threeDeeEntry = list->AddEntry("3D Screen: Yes", [this](MenuItem *) { ToggleThreeDeeMode(); }, // Select acts like Right - same toggle
-        [this](MenuItem *) { ToggleThreeDeeMode(); }, [this](MenuItem *) { ToggleThreeDeeMode(); }, UiIconId::ThreeD);
-    // IPD is the one exception to "Select acts like Right" - press already
-    // has a distinct, meaningful action (reset to 0), so it stays that way
-    // rather than doubling up with Right's step.
-    m_ipdEntry = list->AddEntry("IPD offset: 0.000", [this](MenuItem *) { ChangeIpd(0); /* press resets - see ChangeIpd */ },
-        [this](MenuItem *) { ChangeIpd(-1); }, [this](MenuItem *) { ChangeIpd(1); }, UiIconId::Ipd);
+    list->AddEntry("Adjust Screen", [this](MenuItem *)
+                   { if (moveScreenPage) Navigate(moveScreenPage, 1); }, nullptr, nullptr, UiIconId::Move);
 
     list->AddSpacer(kMenuSpacerSize);
 
@@ -134,39 +113,6 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     RefreshLabels();
 }
 
-void SettingsPage::ToggleFollowHead()
-{
-    if (!m_settings)
-        return;
-    m_settings->followHead = !m_settings->followHead;
-    RefreshLabels();
-}
-
-void SettingsPage::ToggleThreeDeeMode()
-{
-    if (!m_settings)
-        return;
-    m_settings->useThreeDeeMode = !m_settings->useThreeDeeMode;
-    RefreshLabels();
-}
-
-void SettingsPage::ChangeIpd(int delta)
-{
-    if (!m_settings)
-        return;
-    if (delta == 0)
-    {
-        m_settings->ipdOffset = 0.0f; // press resets to 0, matches FrontendGo's OnClickIPD
-    }
-    else
-    {
-        m_settings->ipdOffset += delta * kIpdStep;
-        if (m_settings->ipdOffset < kIpdMin) m_settings->ipdOffset = kIpdMin;
-        if (m_settings->ipdOffset > kIpdMax) m_settings->ipdOffset = kIpdMax;
-    }
-    RefreshLabels();
-}
-
 void SettingsPage::ChangePalette(int delta)
 {
     if (!m_settings)
@@ -208,9 +154,6 @@ void SettingsPage::RefreshLabels()
     if (!m_settings)
         return;
 
-    m_followHeadEntry->SetText(m_settings->followHead ? "Follow Head: Yes" : "Follow Head: No");
-    m_threeDeeEntry->SetText(m_settings->useThreeDeeMode ? "3D Screen: Yes" : "3D Screen: No");
-    m_ipdEntry->SetText(FormatFloat("IPD offset: ", m_settings->ipdOffset));
     // Color Palette's label stays static ("Color Palette") - its row draws
     // the actual colors via DrawColorPreview instead of a selected-index
     // number (see AddEntry's accessoryDraw above).

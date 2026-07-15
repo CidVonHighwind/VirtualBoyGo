@@ -19,6 +19,7 @@ namespace ButtonMapper {
     const int DeviceGamepad =       0;
     const int DeviceLeftTouch =     1;
     const int DeviceRightTouch =    2;
+    const int DeviceKeyboard =      3; // ButtonIndex is a platform key code, not an EmuButton index
 
     const uint32_t EmuButton_A =                0;
     const uint32_t EmuButton_B =                1;
@@ -74,12 +75,12 @@ namespace ButtonMapper {
     // Translates a device/EmuButton-space bitmask (as produced by pc2d's
     // PollGameplayInput/PollKeyboardButtonState or XrInput::Sync) into a VB
     // gameplay bitmask (bit positions per Emulator.h's VBButtonBit) using a
-    // caller-supplied binding table - one MappedButton per VBButtonBit slot,
-    // indexed directly by the VBButtonBit constant. Unset slots (IsSet ==
-    // false) never contribute a bit. This is what makes the button-remapping
-    // menu pages (EmulatorButtonMapPage) actually affect gameplay, instead of
-    // each platform hardcoding VB bits directly.
-    uint32_t TranslateToVBBitmask(const uint32_t buttonStates[3], const MappedButton (&vbButtons)[16]);
+    // caller-supplied binding table indexed directly by the VBButtonBit
+    // constant. Each VB button has two bindings (Buttons[0]/[1]); either one
+    // pressed sets the bit, unset slots (IsSet == false) never contribute.
+    // This is what makes the button-remapping menu page (EmulatorButtonMapPage)
+    // actually affect gameplay, instead of each platform hardcoding VB bits.
+    uint32_t TranslateToVBBitmask(const uint32_t buttonStates[3], const MappedButtons (&vbButtons)[16]);
 
     // gamepad button names; ltouch button names; rtouch button names
     const std::string MapButtonStr[32 * 3] = {

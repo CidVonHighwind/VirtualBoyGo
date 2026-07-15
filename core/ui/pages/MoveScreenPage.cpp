@@ -19,6 +19,12 @@ std::string FormatValue(const char *prefix, float value, const char *suffix = ""
     std::snprintf(buf, sizeof(buf), "%s%.2f%s", prefix, value, suffix);
     return buf;
 }
+std::string FormatFloat(const char *prefix, float value, int precision = 3, const char *suffix = "")
+{
+    char buf[48];
+    std::snprintf(buf, sizeof(buf), "%s%.*f%s", prefix, precision, value, suffix);
+    return buf;
+}
 } // namespace
 
 void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
@@ -45,6 +51,18 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
         [this](MenuItem *) { ChangeDistance(-kDistanceStep); }, [this](MenuItem *) { ChangeDistance(kDistanceStep); }, UiIconId::Distance);
     m_scaleEntry = list->AddEntry("Scale: 1.00x", [this](MenuItem *) { ChangeScale(kScaleStep); },
         [this](MenuItem *) { ChangeScale(-kScaleStep); }, [this](MenuItem *) { ChangeScale(kScaleStep); }, UiIconId::Scale);
+
+    list->AddSpacer(kMenuSpacerSize);
+
+    m_followHeadEntry = list->AddEntry("Follow Head: No", [this](MenuItem *) { ToggleFollowHead(); }, // Select acts like Right - same toggle
+        [this](MenuItem *) { ToggleFollowHead(); }, [this](MenuItem *) { ToggleFollowHead(); }, UiIconId::FollowHead);
+    m_threeDeeEntry = list->AddEntry("3D Screen: Yes", [this](MenuItem *) { ToggleThreeDeeMode(); }, // Select acts like Right - same toggle
+        [this](MenuItem *) { ToggleThreeDeeMode(); }, [this](MenuItem *) { ToggleThreeDeeMode(); }, UiIconId::ThreeD);
+    // IPD is the one exception to "Select acts like Right" - press already
+    // has a distinct, meaningful action (reset to 0), so it stays that way
+    // rather than doubling up with Right's step.
+    m_ipdEntry = list->AddEntry("IPD offset: 0.000", [this](MenuItem *) { ChangeIpd(0); /* press resets - see ChangeIpd */ },
+        [this](MenuItem *) { ChangeIpd(-1); }, [this](MenuItem *) { ChangeIpd(1); }, UiIconId::Ipd);
 
     list->AddSpacer(kMenuSpacerSize);
 
@@ -106,6 +124,36 @@ void MoveScreenPage::ResetView()
     RefreshLabels();
 }
 
+void MoveScreenPage::ToggleFollowHead()
+{
+    if (!m_settings) return;
+    m_settings->followHead = !m_settings->followHead;
+    RefreshLabels();
+}
+
+void MoveScreenPage::ToggleThreeDeeMode()
+{
+    if (!m_settings) return;
+    m_settings->useThreeDeeMode = !m_settings->useThreeDeeMode;
+    RefreshLabels();
+}
+
+void MoveScreenPage::ChangeIpd(int delta)
+{
+    if (!m_settings) return;
+    if (delta == 0)
+    {
+        m_settings->ipdOffset = 0.0f; // press resets to 0, matches FrontendGo's OnClickIPD
+    }
+    else
+    {
+        m_settings->ipdOffset += delta * kIpdStep;
+        if (m_settings->ipdOffset < kIpdMin) m_settings->ipdOffset = kIpdMin;
+        if (m_settings->ipdOffset > kIpdMax) m_settings->ipdOffset = kIpdMax;
+    }
+    RefreshLabels();
+}
+
 void MoveScreenPage::RefreshLabels()
 {
     if (!m_settings)
@@ -116,6 +164,10 @@ void MoveScreenPage::RefreshLabels()
     m_rollEntry->SetText(FormatDeg("Roll: ", m_settings->screenRoll));
     m_distanceEntry->SetText(FormatValue("Distance: ", m_settings->screenDistance));
     m_scaleEntry->SetText(FormatValue("Scale: ", m_settings->screenScale, "x"));
+
+    m_followHeadEntry->SetText(m_settings->followHead ? "Follow Head: Yes" : "Follow Head: No");
+    m_threeDeeEntry->SetText(m_settings->useThreeDeeMode ? "3D Screen: Yes" : "3D Screen: No");
+    m_ipdEntry->SetText(FormatFloat("IPD offset: ", m_settings->ipdOffset));
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

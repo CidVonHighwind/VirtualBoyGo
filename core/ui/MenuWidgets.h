@@ -74,22 +74,18 @@ public:
     int CurrentSelection = 0;
     float buttonDownCount = 0;
 
-    // Was ovrVirtualBoyGo::global.SwappSelectBackButton in the original -
-    // trimmed to a per-menu setting for this pass (no settings/resource
-    // registry ported yet).
-    bool SwapSelectBackButton = false;
-
-    // Extra select-button bindings, checked alongside the default A/B.
-    // IsSet=false means unbound.
-    ButtonMapper::MappedButton ExtraSelectButton1;
-    ButtonMapper::MappedButton ExtraSelectButton2;
-
     std::function<void()> BackPress;
 
-    // If set, called each Update() instead of normal navigation - return
-    // true while still waiting for a press, false (and clear this) once
-    // bound. Used by the button-remap pages.
+    // If set, called each Update() instead of normal navigation. The entire
+    // capture frame is consumed even when the hook completes, so a captured
+    // direction cannot also move the menu selection. Used by remap pages.
     std::function<bool(uint32_t *buttonState, uint32_t *lastButtonState)> CaptureHook;
+    std::function<void(const ButtonMapper::MappedButton &)> RawCaptureHook;
+
+    void SubmitRawCaptureInput(const ButtonMapper::MappedButton &button)
+    {
+        if (RawCaptureHook) RawCaptureHook(button);
+    }
 
     void Init();
 
@@ -230,11 +226,23 @@ public:
         bool isSpacer = false;
         float height = 0; // only used when isSpacer
 
-        // Sets the label and bakes any glyphs it needs. Prefer this over
-        // assigning text directly for anything but pure ASCII (always pre-
-        // baked) - see UiFontManager::EnsureGlyphsForText. Call outside a
+        // Two-column rows (twoColumn == true) draw `text` and `textSecondary`
+        // side by side after the icon - Left/Right move the highlight between
+        // the two columns (see MenuList::GetActiveColumn) instead of calling
+        // left/rightFunction, and pressFunction fires for whichever column is
+        // active. Used by the button-mapping page's per-button primary +
+        // secondary bindings.
+        bool twoColumn = false;
+        std::string textSecondary;
+        bool centered = false; // centers the icon+label group within the row
+
+        // Sets the (primary) label and bakes any glyphs it needs. Prefer this
+        // over assigning text directly for anything but pure ASCII (always
+        // pre-baked) - see UiFontManager::EnsureGlyphsForText. Call outside a
         // frame only (it may re-upload the font atlas).
         void SetText(const std::string &newText);
+        // Second-column label for a twoColumn row (same baking rules).
+        void SetSecondaryText(const std::string &newText);
 
         // Moves the list's highlight to this row, scrolling it into view.
         void Select();
@@ -257,6 +265,10 @@ public:
     // Adds (and returns) a non-selectable blank row of the given height, used
     // to visually separate logical groups of entries.
     std::shared_ptr<Entry> AddSpacer(float height);
+
+    // Which column (0 or 1) is highlighted on the current two-column row -
+    // read by a twoColumn entry's pressFunction to know which slot to act on.
+    int GetActiveColumn() const { return m_activeColumn; }
 
     int PressedUp() override;
     int PressedDown() override;
@@ -284,6 +296,7 @@ private:
     float m_posX, m_posY, m_width, m_height;
     float m_itemHeight;
     int m_selectedIndex = 0;
+    int m_activeColumn = 0; // 0/1 highlight within a two-column row (see GetActiveColumn)
     int m_firstVisible = 0;
     float m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init
     std::vector<std::shared_ptr<Entry>> m_entries;

@@ -7,6 +7,12 @@ class Emulator;
 class AppMenu;
 struct AppSettings;
 
+enum class ButtonMappingProfile
+{
+    Vr,
+    Desktop
+};
+
 // Shared read-only resources every menu page needs, loaded once by
 // AppMenu::Initialize and handed to each page's Init() as a single bundle -
 // keeps MenuPage::Init from growing a new parameter every time a page needs
@@ -25,4 +31,5 @@ struct UiMenuResources
     // through this directly (single shared instance, see AppSettings' own
     // doc comment) - no per-page copies to keep in sync.
     AppSettings *settings = nullptr;
+    ButtonMappingProfile buttonMappingProfile = ButtonMappingProfile::Vr;
 };

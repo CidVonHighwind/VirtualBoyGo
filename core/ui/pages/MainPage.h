@@ -8,7 +8,7 @@ class MenuImage;
 class Emulator;
 
 // Main in-game menu: Resume, Reset, Save Slot, Save, Load, Load ROM,
-// Settings, Exit.
+// Settings.
 // Navigation out: Load ROM → RomSelectPage, Settings → SettingsPage.
 class MainPage : public MenuPage
 {

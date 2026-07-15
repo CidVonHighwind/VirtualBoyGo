@@ -94,7 +94,7 @@ namespace
         using namespace ButtonMapper;
         auto setDefault = [&](uint32_t vbBit, int device, uint32_t emuButton)
         {
-            MappedButton &b = settings.vbButtons[vbBit];
+            MappedButton &b = settings.vbButtons[vbBit].Buttons[0];
             if (!b.IsSet)
             {
                 b.IsSet = true;

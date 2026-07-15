@@ -48,17 +48,11 @@ public:
     // no BackPress (it's the root), every other page navigates back to it.
     bool HasBackAction() const { return static_cast<bool>(m_menu.BackPress); }
 
-    void SetSwapSelectBackButton(bool swap) { m_menu.SwapSelectBackButton = swap; }
-
-    void SetExtraSelectButtons(const ButtonMapper::MappedButton &b1, const ButtonMapper::MappedButton &b2)
-    {
-        m_menu.ExtraSelectButton1 = b1;
-        m_menu.ExtraSelectButton2 = b2;
-    }
-
     // Suspends normal navigation to capture the next raw button press - see
     // Menu::CaptureHook.
     void SetCaptureHook(std::function<bool(uint32_t *, uint32_t *)> hook) { m_menu.CaptureHook = std::move(hook); }
+    void SetRawCaptureHook(std::function<void(const ButtonMapper::MappedButton &)> hook) { m_menu.RawCaptureHook = std::move(hook); }
+    void SubmitRawCaptureInput(const ButtonMapper::MappedButton &button) { m_menu.SubmitRawCaptureInput(button); }
 
 protected:
     Menu m_menu;

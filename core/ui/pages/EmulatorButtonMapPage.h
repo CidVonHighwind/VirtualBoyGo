@@ -7,11 +7,13 @@
 class MenuList;
 struct AppSettings;
 
-// Per-button emulator input mapping. One row per Virtual Boy button;
-// pressing a row starts a "press any button now" capture (see Menu::
-// CaptureHook) that binds it in AppSettings::vbButtons - consumed by
-// ButtonMapper::TranslateToVBBitmask on both platforms (see pc2d's
-// PollGameplayInput / OpenXrApp's gameplay-bit construction).
+// Per-button controller input mapping, laid out like the reference: one row
+// per Virtual Boy button, showing its icon and two side-by-side binding
+// columns (primary + secondary). Left/Right move the highlight between the
+// two columns; pressing a column starts a "press any button now" capture
+// (see Menu::CaptureHook) that binds that slot in AppSettings::vbButtons -
+// consumed by ButtonMapper::TranslateToVBBitmask (either binding triggers
+// the VB button).
 class EmulatorButtonMapPage : public MenuPage
 {
 public:
@@ -20,10 +22,13 @@ public:
     void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 
 private:
-    void StartCapture(int rowIndex, uint32_t vbBit);
+    // buttonIndex: row into kButtons; column: 0 = primary, 1 = secondary.
+    void StartCapture(int buttonIndex, int column);
     void ResetMapping();
     void RefreshLabels();
 
-    std::vector<std::shared_ptr<MenuList::Entry>> m_rowEntries;
+    std::shared_ptr<MenuList> m_list; // kept for GetActiveColumn() at press time
+    std::vector<std::shared_ptr<MenuList::Entry>> m_rowEntries; // one per button
     AppSettings *m_settings = nullptr;
+    ButtonMappingProfile m_mappingProfile = ButtonMappingProfile::Vr;
 };

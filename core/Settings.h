@@ -17,7 +17,7 @@ struct AppSettings
     // Bumped whenever the on-disk layout changes - Load() refuses (leaves
     // defaults in place) on a mismatch rather than attempting any migration,
     // same as FrontendGo's own SAVE_FILE_VERSION check.
-    static constexpr int kVersion = 1;
+    static constexpr int kVersion = 4;
 
     // Move Screen / Follow Head - ported from FrontendGo's LayerBuilder
     // (screenYaw/screenPitch/screenRoll/radiusMenuScreen/screenSize) and
@@ -38,16 +38,12 @@ struct AppSettings
     int selectedPalette = 9; // index into kPredefColors - 9 is {1,1,1} (classic/white), FrontendGo's default
     float colorR = 1.0f, colorG = 1.0f, colorB = 1.0f;
 
-    // Menu-navigation button remapping - ported from Global::
-    // SwappSelectBackButton + MenuGo's buttonMappingMenu.Buttons[2].
-    bool swapSelectBackButton = false;
-    ButtonMapper::MappedButton menuButton1;
-    ButtonMapper::MappedButton menuButton2;
-
     // VB gameplay button remapping - indexed directly by VBButtonBit
     // constants (see Emulator.h); some slots (1, 9) are unused gaps in that
-    // bit layout and stay permanently IsSet=false.
-    ButtonMapper::MappedButton vbButtons[16];
+    // bit layout and stay permanently unbound. Each VB button carries two
+    // independent physical bindings (MappedButtons::Buttons[0]/[1]) - either
+    // one pressed triggers the button (see TranslateToVBBitmask).
+    ButtonMapper::MappedButtons vbButtons[16];
 
     // Writes the current struct to disk (see SettingsFilePath in Settings.cpp
     // for the path). Best-effort - failures are silently ignored, same as

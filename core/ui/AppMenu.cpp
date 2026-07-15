@@ -79,7 +79,8 @@ namespace
 // -----------------------------------------------------------------------
 // Initialise
 
-void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings)
+void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings,
+                         ButtonMappingProfile mappingProfile)
 {
     const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
     const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
@@ -96,6 +97,7 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulat
     m_resources.emulator = &emulator;
     m_resources.appMenu = this;
     m_resources.settings = &settings;
+    m_resources.buttonMappingProfile = mappingProfile;
     // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
     // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution
     // texture via BeginOffscreenFrame's logicalWidth/logicalHeight, so the
@@ -145,7 +147,6 @@ void AppMenu::InitPages(UiRenderer &ui)
     wireNavigate(m_mainPage);
     wireNavigate(m_settingsPage);
     wireNavigate(m_romSelectPage);
-    wireNavigate(m_menuButtonMapPage);
     wireNavigate(m_emulatorButtonMapPage);
     wireNavigate(m_moveScreenPage);
 
@@ -154,12 +155,10 @@ void AppMenu::InitPages(UiRenderer &ui)
     m_mainPage.settingsPage = &m_settingsPage;
 
     m_settingsPage.mainPage = &m_mainPage;
-    m_settingsPage.menuButtonMapPage = &m_menuButtonMapPage;
     m_settingsPage.emulatorButtonMapPage = &m_emulatorButtonMapPage;
     m_settingsPage.moveScreenPage = &m_moveScreenPage;
 
     m_romSelectPage.mainPage = &m_mainPage;
-    m_menuButtonMapPage.settingsPage = &m_settingsPage;
     m_emulatorButtonMapPage.settingsPage = &m_settingsPage;
     m_moveScreenPage.settingsPage = &m_settingsPage;
 
@@ -167,25 +166,8 @@ void AppMenu::InitPages(UiRenderer &ui)
     m_mainPage.Init(ui, m_resources);
     m_settingsPage.Init(ui, m_resources);
     m_romSelectPage.Init(ui, m_resources);
-    m_menuButtonMapPage.Init(ui, m_resources);
     m_emulatorButtonMapPage.Init(ui, m_resources);
     m_moveScreenPage.Init(ui, m_resources);
-
-    ApplyMenuButtonSettings();
-}
-
-void AppMenu::ApplyMenuButtonSettings()
-{
-    if (!m_resources.settings)
-        return;
-
-    MenuPage *pages[] = {&m_mainPage,           &m_settingsPage,          &m_romSelectPage,
-                        &m_menuButtonMapPage, &m_emulatorButtonMapPage, &m_moveScreenPage};
-    for (MenuPage *page : pages)
-    {
-        page->SetSwapSelectBackButton(m_resources.settings->swapSelectBackButton);
-        page->SetExtraSelectButtons(m_resources.settings->menuButton1, m_resources.settings->menuButton2);
-    }
 }
 
 // -----------------------------------------------------------------------
@@ -261,6 +243,12 @@ void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], flo
         m_currentPage->Update(buttonStates, lastButtonStates, deltaSeconds);
 }
 
+void AppMenu::SubmitRawMappingInput(const ButtonMapper::MappedButton &button)
+{
+    if (m_open && m_currentPage && m_transitionState <= 0.0f)
+        m_currentPage->SubmitRawCaptureInput(button);
+}
+
 // -----------------------------------------------------------------------
 // Rendering
 
@@ -274,17 +262,14 @@ void AppMenu::RenderContent(UiRenderer &ui)
     ui.DrawQuad(0, kMenuHeight - kBottomHeight, kMenuWidth, kBottomHeight, kMenuOverlayColor);
 
     // Bottom-bar button hints ("[A] Select" / "[B] Back") - helps players
-    // navigate without having to guess which button does what. Icon choice
-    // tracks whichever physical button currently maps to select/back (see
-    // Menu::Update's SwapSelectBackButton branch); "Back" only shows on
-    // pages that actually have somewhere to go (MainPage is the root).
-    // Right-anchored near the edge with both groups pulled close together -
-    // measured off the actual text width so the gap stays tight regardless
-    // of font metrics, rather than hand-picked fixed positions.
+    // navigate without having to guess which button does what. "Back" only
+    // shows on pages that actually have somewhere to go (MainPage is the
+    // root). Right-anchored near the edge with both groups pulled close
+    // together - measured off the actual text width so the gap stays tight
+    // regardless of font metrics, rather than hand-picked fixed positions.
     {
-        const bool swapped = m_resources.settings && m_resources.settings->swapSelectBackButton;
-        const UiIconId selectIcon = swapped ? UiIconId::ButtonB : UiIconId::ButtonA;
-        const UiIconId backIcon = swapped ? UiIconId::ButtonA : UiIconId::ButtonB;
+        const UiIconId selectIcon = UiIconId::ButtonA;
+        const UiIconId backIcon = UiIconId::ButtonB;
         const bool showBack = m_currentPage && m_currentPage->HasBackAction();
 
         constexpr float kHintIconSize = 9.0f;

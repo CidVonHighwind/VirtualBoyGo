@@ -16,8 +16,7 @@ struct ButtonRow
 // Matches the reference's button_icons[] (Emulator.cpp) - a fixed icon per
 // VB button, keyed by the VB button itself rather than whatever physical
 // input it's currently bound to. The Map* icons already existed in the
-// atlas (packed from reference/VirtualBoyGoMaster/assets/icons/mapping/*)
-// but were never wired up here until now.
+// atlas (packed from reference/VirtualBoyGoMaster/assets/icons/mapping/*).
 const ButtonRow kButtons[] = {
     {"A", UiIconId::ButtonA, VBButtonBit::A},
     {"B", UiIconId::ButtonB, VBButtonBit::B},
@@ -36,55 +35,135 @@ const ButtonRow kButtons[] = {
 };
 constexpr int kButtonCount = static_cast<int>(sizeof(kButtons) / sizeof(kButtons[0]));
 
-std::string FormatBinding(const char *name, const ButtonMapper::MappedButton &b)
+// Just the physical-input name, or "-" when unbound - the row's icon already
+// says which VB button it is (matches the reference's SetMappingText).
+std::string BindingStr(const ButtonMapper::MappedButton &b, ButtonMappingProfile profile)
 {
     if (!b.IsSet)
-        return std::string(name) + ": [Unset]";
-    return std::string(name) + ": " + ButtonMapper::MapButtonStr[b.InputDevice * 32 + b.ButtonIndex];
+        return "-";
+    if (b.InputDevice == ButtonMapper::DeviceKeyboard)
+    {
+        if (b.ButtonIndex >= 'A' && b.ButtonIndex <= 'Z')
+            return std::string(1, static_cast<char>(b.ButtonIndex));
+        if (b.ButtonIndex >= '0' && b.ButtonIndex <= '9')
+            return std::string(1, static_cast<char>(b.ButtonIndex));
+        switch (b.ButtonIndex)
+        {
+        case 32: return "Space";
+        case 256: return "Escape";
+        case 257: return "Enter";
+        case 258: return "Tab";
+        case 259: return "Backspace";
+        case 260: return "Insert";
+        case 261: return "Delete";
+        case 262: return "Right Arrow";
+        case 263: return "Left Arrow";
+        case 264: return "Down Arrow";
+        case 265: return "Up Arrow";
+        case 266: return "Page Up";
+        case 267: return "Page Down";
+        case 268: return "Home";
+        case 269: return "End";
+        default:
+            if (b.ButtonIndex >= 290 && b.ButtonIndex <= 314)
+                return "F" + std::to_string(b.ButtonIndex - 289);
+            return "Key " + std::to_string(b.ButtonIndex);
+        }
+    }
+    if (profile == ButtonMappingProfile::Desktop && b.InputDevice == ButtonMapper::DeviceLeftTouch)
+    {
+        static const char *keyboardNames[ButtonMapper::EmuButtonCount] = {};
+        static bool initialized = false;
+        if (!initialized)
+        {
+            keyboardNames[ButtonMapper::EmuButton_A] = "X";
+            keyboardNames[ButtonMapper::EmuButton_B] = "Z";
+            keyboardNames[ButtonMapper::EmuButton_LShoulder] = "Q";
+            keyboardNames[ButtonMapper::EmuButton_RShoulder] = "E";
+            keyboardNames[ButtonMapper::EmuButton_Up] = "Up Arrow";
+            keyboardNames[ButtonMapper::EmuButton_Down] = "Down Arrow";
+            keyboardNames[ButtonMapper::EmuButton_Left] = "Left Arrow";
+            keyboardNames[ButtonMapper::EmuButton_Right] = "Right Arrow";
+            keyboardNames[ButtonMapper::EmuButton_LeftStickUp] = "W";
+            keyboardNames[ButtonMapper::EmuButton_LeftStickDown] = "S";
+            keyboardNames[ButtonMapper::EmuButton_LeftStickLeft] = "A";
+            keyboardNames[ButtonMapper::EmuButton_LeftStickRight] = "D";
+            keyboardNames[ButtonMapper::EmuButton_Enter] = "Enter";
+            keyboardNames[ButtonMapper::EmuButton_Back] = "Backspace";
+            initialized = true;
+        }
+        if (b.ButtonIndex >= 0 && b.ButtonIndex < ButtonMapper::EmuButtonCount && keyboardNames[b.ButtonIndex])
+            return keyboardNames[b.ButtonIndex];
+    }
+    return ButtonMapper::MapButtonStr[b.InputDevice * 32 + b.ButtonIndex];
 }
 } // namespace
 
 void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
     m_settings = resources.settings;
+    m_mappingProfile = resources.buttonMappingProfile;
 
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
                                            kMenuItemSize, resources.icons);
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
+    // The icon identifies the emulated button; it is not either of the two
+    // selectable physical bindings and therefore never receives focus tint.
+    list->TintIconOnSelect = false;
 
+    // One row per VB button: its icon plus two side-by-side binding columns
+    // (primary + secondary). Left/Right pick the column, pressing it rebinds
+    // that slot - see StartCapture. RefreshLabels fills in the real bindings.
     for (int i = 0; i < kButtonCount; ++i)
     {
-        const ButtonRow &row = kButtons[i];
-        m_rowEntries.push_back(list->AddEntry(std::string(row.name) + ": [Unset]",
-            [this, i, vbBit = row.vbBit](MenuItem *) { StartCapture(i, vbBit); },
-            nullptr, nullptr, row.icon));
+        auto entry = list->AddEntry("-", [this, i](MenuItem *) { StartCapture(i, m_list->GetActiveColumn()); },
+                                    nullptr, nullptr, kButtons[i].icon);
+        entry->twoColumn = true;
+        m_rowEntries.push_back(entry);
     }
 
     list->AddSpacer(kMenuSpacerSize);
 
-    list->AddEntry("Reset Mapping", [this](MenuItem *) { ResetMapping(); }, nullptr, nullptr, UiIconId::ResetView);
+    auto resetEntry = list->AddEntry("Reset Mapping", [this](MenuItem *) { ResetMapping(); }, nullptr, nullptr,
+                                     UiIconId::ResetView);
+    resetEntry->centered = true;
 
     m_menu.MenuItems.push_back(list);
+    m_list = list;
     m_menu.BackPress = [this]() { if (settingsPage) Navigate(settingsPage, -1); };
     m_menu.Init();
 
     RefreshLabels();
 }
 
-void EmulatorButtonMapPage::StartCapture(int rowIndex, uint32_t vbBit)
+void EmulatorButtonMapPage::StartCapture(int buttonIndex, int column)
 {
     if (!m_settings)
         return;
 
-    m_rowEntries[rowIndex]->SetText(std::string(kButtons[rowIndex].name) + ": press a button...");
+    // Show a prompt in just the column being rebound; the other stays put.
+    if (column == 0)
+        m_rowEntries[buttonIndex]->SetText("press...");
+    else
+        m_rowEntries[buttonIndex]->SetSecondaryText("press...");
+    const uint32_t vbBit = kButtons[buttonIndex].vbBit;
 
     // Two-phase: first wait for every button already held (the one that
     // triggered this row's select) to be released, then watch for the next
     // fresh press - otherwise the very select press that opened this
     // capture would immediately "bind" itself.
     auto waitingForRelease = std::make_shared<bool>(true);
-    SetCaptureHook([this, rowIndex, vbBit, waitingForRelease](uint32_t *buttonState, uint32_t *lastButtonState) -> bool
+    SetRawCaptureHook([this, vbBit, column, waitingForRelease](const ButtonMapper::MappedButton &button)
+    {
+        if (*waitingForRelease)
+            return;
+        m_settings->vbButtons[vbBit].Buttons[column] = button;
+        RefreshLabels();
+        SetCaptureHook(nullptr);
+        SetRawCaptureHook(nullptr);
+    });
+    SetCaptureHook([this, vbBit, column, waitingForRelease](uint32_t *buttonState, uint32_t *lastButtonState) -> bool
     {
         if (*waitingForRelease)
         {
@@ -100,9 +179,10 @@ void EmulatorButtonMapPage::StartCapture(int rowIndex, uint32_t vbBit)
                 const uint32_t mask = ButtonMapper::ButtonMapping[bit];
                 if ((buttonState[device] & mask) && !(lastButtonState[device] & mask))
                 {
-                    m_settings->vbButtons[vbBit] = {true, device, static_cast<int>(bit)};
+                    m_settings->vbButtons[vbBit].Buttons[column] = {true, device, static_cast<int>(bit)};
                     RefreshLabels();
                     SetCaptureHook(nullptr);
+                    SetRawCaptureHook(nullptr);
                     return false;
                 }
             }
@@ -115,8 +195,68 @@ void EmulatorButtonMapPage::ResetMapping()
 {
     if (!m_settings)
         return;
-    for (auto &binding : m_settings->vbButtons)
-        binding.IsSet = false;
+
+    for (auto &pair : m_settings->vbButtons)
+        pair = {};
+
+    using namespace ButtonMapper;
+    auto bind = [this](uint32_t vbBit, int slot, int device, uint32_t button)
+    {
+        m_settings->vbButtons[vbBit].Buttons[slot] = {true, device, static_cast<int>(button)};
+    };
+
+    // Slot 1 is the conventional gamepad layout on every platform.
+    bind(VBButtonBit::A,          1, DeviceGamepad, EmuButton_A);
+    bind(VBButtonBit::B,          1, DeviceGamepad, EmuButton_B);
+    bind(VBButtonBit::L,          1, DeviceGamepad, EmuButton_LShoulder);
+    bind(VBButtonBit::R,          1, DeviceGamepad, EmuButton_RShoulder);
+    bind(VBButtonBit::LeftUp,     1, DeviceGamepad, EmuButton_Up);
+    bind(VBButtonBit::LeftDown,   1, DeviceGamepad, EmuButton_Down);
+    bind(VBButtonBit::LeftLeft,   1, DeviceGamepad, EmuButton_Left);
+    bind(VBButtonBit::LeftRight,  1, DeviceGamepad, EmuButton_Right);
+    bind(VBButtonBit::RightUp,    1, DeviceGamepad, EmuButton_RightStickUp);
+    bind(VBButtonBit::RightDown,  1, DeviceGamepad, EmuButton_RightStickDown);
+    bind(VBButtonBit::RightLeft,  1, DeviceGamepad, EmuButton_RightStickLeft);
+    bind(VBButtonBit::RightRight, 1, DeviceGamepad, EmuButton_RightStickRight);
+    bind(VBButtonBit::Start,      1, DeviceGamepad, EmuButton_Enter);
+    bind(VBButtonBit::Select,     1, DeviceGamepad, EmuButton_Back);
+
+    if (m_mappingProfile == ButtonMappingProfile::Desktop)
+    {
+        // Keyboard gameplay uses a slot separate from desktop menu input.
+        bind(VBButtonBit::LeftUp,     0, DeviceKeyboard, 265); // GLFW_KEY_UP
+        bind(VBButtonBit::LeftDown,   0, DeviceKeyboard, 264);
+        bind(VBButtonBit::LeftLeft,   0, DeviceKeyboard, 263);
+        bind(VBButtonBit::LeftRight,  0, DeviceKeyboard, 262);
+        bind(VBButtonBit::RightUp,    0, DeviceKeyboard, 'W');
+        bind(VBButtonBit::RightDown,  0, DeviceKeyboard, 'S');
+        bind(VBButtonBit::RightLeft,  0, DeviceKeyboard, 'A');
+        bind(VBButtonBit::RightRight, 0, DeviceKeyboard, 'D');
+        bind(VBButtonBit::A,          0, DeviceKeyboard, 'X');
+        bind(VBButtonBit::B,          0, DeviceKeyboard, 'Z');
+        bind(VBButtonBit::L,          0, DeviceKeyboard, 'Q');
+        bind(VBButtonBit::R,          0, DeviceKeyboard, 'E');
+        bind(VBButtonBit::Start,      0, DeviceKeyboard, 257); // GLFW_KEY_ENTER
+        bind(VBButtonBit::Select,     0, DeviceKeyboard, 259); // GLFW_KEY_BACKSPACE
+    }
+    else
+    {
+        // OpenXR controller layout mirrors the raw states produced by XrInput.
+        bind(VBButtonBit::LeftUp,     0, DeviceLeftTouch, EmuButton_LeftStickUp);
+        bind(VBButtonBit::LeftDown,   0, DeviceLeftTouch, EmuButton_LeftStickDown);
+        bind(VBButtonBit::LeftLeft,   0, DeviceLeftTouch, EmuButton_LeftStickLeft);
+        bind(VBButtonBit::LeftRight,  0, DeviceLeftTouch, EmuButton_LeftStickRight);
+        bind(VBButtonBit::RightUp,    0, DeviceRightTouch, EmuButton_RightStickUp);
+        bind(VBButtonBit::RightDown,  0, DeviceRightTouch, EmuButton_RightStickDown);
+        bind(VBButtonBit::RightLeft,  0, DeviceRightTouch, EmuButton_RightStickLeft);
+        bind(VBButtonBit::RightRight, 0, DeviceRightTouch, EmuButton_RightStickRight);
+        bind(VBButtonBit::A,          0, DeviceRightTouch, EmuButton_A);
+        bind(VBButtonBit::B,          0, DeviceRightTouch, EmuButton_B);
+        bind(VBButtonBit::L,          0, DeviceLeftTouch, EmuButton_Trigger);
+        bind(VBButtonBit::R,          0, DeviceRightTouch, EmuButton_Trigger);
+        bind(VBButtonBit::Start,      0, DeviceLeftTouch, EmuButton_Y);
+        bind(VBButtonBit::Select,     0, DeviceLeftTouch, EmuButton_X);
+    }
     RefreshLabels();
 }
 
@@ -125,7 +265,11 @@ void EmulatorButtonMapPage::RefreshLabels()
     if (!m_settings)
         return;
     for (int i = 0; i < kButtonCount; ++i)
-        m_rowEntries[i]->SetText(FormatBinding(kButtons[i].name, m_settings->vbButtons[kButtons[i].vbBit]));
+    {
+        const ButtonMapper::MappedButtons &pair = m_settings->vbButtons[kButtons[i].vbBit];
+        m_rowEntries[i]->SetText(BindingStr(pair.Buttons[0], m_mappingProfile));
+        m_rowEntries[i]->SetSecondaryText(BindingStr(pair.Buttons[1], m_mappingProfile));
+    }
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }
