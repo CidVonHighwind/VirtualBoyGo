@@ -54,6 +54,12 @@ class Emulator
     // screen is displayed, so PC2D and the headset builds look consistent.
     static constexpr int kScale = 3;
 
+    // Native VB refresh rate (retro_get_system_av_info's timing.fps) -
+    // RunFrame accumulates real deltaSeconds against this to decide how many
+    // times to call retro_run() per app frame. Public so the display refresh
+    // rate can be chosen relative to it (OpenXrApp::RequestMaxDisplayRefreshRate).
+    static constexpr float kCoreFps = 50.27f;
+
     // Fixed side-by-side-mode geometry (384-wide base VB screen * 2 eyes,
     // 224 tall) - used to size the screen swapchain/texture up front, before
     // any ROM is loaded (GetScreenWidth/Height must be valid immediately
@@ -181,11 +187,7 @@ class Emulator
     std::string m_romStateDir;
     std::string m_romBaseName;
 
-    // Native VB refresh rate (retro_get_system_av_info's timing.fps) -
-    // RunFrame accumulates real deltaSeconds against this to decide how many
-    // times to call retro_run() per app frame.
-    static constexpr float kCoreFps = 50.27f;
-    float m_frameAccumulator = 0.0f;
+    float m_frameAccumulator = 0.0f; // real time not yet consumed by retro_run() - see kCoreFps
 
     // Updated by the video_cb callback each retro_run() call - the portion
     // of the fixed-size streaming texture that's actually valid for the

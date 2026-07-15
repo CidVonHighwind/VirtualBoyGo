@@ -1,11 +1,17 @@
 #include "Settings.h"
 
-#if defined(_DEBUG) && !defined(__ANDROID__)
+#if defined(__ANDROID__)
+#include "AndroidRomAccess.h"
+#include <cstring>
+#include <vector>
+#else
+#if defined(_DEBUG)
 #include "DebugPaths.h"
 #endif
-
 #include <filesystem>
 #include <fstream>
+#endif
+
 #include <string>
 
 const XrColor4f kPredefColors[11] = {
@@ -24,24 +30,51 @@ const XrColor4f kPredefColors[11] = {
 
 namespace
 {
+constexpr const char *kSettingsFileName = "settings.dat";
+
+#if !defined(__ANDROID__)
 // Settings live next to the ROMs (the only writable-location precedent in
 // this project), so this mirrors RomScanner.cpp's RomDirectory() per-platform
 // layout - the shared _DEBUG folder comes from DebugPaths.h so it isn't
-// duplicated as a literal path.
+// duplicated as a literal path. On Android they instead go through the SAF
+// ROMs-folder grant (AndroidRomAccess), same as .srm saves - a raw /sdcard
+// path is neither readable nor writable at target SDK 34 (see RomScanner.h).
 std::string SettingsFilePath()
 {
-#if defined(__ANDROID__)
-    return "/sdcard/VB/settings.dat";
-#elif defined(_DEBUG)
-    return DebugSdVbDir() + "/settings.dat";
+#if defined(_DEBUG)
+    return DebugSdVbDir() + "/" + kSettingsFileName;
 #else
-    return "VB/settings.dat";
+    return std::string("VB/") + kSettingsFileName;
 #endif
+}
+#endif
+
+// Version check + v7->v8 screenScale baseline conversion, shared by both
+// platform Load paths. Version 8 defines 1.0x as the old 1.4x physical
+// size; converting keeps existing users' apparent screen size identical.
+bool ApplyLoadedSettings(AppSettings &self, int version, AppSettings &loaded)
+{
+    constexpr int kPreviousScaleBaselineVersion = 7;
+    if (version != AppSettings::kVersion && version != kPreviousScaleBaselineVersion)
+        return false; // stale layout - leave self untouched, defaults stand
+
+    if (version == kPreviousScaleBaselineVersion)
+        loaded.screenScale /= 1.4f;
+
+    self = loaded;
+    return true;
 }
 } // namespace
 
 void AppSettings::Save() const
 {
+#if defined(__ANDROID__)
+    std::vector<uint8_t> bytes(sizeof(int) + sizeof(AppSettings));
+    const int version = kVersion;
+    std::memcpy(bytes.data(), &version, sizeof(version));
+    std::memcpy(bytes.data() + sizeof(version), this, sizeof(AppSettings));
+    AndroidRomAccess::WriteRomsFile(kSettingsFileName, false, bytes.data(), bytes.size());
+#else
     const std::string path = SettingsFilePath();
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
@@ -53,31 +86,36 @@ void AppSettings::Save() const
     const int version = kVersion;
     out.write(reinterpret_cast<const char *>(&version), sizeof(version));
     out.write(reinterpret_cast<const char *>(this), sizeof(AppSettings));
+#endif
 }
 
 bool AppSettings::Load()
 {
+#if defined(__ANDROID__)
+    const std::vector<uint8_t> bytes = AndroidRomAccess::ReadRomsFile(kSettingsFileName, false);
+    if (bytes.size() < sizeof(int) + sizeof(AppSettings))
+        return false;
+
+    int version = 0;
+    std::memcpy(&version, bytes.data(), sizeof(version));
+    AppSettings loaded;
+    std::memcpy(&loaded, bytes.data() + sizeof(version), sizeof(AppSettings));
+    return ApplyLoadedSettings(*this, version, loaded);
+#else
     std::ifstream in(SettingsFilePath(), std::ios::binary);
     if (!in)
         return false;
 
     int version = 0;
     in.read(reinterpret_cast<char *>(&version), sizeof(version));
-    constexpr int kPreviousScaleBaselineVersion = 7;
-    if (!in || (version != kVersion && version != kPreviousScaleBaselineVersion))
-        return false; // missing/stale file - leave *this untouched, defaults stand
+    if (!in)
+        return false;
 
     AppSettings loaded;
     in.read(reinterpret_cast<char *>(&loaded), sizeof(AppSettings));
     if (!in)
         return false;
 
-    // Version 8 defines 1.0x as the old 1.4x physical size. Convert the
-    // persisted multiplier so existing users keep exactly the same apparent
-    // screen size after the baseline changes.
-    if (version == kPreviousScaleBaselineVersion)
-        loaded.screenScale /= 1.4f;
-
-    *this = loaded;
-    return true;
+    return ApplyLoadedSettings(*this, version, loaded);
+#endif
 }

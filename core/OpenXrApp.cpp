@@ -153,6 +153,24 @@ void OpenXrApp::CreateInstance(const InitInfo &info)
     }
 #endif
 
+    // Optional: XR_FB_display_refresh_rate (Quest; SteamVR doesn't offer it)
+    // - see RequestMaxDisplayRefreshRate.
+    uint32_t availableCount = 0;
+    CheckXr(xrEnumerateInstanceExtensionProperties(nullptr, 0, &availableCount, nullptr),
+            "xrEnumerateInstanceExtensionProperties (count)");
+    std::vector<XrExtensionProperties> available(availableCount, {XR_TYPE_EXTENSION_PROPERTIES});
+    CheckXr(xrEnumerateInstanceExtensionProperties(nullptr, availableCount, &availableCount, available.data()),
+            "xrEnumerateInstanceExtensionProperties");
+    for (const XrExtensionProperties &ext : available)
+    {
+        if (std::strcmp(ext.extensionName, XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME) == 0)
+        {
+            extensions.push_back(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
+            m_refreshRateExtAvailable = true;
+            break;
+        }
+    }
+
     XrInstanceCreateInfo createInfo{XR_TYPE_INSTANCE_CREATE_INFO};
     createInfo.next = info.instanceCreateNext;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
@@ -369,6 +387,51 @@ void OpenXrApp::UpdateMenuRenderScale()
     }
 }
 
+// Preferred: the highest rate that's a near-integer multiple of the VB's
+// 50.27Hz (within 0.5%) - VB frames then hold a constant number of vsyncs,
+// i.e. perfectly even pacing. No current Quest rate (72/80/90/120) comes
+// close, so in practice the fallback applies: the highest offered rate,
+// where the unavoidable mixed-vsync holds are shortest (72Hz alternates
+// 1/2-vsync holds, visible judder; 120Hz alternates 2/3 at 8.3ms each) and
+// tracking latency is lowest. Best-effort: no-op where the extension is
+// missing (SteamVR) or the request fails.
+void OpenXrApp::RequestMaxDisplayRefreshRate()
+{
+    if (!m_refreshRateExtAvailable)
+        return;
+
+    PFN_xrEnumerateDisplayRefreshRatesFB pfnEnumerateRates = nullptr;
+    PFN_xrRequestDisplayRefreshRateFB pfnRequestRate = nullptr;
+    xrGetInstanceProcAddr(m_instance, "xrEnumerateDisplayRefreshRatesFB",
+                          reinterpret_cast<PFN_xrVoidFunction *>(&pfnEnumerateRates));
+    xrGetInstanceProcAddr(m_instance, "xrRequestDisplayRefreshRateFB",
+                          reinterpret_cast<PFN_xrVoidFunction *>(&pfnRequestRate));
+    if (!pfnEnumerateRates || !pfnRequestRate)
+        return;
+
+    uint32_t rateCount = 0;
+    if (XR_FAILED(pfnEnumerateRates(m_session, 0, &rateCount, nullptr)) || rateCount == 0)
+        return;
+    std::vector<float> rates(rateCount);
+    if (XR_FAILED(pfnEnumerateRates(m_session, rateCount, &rateCount, rates.data())))
+        return;
+
+    float bestAny = 0.0f;
+    float bestMultiple = 0.0f;
+    for (const float rate : rates)
+    {
+        bestAny = std::max(bestAny, rate);
+        const float ratio = rate / Emulator::kCoreFps;
+        if (ratio >= 0.995f && std::abs(ratio - std::round(ratio)) <= 0.005f * ratio)
+            bestMultiple = std::max(bestMultiple, rate);
+    }
+    const float best = bestMultiple > 0.0f ? bestMultiple : bestAny;
+
+    if (best > 0.0f && XR_SUCCEEDED(pfnRequestRate(m_session, best)))
+        std::fprintf(stderr, "[OpenXR] Requested display refresh rate: %.0f Hz%s\n", best,
+                     bestMultiple > 0.0f ? " (VB frame-locked)" : "");
+}
+
 void OpenXrApp::HandleSessionStateChanged(const XrEventDataSessionStateChanged &event, bool &exitRenderLoop,
                                           bool &requestRestart)
 {
@@ -382,6 +445,7 @@ void OpenXrApp::HandleSessionStateChanged(const XrEventDataSessionStateChanged &
         beginInfo.primaryViewConfigurationType = m_viewConfigType;
         CheckXr(xrBeginSession(m_session, &beginInfo), "xrBeginSession");
         m_sessionRunning = true;
+        RequestMaxDisplayRefreshRate();
         break;
     }
     case XR_SESSION_STATE_STOPPING:
@@ -605,7 +669,13 @@ void OpenXrApp::RenderFrame()
                                     ? 0
                                     : ButtonMapper::TranslateToVBBitmask(gameplayButtonStates, m_settings.vbButtons);
     m_emulator.SetGameplayInput(joypadBits);
-    m_emulator.RunFrame(deltaSeconds);
+    // Pause emulation while the menu is open so gameplay doesn't run away
+    // unseen behind it - same as pc2d's Main.cpp. The screen layer keeps
+    // redrawing the last streamed frame.
+    if (!m_appMenu.IsOpen())
+    {
+        m_emulator.RunFrame(deltaSeconds);
+    }
 
     std::vector<XrCompositionLayerBaseHeader *> layers;
     XrCompositionLayerProjection projectionLayer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};

@@ -47,6 +47,10 @@ class OpenXrApp {
     // (full-rect submission) instead of allocated once at the max tier.
     void EnsureMenuSwapchain();
     void UpdateMenuRenderScale();
+    // Asks the runtime for its highest display refresh rate (VB judder is
+    // finest there - see the definition's doc comment). No-op without
+    // XR_FB_display_refresh_rate (e.g. SteamVR).
+    void RequestMaxDisplayRefreshRate();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
     // Renders the emulator screen into its two dedicated per-eye quad
     // swapchains and fills out an XrCompositionLayerQuad for each - the
@@ -82,6 +86,8 @@ class OpenXrApp {
     XrSessionState m_sessionState{XR_SESSION_STATE_UNKNOWN};
     bool m_sessionRunning{false};
     std::string m_runtimeName;
+    // XR_FB_display_refresh_rate was found and enabled at instance creation.
+    bool m_refreshRateExtAvailable{false};
 
     XrViewConfigurationType m_viewConfigType{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
     std::vector<XrViewConfigurationView> m_configViews;
