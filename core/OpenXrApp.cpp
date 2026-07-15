@@ -16,10 +16,29 @@ namespace
     constexpr int32_t kMaxMenuRenderScale = 6;
     constexpr float kRadiansToDegrees = 57.2957795f;
     // Recalibrated so the user-facing 1.0x setting has the same physical
-    // height as the previous 1.4x setting (1.2m * 1.4).
+    // height as the previous 1.4x setting (1.2m * 1.4) at
+    // kReferenceScreenDistanceMeters.
     constexpr float kScreenQuadHeightMeters = 1.68f;
+    // The distance kScreenQuadHeightMeters/kMenuDistanceMeters were tuned at
+    // - matches AppSettings::screenDistance's own default (see Settings.h).
+    // The screen's physical size is scaled by screenDistance/this reference
+    // (see RenderScreenLayer's quadHeight) so moving the screen closer or
+    // farther away doesn't change its apparent (angular) size - only the
+    // Scale setting does that. Since the cylinder's arc width scales exactly
+    // the same way its radius (== screenDistance) does, this also keeps a
+    // curved screen's angular wrap-around constant regardless of Distance.
+    constexpr float kReferenceScreenDistanceMeters = 2.2f;
     // Keep the menu slightly closer than the emulator screen for depth.
     constexpr float kMenuForwardOffsetMeters = 0.05f;
+    // The menu's own distance is fixed, deliberately not tied to
+    // AppSettings::screenDistance - that setting only moves the emulator
+    // screen now (see RenderMenuLayer/UpdateMenuRenderScale). A fresh
+    // install looks identical to before this split.
+    constexpr float kMenuDistanceMeters = kReferenceScreenDistanceMeters - kMenuForwardOffsetMeters;
+    // FollowHeadMode::Smooth's chase rate - ported from FrontendGo's
+    // FOLLOW_SPEED (LayerBuilder.h), which drove the same
+    // slerp(current, goal, speed*dt)-per-frame smoothing there.
+    constexpr float kFollowHeadSmoothSpeed = 1.0f;
 
 
     void CheckXr(XrResult result, const char *what)
@@ -61,10 +80,39 @@ namespace
                 2.0f * dotUV * u.z + (s * s - dotUU) * v.z + 2.0f * s * crossUV.z};
     }
 
+    // Shortest-path spherical interpolation, normalized-lerp near t==0/1 to
+    // avoid dividing by a near-zero sin(theta) - used by FollowHeadMode::Smooth
+    // to chase the live head orientation gradually instead of snapping to it
+    // every frame (see RenderFrame's kFollowHeadSmoothSpeed usage).
+    XrQuaternionf QuatSlerp(const XrQuaternionf &a, const XrQuaternionf &b, float t)
+    {
+        float bx = b.x, by = b.y, bz = b.z, bw = b.w;
+        float dot = a.x * bx + a.y * by + a.z * bz + a.w * bw;
+        if (dot < 0.0f)
+        {
+            bx = -bx; by = -by; bz = -bz; bw = -bw;
+            dot = -dot;
+        }
+        dot = std::clamp(dot, -1.0f, 1.0f);
+        if (dot > 0.9995f)
+        {
+            const XrQuaternionf lerp{a.x + (bx - a.x) * t, a.y + (by - a.y) * t, a.z + (bz - a.z) * t,
+                                     a.w + (bw - a.w) * t};
+            const float len = std::sqrt(lerp.x * lerp.x + lerp.y * lerp.y + lerp.z * lerp.z + lerp.w * lerp.w);
+            return {lerp.x / len, lerp.y / len, lerp.z / len, lerp.w / len};
+        }
+        const float theta0 = std::acos(dot);
+        const float theta = theta0 * t;
+        const float sinTheta0 = std::sin(theta0);
+        const float s0 = std::cos(theta) - dot * std::sin(theta) / sinTheta0;
+        const float s1 = std::sin(theta) / sinTheta0;
+        return {a.x * s0 + bx * s1, a.y * s0 + by * s1, a.z * s0 + bz * s1, a.w * s0 + bw * s1};
+    }
+
     // yaw (Y axis) * pitch (X axis) * roll (Z axis), optionally premultiplied
-    // by the current head orientation when followHead is on - same
-    // composition FrontendGo's CylinderModelMatrix used, just as a
-    // quaternion instead of 3 rotation matrices. When followHead is off,
+    // by the current (or smoothed - see FollowHeadMode) head orientation -
+    // same composition FrontendGo's CylinderModelMatrix used, just as a
+    // quaternion instead of 3 rotation matrices. When follow head is off,
     // this project relies on m_appSpace's own LOCAL-space recentering to
     // keep the screen world-fixed, rather than FrontendGo's manual
     // forwardYaw-tracking un-rotate step - a deliberate simplification.
@@ -153,8 +201,10 @@ void OpenXrApp::CreateInstance(const InitInfo &info)
     }
 #endif
 
-    // Optional: XR_FB_display_refresh_rate (Quest; SteamVR doesn't offer it)
-    // - see RequestMaxDisplayRefreshRate.
+    // Optional extensions, enabled only if the runtime actually offers them:
+    // XR_FB_display_refresh_rate (Quest; see RequestMaxDisplayRefreshRate)
+    // and XR_KHR_composition_layer_cylinder (curved screen; see
+    // RenderScreenLayer). SteamVR doesn't offer either as of writing.
     uint32_t availableCount = 0;
     CheckXr(xrEnumerateInstanceExtensionProperties(nullptr, 0, &availableCount, nullptr),
             "xrEnumerateInstanceExtensionProperties (count)");
@@ -167,7 +217,11 @@ void OpenXrApp::CreateInstance(const InitInfo &info)
         {
             extensions.push_back(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
             m_refreshRateExtAvailable = true;
-            break;
+        }
+        else if (std::strcmp(ext.extensionName, XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME) == 0)
+        {
+            extensions.push_back(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME);
+            m_cylinderExtAvailable = true;
         }
     }
 
@@ -372,9 +426,8 @@ void OpenXrApp::UpdateMenuRenderScale()
                                      : 1.0f;
     const float panelWidthMeters = kMenuWidth * kMenuScale * metersPerPixel;
     const float panelHeightMeters = kMenuHeight * kMenuScale * metersPerPixel;
-    const float distance = std::max(0.05f, m_settings.screenDistance - kMenuForwardOffsetMeters);
-    const float angularWidthDegrees = 2.0f * std::atan(panelWidthMeters / (2.0f * distance)) * kRadiansToDegrees;
-    const float angularHeightDegrees = 2.0f * std::atan(panelHeightMeters / (2.0f * distance)) * kRadiansToDegrees;
+    const float angularWidthDegrees = 2.0f * std::atan(panelWidthMeters / (2.0f * kMenuDistanceMeters)) * kRadiansToDegrees;
+    const float angularHeightDegrees = 2.0f * std::atan(panelHeightMeters / (2.0f * kMenuDistanceMeters)) * kRadiansToDegrees;
     const float requiredWidth = angularWidthDegrees * headsetPpd;
     const float requiredHeight = angularHeightDegrees * headsetPpd;
     const int32_t scale = std::clamp(static_cast<int32_t>(std::ceil(std::max(
@@ -491,31 +544,65 @@ void OpenXrApp::PollEvents(bool &exitRenderLoop, bool &requestRestart)
     }
 }
 
-bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompositionLayerQuad &rightQuadLayer)
+bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompositionLayerQuad &rightQuadLayer,
+                                  XrCompositionLayerCylinderKHR &leftCylinderLayer,
+                                  XrCompositionLayerCylinderKHR &rightCylinderLayer, bool &outUsedCylinder)
 {
     if (m_screenSwapchainLeft.handle == XR_NULL_HANDLE || m_screenSwapchainRight.handle == XR_NULL_HANDLE)
     {
         return false;
     }
 
+    const bool useCylinder = m_settings.curvedScreen && m_cylinderExtAvailable;
+    outUsedCylinder = useCylinder;
+
     const float aspect = m_screenSwapchainLeft.height != 0
                              ? static_cast<float>(m_screenSwapchainLeft.width) / m_screenSwapchainLeft.height
                              : 1.0f;
-    const float quadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
-    const bool followHeadActive = m_settings.followHead && m_headPoseValid;
-    const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, m_headOrientation);
+    // Scaled by Distance/kReferenceScreenDistanceMeters so moving the screen
+    // closer/farther away doesn't change its apparent size - see that
+    // constant's doc comment.
+    const float quadHeight = kScreenQuadHeightMeters * m_settings.screenScale *
+                             (m_settings.screenDistance / kReferenceScreenDistanceMeters);
+    const bool followHeadActive = m_settings.followHeadMode != FollowHeadMode::Off && m_headPoseValid;
+    const XrQuaternionf &followOrientation =
+        m_settings.followHeadMode == FollowHeadMode::Smooth ? m_smoothedHeadOrientation : m_headOrientation;
+    const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, followOrientation);
     const XrVector3f forward = QuatRotateVector(orientation, XrVector3f{0.0f, 0.0f, -1.0f});
     const XrVector3f right = QuatRotateVector(orientation, XrVector3f{1.0f, 0.0f, 0.0f});
     const XrVector3f basePosition{forward.x * m_settings.screenDistance, forward.y * m_settings.screenDistance,
                                   forward.z * m_settings.screenDistance};
+    // Curvature radius equals Distance itself, so the viewer always sits
+    // exactly on the cylinder's axis - the screen surface is then
+    // equidistant in every direction within the visible arc, i.e. Distance
+    // becomes "how big a cylinder surrounds me" rather than a fixed curve
+    // bolted onto a flat placement. A cylinder layer's pose is its axis, not
+    // its near surface (unlike a quad's pose, which sits right on the
+    // surface) - pushing the axis back by exactly `radius` here means it
+    // lands at basePosition - forward*distance, i.e. the space origin.
+    const float cylinderRadius = m_settings.screenDistance;
+    const XrVector3f cylinderAxisPosition{basePosition.x - forward.x * cylinderRadius,
+                                          basePosition.y - forward.y * cylinderRadius,
+                                          basePosition.z - forward.z * cylinderRadius};
+    // Central angle chosen so the visible arc's width (radius * centralAngle)
+    // matches the flat quad's width at the same settings, so toggling curved
+    // on/off doesn't change the screen's apparent horizontal size.
+    const float centralAngle = (quadHeight * aspect) / cylinderRadius;
     const XrColor4f tint{m_settings.colorR, m_settings.colorG, m_settings.colorB, 1.0f};
     const Emulator::Eye rightEyeCrop = m_settings.useThreeDeeMode ? Emulator::Eye::Right : Emulator::Eye::Left;
 
-    struct LayerInfo { Swapchain *swapchain; XrCompositionLayerQuad *layer; XrEyeVisibility visibility;
-                       Emulator::Eye eye; float ipdSign; };
-    const LayerInfo infos[] = {{&m_screenSwapchainLeft, &leftQuadLayer, XR_EYE_VISIBILITY_LEFT,
+    struct LayerInfo
+    {
+        Swapchain *swapchain;
+        XrCompositionLayerQuad *quad;
+        XrCompositionLayerCylinderKHR *cylinder;
+        XrEyeVisibility visibility;
+        Emulator::Eye eye;
+        float ipdSign;
+    };
+    const LayerInfo infos[] = {{&m_screenSwapchainLeft, &leftQuadLayer, &leftCylinderLayer, XR_EYE_VISIBILITY_LEFT,
                                 Emulator::Eye::Left, -1.0f},
-                               {&m_screenSwapchainRight, &rightQuadLayer, XR_EYE_VISIBILITY_RIGHT,
+                               {&m_screenSwapchainRight, &rightQuadLayer, &rightCylinderLayer, XR_EYE_VISIBILITY_RIGHT,
                                 rightEyeCrop, 1.0f}};
     for (const LayerInfo &info : infos)
     {
@@ -536,19 +623,41 @@ bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompo
         XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
         CheckXr(xrReleaseSwapchainImage(sc.handle, &releaseInfo), "xrReleaseSwapchainImage (screen eye)");
 
-        XrCompositionLayerQuad &quadLayer = *info.layer;
-        quadLayer.layerFlags = 0;
-        quadLayer.space = m_appSpace;
-        quadLayer.eyeVisibility = info.visibility;
-        quadLayer.subImage.swapchain = sc.handle;
-        quadLayer.subImage.imageRect.offset = {0, 0};
-        quadLayer.subImage.imageRect.extent = {sc.width, sc.height};
-        quadLayer.subImage.imageArrayIndex = 0;
-        quadLayer.pose.orientation = orientation;
         const float ipdHalf = m_settings.useThreeDeeMode ? (m_settings.ipdOffset * 0.5f * info.ipdSign) : 0.0f;
-        quadLayer.pose.position = {basePosition.x + right.x * ipdHalf, basePosition.y + right.y * ipdHalf,
-                                   basePosition.z + right.z * ipdHalf};
-        quadLayer.size = {quadHeight * aspect, quadHeight};
+
+        XrSwapchainSubImage subImage{};
+        subImage.swapchain = sc.handle;
+        subImage.imageRect.offset = {0, 0};
+        subImage.imageRect.extent = {sc.width, sc.height};
+        subImage.imageArrayIndex = 0;
+
+        if (useCylinder)
+        {
+            XrCompositionLayerCylinderKHR &cylinderLayer = *info.cylinder;
+            cylinderLayer.layerFlags = 0;
+            cylinderLayer.space = m_appSpace;
+            cylinderLayer.eyeVisibility = info.visibility;
+            cylinderLayer.subImage = subImage;
+            cylinderLayer.pose.orientation = orientation;
+            cylinderLayer.pose.position = {cylinderAxisPosition.x + right.x * ipdHalf,
+                                           cylinderAxisPosition.y + right.y * ipdHalf,
+                                           cylinderAxisPosition.z + right.z * ipdHalf};
+            cylinderLayer.radius = cylinderRadius;
+            cylinderLayer.centralAngle = centralAngle;
+            cylinderLayer.aspectRatio = aspect;
+        }
+        else
+        {
+            XrCompositionLayerQuad &quadLayer = *info.quad;
+            quadLayer.layerFlags = 0;
+            quadLayer.space = m_appSpace;
+            quadLayer.eyeVisibility = info.visibility;
+            quadLayer.subImage = subImage;
+            quadLayer.pose.orientation = orientation;
+            quadLayer.pose.position = {basePosition.x + right.x * ipdHalf, basePosition.y + right.y * ipdHalf,
+                                       basePosition.z + right.z * ipdHalf};
+            quadLayer.size = {quadHeight * aspect, quadHeight};
+        }
     }
     return true;
 }
@@ -592,10 +701,11 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     const float metersPerPixel =
         m_screenSwapchainLeft.height != 0 ? kScreenQuadHeightMeters / static_cast<float>(m_screenSwapchainLeft.height) : 1.0f;
 
-    const bool followHeadActive = m_settings.followHead && m_headPoseValid;
-    const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, m_headOrientation);
+    const bool followHeadActive = m_settings.followHeadMode != FollowHeadMode::Off && m_headPoseValid;
+    const XrQuaternionf &followOrientation =
+        m_settings.followHeadMode == FollowHeadMode::Smooth ? m_smoothedHeadOrientation : m_headOrientation;
+    const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, followOrientation);
     const XrVector3f forward = QuatRotateVector(orientation, XrVector3f{0.0f, 0.0f, -1.0f});
-    const float menuDistance = m_settings.screenDistance - kMenuForwardOffsetMeters;
 
     quadLayer.layerFlags = XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT | XR_COMPOSITION_LAYER_UNPREMULTIPLIED_ALPHA_BIT;
     quadLayer.space = m_appSpace;
@@ -606,8 +716,9 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     quadLayer.subImage.imageArrayIndex = 0;
     quadLayer.pose.orientation = orientation;
     // Same direction as the screen layer (both centered on the view axis)
-    // but closer to the viewer - that's what actually reads as "in front of".
-    quadLayer.pose.position = {forward.x * menuDistance, forward.y * menuDistance, forward.z * menuDistance};
+    // but at its own fixed distance - see kMenuDistanceMeters.
+    quadLayer.pose.position = {forward.x * kMenuDistanceMeters, forward.y * kMenuDistanceMeters,
+                               forward.z * kMenuDistanceMeters};
     // Resolution is PPD-driven, but physical size deliberately remains the
     // original scale-2 size. Otherwise selecting a sharper tier would also
     // make the panel larger in the headset.
@@ -698,7 +809,7 @@ void OpenXrApp::RenderFrame()
                                 (viewState.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT);
 
         // Approximate "head orientation" as view 0's (left eye's) - only
-        // used for the Follow Head setting's slerp target, so the small
+        // used for the Follow Head setting's targets, so the small
         // difference from a true head-center pose doesn't matter. Left
         // false/identity on frames without a fresh valid pose (m_headOrientation
         // then just keeps whatever it was last set to) rather than snapping
@@ -707,6 +818,11 @@ void OpenXrApp::RenderFrame()
         if (m_headPoseValid)
         {
             m_headOrientation = m_views[0].pose.orientation;
+            // Kept chasing the live head orientation every frame regardless
+            // of the active mode, so switching into FollowHeadMode::Smooth
+            // never starts with a jarring snap from a stale smoothed value.
+            const float t = std::clamp(kFollowHeadSmoothSpeed * deltaSeconds, 0.0f, 1.0f);
+            m_smoothedHeadOrientation = QuatSlerp(m_smoothedHeadOrientation, m_headOrientation, t);
             UpdateMenuRenderScale();
         }
 
@@ -752,13 +868,26 @@ void OpenXrApp::RenderFrame()
 
     // Screen first, menu second - the compositor blends layers back-to-front
     // in submission order, and the menu should end up in front. Two screen
-    // quads (left/right eye) - see RenderScreenLayer.
-    XrCompositionLayerQuad screenLayerLeft{XR_TYPE_COMPOSITION_LAYER_QUAD};
-    XrCompositionLayerQuad screenLayerRight{XR_TYPE_COMPOSITION_LAYER_QUAD};
-    if (frameState.shouldRender && RenderScreenLayer(screenLayerLeft, screenLayerRight))
+    // layers (left/right eye), quad or cylinder depending on the curved-
+    // screen setting - see RenderScreenLayer.
+    XrCompositionLayerQuad screenQuadLeft{XR_TYPE_COMPOSITION_LAYER_QUAD};
+    XrCompositionLayerQuad screenQuadRight{XR_TYPE_COMPOSITION_LAYER_QUAD};
+    XrCompositionLayerCylinderKHR screenCylinderLeft{XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR};
+    XrCompositionLayerCylinderKHR screenCylinderRight{XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR};
+    bool screenIsCylinder = false;
+    if (frameState.shouldRender && RenderScreenLayer(screenQuadLeft, screenQuadRight, screenCylinderLeft,
+                                                     screenCylinderRight, screenIsCylinder))
     {
-        layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenLayerLeft));
-        layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenLayerRight));
+        if (screenIsCylinder)
+        {
+            layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenCylinderLeft));
+            layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenCylinderRight));
+        }
+        else
+        {
+            layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenQuadLeft));
+            layers.push_back(reinterpret_cast<XrCompositionLayerBaseHeader *>(&screenQuadRight));
+        }
     }
     XrCompositionLayerQuad menuLayer{XR_TYPE_COMPOSITION_LAYER_QUAD};
     if (frameState.shouldRender && RenderMenuLayer(menuLayer))

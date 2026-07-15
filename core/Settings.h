@@ -4,6 +4,18 @@
 
 #include <openxr/openxr.h> // XrColor4f
 
+#include <cstdint>
+
+// How the screen/menu quads react to head rotation - see
+// OpenXrApp::ComputeScreenOrientation.
+enum class FollowHeadMode : int32_t
+{
+    Off = 0,     // world-fixed, no head influence (m_appSpace's own recentering only)
+    Smooth = 1,  // gradually chases the head orientation - ported from FrontendGo's
+                 // always-on slerp(current, goal, FOLLOW_SPEED*dt) follow
+    Instant = 2, // rigidly locked to the current head orientation every frame
+};
+
 // Persisted app-wide settings - the new-project equivalent of FrontendGo's
 // settings.config (MenuGo::SaveSettings/LoadSettings + Emulator::
 // SaveEmulatorSettings/InitSettingsMenu), collapsed into one flat struct
@@ -17,18 +29,26 @@ struct AppSettings
     // Bumped whenever the on-disk layout changes - Load() refuses (leaves
     // defaults in place) on a mismatch rather than attempting any migration,
     // same as FrontendGo's own SAVE_FILE_VERSION check.
-    static constexpr int kVersion = 8;
+    static constexpr int kVersion = 10;
 
     // Move Screen / Follow Head - ported from FrontendGo's LayerBuilder
     // (screenYaw/screenPitch/screenRoll/radiusMenuScreen/screenSize) and
     // Global::followHead. Only OpenXrApp's quad-layer pose consumes these -
     // meaningless on the flat pc2d debug build.
-    bool followHead = false;
+    FollowHeadMode followHeadMode = FollowHeadMode::Off;
     float screenYaw = 0.0f;
     float screenPitch = 0.0f;
     float screenRoll = 0.0f;
-    float screenDistance = 2.2f; // meters, matches OpenXrApp's previous fixed kScreenDistanceMeters
+    // meters - the emulator screen only (also doubles as the curved-screen
+    // option's cylinder radius, see OpenXrApp::RenderScreenLayer). The
+    // menu's own distance is fixed and unaffected - see kMenuDistanceMeters.
+    float screenDistance = 2.2f;
     float screenScale = 1.0f;
+    // Curves the screen into a cylindrical section (ported from FrontendGo's
+    // VrApi ovrLayerCylinder2 screen) instead of a flat quad - see
+    // OpenXrApp::RenderScreenLayer. Falls back to flat if the runtime
+    // doesn't support XR_KHR_composition_layer_cylinder (e.g. SteamVR).
+    bool curvedScreen = false;
 
     // 3D/2D mode + IPD + color tint - ported from Emulator::InitSettingsMenu
     // (VirtualBoyGoMaster/Src/Emulator.cpp) via the old useThreeDeeMode/

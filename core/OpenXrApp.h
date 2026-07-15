@@ -64,8 +64,13 @@ class OpenXrApp {
     // likely their Vulkan interop's shared-texture/fence bookkeeping
     // expecting a 1:1 acquire/layer relationship). Returns false (leaving
     // both untouched) if there's nothing to submit yet (e.g. swapchains not
-    // created).
-    bool RenderScreenLayer(XrCompositionLayerQuad& leftQuadLayer, XrCompositionLayerQuad& rightQuadLayer);
+    // created). Fills either the quad or the cylinder pair depending on
+    // m_settings.curvedScreen (falling back to the quad if
+    // m_cylinderExtAvailable is false) and reports which one via
+    // outUsedCylinder so RenderFrame submits the right layer type.
+    bool RenderScreenLayer(XrCompositionLayerQuad& leftQuadLayer, XrCompositionLayerQuad& rightQuadLayer,
+                           XrCompositionLayerCylinderKHR& leftCylinderLayer, XrCompositionLayerCylinderKHR& rightCylinderLayer,
+                           bool& outUsedCylinder);
     // Renders the menu into its own dedicated quad swapchain, positioned a
     // little closer to the viewer than the screen layer so it visibly
     // floats in front of it instead of sitting flush on the same plane.
@@ -88,6 +93,9 @@ class OpenXrApp {
     std::string m_runtimeName;
     // XR_FB_display_refresh_rate was found and enabled at instance creation.
     bool m_refreshRateExtAvailable{false};
+    // XR_KHR_composition_layer_cylinder was found and enabled at instance
+    // creation - see RenderScreenLayer.
+    bool m_cylinderExtAvailable{false};
 
     XrViewConfigurationType m_viewConfigType{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
     std::vector<XrViewConfigurationView> m_configViews;
@@ -126,9 +134,14 @@ class OpenXrApp {
     // Set by RenderFrame right before RenderScreenLayer/RenderMenuLayer, from
     // xrLocateViews' output - only valid (m_headPoseValid true) on frames
     // where the runtime actually located fresh view poses (see RenderFrame's
-    // posesValid check). Used for the Follow Head setting's head-locked
+    // posesValid check). Used for FollowHeadMode::Instant's head-locked
     // orientation - see ComputeScreenOrientation in OpenXrApp.cpp.
     XrQuaternionf m_headOrientation{0.0f, 0.0f, 0.0f, 1.0f};
+    // FollowHeadMode::Smooth's gradually-chasing orientation - slerped
+    // toward m_headOrientation every frame regardless of the active mode
+    // (see RenderFrame), so it's never stale when the user switches into
+    // Smooth mode.
+    XrQuaternionf m_smoothedHeadOrientation{0.0f, 0.0f, 0.0f, 1.0f};
     bool m_headPoseValid{false};
     uint32_t m_buttonStates[3]{};
     uint32_t m_lastButtonStates[3]{};

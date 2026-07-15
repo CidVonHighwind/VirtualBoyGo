@@ -9,23 +9,15 @@ desktop debugging.
 
 ## Current status
 
-An independent project (own `CMakeLists.txt`, no dependency on
-`External/OpenXR-SDK-Source` - that's a local, git-ignored clone kept purely
-as reference material from the exploration phase, see below; it's not
-version-controlled or required to build). Confirmed working on both
-platforms, live on a Quest 3:
+Confirmed working on both platforms, live on a Quest 3: OpenXR instance/
+session/swapchain lifecycle (`core/OpenXrApp`), a Vulkan device via
+`XR_KHR_vulkan_enable2` (`core/VulkanRenderer`), and quad/cylinder
+composition layers (`core/ui/UiRenderer`, `core/ui/AppMenu`) for the menu and
+emulator screen - the main eye buffers stay plain black.
 
-- OpenXR instance/system/session/swapchain lifecycle (`core/OpenXrApp`).
-- A Vulkan device created via `XR_KHR_vulkan_enable2`'s delegated-creation
-  path, plus a minimal render pipeline (`core/VulkanRenderer`).
-- **Quad composition layers** (`core/ui/UiRenderer`, `core/ui/AppMenu`)
-  rendering the menu/UI and emulator screen as floating panels - the OpenXR
-  analogue of the old VrApi `ovrLayerCylinder2` these build on. The main eye
-  buffers are plain black; all real content lives in these quad layers.
-
-A third build target, `VirtualBoyGoPC2D`, renders the same content into a
-plain GLFW window instead of an OpenXR session - no headset or runtime
-needed at all, for fast local iteration.
+A third build target, `VirtualBoyGoPC2D`, renders into a plain GLFW window
+instead of an OpenXR session - no headset or runtime needed, for fast local
+iteration.
 
 ## Project layout
 
@@ -55,12 +47,10 @@ External/OpenXR-SDK-Source/  local, git-ignored reference clone (not a submodule
 
 ## Reference material (not version-controlled)
 
-`External/OpenXR-SDK-Source/` is a plain local clone of
-[KhronosGroup/OpenXR-SDK-Source](https://github.com/KhronosGroup/OpenXR-SDK-Source),
-kept around from the exploration phase (the `hello_xr` sample was used to
-de-risk the OpenXR/NDK/Gradle toolchain before writing this project's own
-code). It's git-ignored - not required to build, and not fetched by cloning
-this repo. Recreate it if you want it back:
+`External/OpenXR-SDK-Source/` is a git-ignored local clone of
+[KhronosGroup/OpenXR-SDK-Source](https://github.com/KhronosGroup/OpenXR-SDK-Source)
+kept from the exploration phase - not required to build, not fetched by
+cloning this repo. Recreate it if you want it back:
 
 ```
 git clone https://github.com/KhronosGroup/OpenXR-SDK-Source.git External/OpenXR-SDK-Source
@@ -97,6 +87,23 @@ sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk
 
 Or set the `ANDROID_HOME` environment variable instead.
 
+Gradle (`./gradlew`) also needs a JDK, separate from the Android SDK/NDK
+above - if you get an error like "JAVA_HOME is not set" or "java: command not
+found", set `JAVA_HOME` before invoking gradlew. Android Studio already
+bundles a JDK, so if it's installed, point at that instead of installing one
+separately:
+
+```
+# PowerShell, one-time for the session:
+$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+
+# or inline per command:
+JAVA_HOME="C:\Program Files\Android\Android Studio\jbr" ./gradlew assembleRelease
+```
+
+(Adjust the path if Android Studio is installed elsewhere, or use any other
+JDK 17+ install's home directory.)
+
 ### Build & install (USB)
 
 ```
@@ -104,6 +111,8 @@ cd android
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+Or `assembleRelease` / `app/build/outputs/apk/release/app-release.apk`.
 
 ### Run
 
@@ -113,28 +122,13 @@ adb shell am start -n com.nintendont.virtualboygo/android.app.NativeActivity
 
 ### Wi-Fi ADB (wireless debugging)
 
-**One-time pairing** (Android 11+ / Quest system build 39+):
+One-time: on the headset, **Settings → Developer → Wireless debugging → Pair
+device with pairing code**, then `adb pair <ip>:<pairing-port>`.
 
-On the headset go to **Settings → Developer → Wireless debugging → Pair device with pairing code**, then:
-
-```
-adb pair <headset-ip>:<pairing-port>   # use the IP and port shown on headset
-```
-
-**Connect for this session** (after pairing):
-
-```
-adb connect <headset-ip>:5555
-adb devices                            # confirm the device shows as "device"
-```
-
-Then use the same `adb install` / `adb shell am start` commands above over Wi-Fi. The connection drops when the headset sleeps; run `adb connect` again to reconnect.
-
-To switch back to USB:
-
-```
-adb disconnect
-```
+Each session: `adb connect <headset-ip>:5555`, then use the same
+`adb install`/`adb shell am start` commands above. Reconnect (`adb connect`
+again) if it drops when the headset sleeps; `adb disconnect` to go back to
+USB.
 
 If you change a shader (`shaders/*.vert|frag`), rebuild the **PC** target
 first to refresh the committed headers in `core/generated_shaders/`
