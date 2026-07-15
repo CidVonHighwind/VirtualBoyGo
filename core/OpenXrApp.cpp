@@ -11,6 +11,14 @@
 
 namespace
 {
+    constexpr int32_t kMaxMenuRenderScale = 6;
+    constexpr float kRadiansToDegrees = 57.2957795f;
+    // Recalibrated so the user-facing 1.0x setting has the same physical
+    // height as the previous 1.4x setting (1.2m * 1.4).
+    constexpr float kScreenQuadHeightMeters = 1.68f;
+    // Keep the menu slightly closer than the emulator screen for depth.
+    constexpr float kMenuForwardOffsetMeters = 0.05f;
+
 
     void CheckXr(XrResult result, const char *what)
     {
@@ -275,10 +283,13 @@ void OpenXrApp::CreateSwapchains()
     // AppMenu::Draw composites its offscreen texture at kMenuWidth*kMenuScale
     // physical pixels, so this swapchain has to match that, not the raw
     // logical size.
-    m_menuSwapchain.width = static_cast<int32_t>(kMenuWidth * kMenuScale);
-    m_menuSwapchain.height = static_cast<int32_t>(kMenuHeight * kMenuScale);
-    m_menuSwapchain.mipLevels =
-        ComputeMipLevels(static_cast<uint32_t>(m_menuSwapchain.width), static_cast<uint32_t>(m_menuSwapchain.height));
+    // Allocate once for the largest supported PPD-derived tier. The active
+    // imageRect uses only the top-left kMenuWidth/Height*m_menuRenderScale
+    // region, avoiding swapchain recreation when distance or screen scale
+    // changes the menu's angular size.
+    m_menuSwapchain.width = kMenuWidth * kMaxMenuRenderScale;
+    m_menuSwapchain.height = kMenuHeight * kMaxMenuRenderScale;
+    m_menuSwapchain.mipLevels = 1;
 
     XrSwapchainCreateInfo menuSwapchainInfo{XR_TYPE_SWAPCHAIN_CREATE_INFO};
     menuSwapchainInfo.arraySize = 1;
@@ -298,6 +309,54 @@ void OpenXrApp::CreateSwapchains()
     CheckXr(xrEnumerateSwapchainImages(m_menuSwapchain.handle, menuImageCount, &menuImageCount,
                                        reinterpret_cast<XrSwapchainImageBaseHeader *>(m_menuSwapchain.images.data())),
             "xrEnumerateSwapchainImages (menu)");
+}
+
+void OpenXrApp::UpdateMenuRenderScale()
+{
+    if (m_views.empty() || m_configViews.empty())
+        return;
+
+    // OpenXR does not expose a single display-PPD property. The best runtime
+    // supplied estimate is its recommended eye-buffer resolution divided by
+    // the located view FOV. Use the densest axis/eye so neither direction is
+    // undersampled.
+    float headsetPpd = 0.0f;
+    const size_t viewCount = std::min(m_views.size(), m_configViews.size());
+    for (size_t i = 0; i < viewCount; ++i)
+    {
+        const float horizontalDegrees = (m_views[i].fov.angleRight - m_views[i].fov.angleLeft) * kRadiansToDegrees;
+        const float verticalDegrees = (m_views[i].fov.angleUp - m_views[i].fov.angleDown) * kRadiansToDegrees;
+        if (horizontalDegrees > 0.0f)
+            headsetPpd = std::max(headsetPpd, m_configViews[i].recommendedImageRectWidth / horizontalDegrees);
+        if (verticalDegrees > 0.0f)
+            headsetPpd = std::max(headsetPpd, m_configViews[i].recommendedImageRectHeight / verticalDegrees);
+    }
+    if (headsetPpd <= 0.0f)
+        return;
+
+    // Preserve the panel's existing real-world size (the legacy scale-2
+    // pixel dimensions times the screen layer's meters-per-pixel), then find
+    // how many pixels that angular area warrants at the headset's PPD.
+    const float screenQuadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
+    const float metersPerPixel = m_screenSwapchainLeft.height != 0
+                                     ? screenQuadHeight / static_cast<float>(m_screenSwapchainLeft.height)
+                                     : 1.0f;
+    const float panelWidthMeters = kMenuWidth * kMenuScale * metersPerPixel;
+    const float panelHeightMeters = kMenuHeight * kMenuScale * metersPerPixel;
+    const float distance = std::max(0.05f, m_settings.screenDistance - kMenuForwardOffsetMeters);
+    const float angularWidthDegrees = 2.0f * std::atan(panelWidthMeters / (2.0f * distance)) * kRadiansToDegrees;
+    const float angularHeightDegrees = 2.0f * std::atan(panelHeightMeters / (2.0f * distance)) * kRadiansToDegrees;
+    const float requiredWidth = angularWidthDegrees * headsetPpd;
+    const float requiredHeight = angularHeightDegrees * headsetPpd;
+    const int32_t scale = std::clamp(static_cast<int32_t>(std::ceil(std::max(
+                                         requiredWidth / static_cast<float>(kMenuWidth),
+                                         requiredHeight / static_cast<float>(kMenuHeight)))),
+                                     1, kMaxMenuRenderScale);
+    if (scale != m_menuRenderScale)
+    {
+        m_menuRenderScale = scale;
+        m_appMenu.SetMenuScale(m_uiRenderer, static_cast<float>(scale));
+    }
 }
 
 void OpenXrApp::HandleSessionStateChanged(const XrEventDataSessionStateChanged &event, bool &exitRenderLoop,
@@ -357,16 +416,6 @@ void OpenXrApp::PollEvents(bool &exitRenderLoop, bool &requestRestart)
     }
 }
 
-namespace
-{
-    // How much closer (in meters) the menu layer floats in front of the
-    // screen layer - gives the menu a real depth cue instead of sitting
-    // flush on the same plane as the screen. The screen's own distance is
-    // now AppSettings::screenDistance (user-adjustable via MoveScreenPage),
-    // not a fixed constant.
-    constexpr float kMenuForwardOffsetMeters = 0.05f;
-} // namespace
-
 bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompositionLayerQuad &rightQuadLayer)
 {
     if (m_screenSwapchainLeft.handle == XR_NULL_HANDLE || m_screenSwapchainRight.handle == XR_NULL_HANDLE)
@@ -377,7 +426,7 @@ bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompo
     const float aspect = m_screenSwapchainLeft.height != 0
                              ? static_cast<float>(m_screenSwapchainLeft.width) / static_cast<float>(m_screenSwapchainLeft.height)
                              : 1.0f;
-    const float quadHeight = 1.2f * m_settings.screenScale;
+        const float quadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
 
     const bool followHeadActive = m_settings.followHead && m_headPoseValid;
     const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, m_headOrientation);
@@ -470,13 +519,14 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     // be opaque, so the compositor blends the rest of this layer through to
     // the screen layer behind it (see this layer's UNPREMULTIPLIED_ALPHA/
     // BLEND_TEXTURE_SOURCE_ALPHA flags below).
+    const int32_t renderWidth = kMenuWidth * m_menuRenderScale;
+    const int32_t renderHeight = kMenuHeight * m_menuRenderScale;
     m_uiRenderer.BeginFrame(m_menuSwapchain.images[imageIndex].image, static_cast<VkFormat>(m_colorFormat),
                             static_cast<uint32_t>(m_menuSwapchain.width), static_cast<uint32_t>(m_menuSwapchain.height),
                             XrColor4f{0.0f, 0.0f, 0.0f, 0.0f});
+    m_uiRenderer.SetViewportRegion(0.0f, 0.0f, static_cast<float>(renderWidth), static_cast<float>(renderHeight));
     m_appMenu.Draw(m_uiRenderer, 0.0f, 0.0f);
     m_uiRenderer.EndFrame();
-    m_renderer.GenerateMipmaps(m_menuSwapchain.images[imageIndex].image, static_cast<uint32_t>(m_menuSwapchain.width),
-                               static_cast<uint32_t>(m_menuSwapchain.height), m_menuSwapchain.mipLevels);
 
     XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
     CheckXr(xrReleaseSwapchainImage(m_menuSwapchain.handle, &releaseInfo), "xrReleaseSwapchainImage (menu)");
@@ -484,7 +534,7 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     // Same meters-per-pixel scale as the screen layer, so the menu doesn't
     // appear to change size just for being on its own swapchain now. Both
     // per-eye screen swapchains share the same height, so either works here.
-    const float screenQuadHeight = 1.2f * m_settings.screenScale;
+    const float screenQuadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
     const float metersPerPixel =
         m_screenSwapchainLeft.height != 0 ? screenQuadHeight / static_cast<float>(m_screenSwapchainLeft.height) : 1.0f;
 
@@ -498,17 +548,16 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     quadLayer.eyeVisibility = XR_EYE_VISIBILITY_BOTH;
     quadLayer.subImage.swapchain = m_menuSwapchain.handle;
     quadLayer.subImage.imageRect.offset = {0, 0};
-    quadLayer.subImage.imageRect.extent = {m_menuSwapchain.width, m_menuSwapchain.height};
+    quadLayer.subImage.imageRect.extent = {renderWidth, renderHeight};
     quadLayer.subImage.imageArrayIndex = 0;
     quadLayer.pose.orientation = orientation;
     // Same direction as the screen layer (both centered on the view axis)
     // but closer to the viewer - that's what actually reads as "in front of".
     quadLayer.pose.position = {forward.x * menuDistance, forward.y * menuDistance, forward.z * menuDistance};
-    // metersPerPixel is calibrated against actual swapchain pixels, so use
-    // the swapchain's own (physical) size here, not the logical kMenuWidth/
-    // kMenuHeight - otherwise the panel would render at half its intended
-    // real-world size in the headset.
-    quadLayer.size = {m_menuSwapchain.width * metersPerPixel, m_menuSwapchain.height * metersPerPixel};
+    // Resolution is PPD-driven, but physical size deliberately remains the
+    // original scale-2 size. Otherwise selecting a sharper tier would also
+    // make the panel larger in the headset.
+    quadLayer.size = {kMenuWidth * kMenuScale * metersPerPixel, kMenuHeight * kMenuScale * metersPerPixel};
     return true;
 }
 
@@ -597,7 +646,10 @@ void OpenXrApp::RenderFrame()
         // the screen every time tracking briefly drops.
         m_headPoseValid = posesValid && viewCountOutput > 0;
         if (m_headPoseValid)
+        {
             m_headOrientation = m_views[0].pose.orientation;
+            UpdateMenuRenderScale();
+        }
 
         if (posesValid)
         {

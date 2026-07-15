@@ -42,6 +42,7 @@ class OpenXrApp {
     void InitializeSystem();
     void InitializeSession();
     void CreateSwapchains();
+    void UpdateMenuRenderScale();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
     // Renders the emulator screen into its two dedicated per-eye quad
     // swapchains and fills out an XrCompositionLayerQuad for each - the
@@ -96,11 +97,13 @@ class OpenXrApp {
     // Dedicated swapchain for the menu's own quad composition layer -
     // separate from the screen so the menu can be positioned at its own
     // depth (see RenderMenuLayer) instead of being baked into the same
-    // texture/plane as the screen. Sized to AppMenu::kMenuWidth/kMenuHeight,
-    // cleared to fully transparent so only the rounded panel itself is
-    // opaque - the compositor blends the rest through to the screen layer
-    // behind it (see RenderMenuLayer's layerFlags).
+    // texture/plane as the screen. Allocated for the maximum menu tier; only
+    // the active PPD-derived sub-rectangle is rendered and submitted. It is
+    // cleared to transparent so the compositor blends through to the screen.
     Swapchain m_menuSwapchain;
+    // Integer supersampling tier selected from the headset's recommended
+    // pixels-per-degree and the menu quad's current angular size.
+    int32_t m_menuRenderScale{2};
 
     VulkanRenderer m_renderer;
     UiRenderer m_uiRenderer;

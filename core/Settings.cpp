@@ -63,13 +63,20 @@ bool AppSettings::Load()
 
     int version = 0;
     in.read(reinterpret_cast<char *>(&version), sizeof(version));
-    if (!in || version != kVersion)
+    constexpr int kPreviousScaleBaselineVersion = 7;
+    if (!in || (version != kVersion && version != kPreviousScaleBaselineVersion))
         return false; // missing/stale file - leave *this untouched, defaults stand
 
     AppSettings loaded;
     in.read(reinterpret_cast<char *>(&loaded), sizeof(AppSettings));
     if (!in)
         return false;
+
+    // Version 8 defines 1.0x as the old 1.4x physical size. Convert the
+    // persisted multiplier so existing users keep exactly the same apparent
+    // screen size after the baseline changes.
+    if (version == kPreviousScaleBaselineVersion)
+        loaded.screenScale /= 1.4f;
 
     *this = loaded;
     return true;

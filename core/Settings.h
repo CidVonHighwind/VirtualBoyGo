@@ -17,7 +17,7 @@ struct AppSettings
     // Bumped whenever the on-disk layout changes - Load() refuses (leaves
     // defaults in place) on a mismatch rather than attempting any migration,
     // same as FrontendGo's own SAVE_FILE_VERSION check.
-    static constexpr int kVersion = 7;
+    static constexpr int kVersion = 8;
 
     // Move Screen / Follow Head - ported from FrontendGo's LayerBuilder
     // (screenYaw/screenPitch/screenRoll/radiusMenuScreen/screenSize) and
