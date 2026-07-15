@@ -92,7 +92,7 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulat
     m_resources.menuFont = ui.LoadFont(menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
     m_resources.smallFont = ui.LoadFont(smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);
 
-    m_icons.Load(ui);
+    m_icons.Load(ui, m_menuScale);
     m_resources.icons = &m_icons;
     m_resources.emulator = &emulator;
     m_resources.appMenu = this;
@@ -121,6 +121,7 @@ void AppMenu::SetMenuScale(UiRenderer &ui, float scale)
     if (scale == m_menuScale)
         return;
     m_menuScale = scale;
+    m_icons.SetMenuScale(ui, m_menuScale);
 
     ui.ResizeRenderTexture(m_offscreenTexture, static_cast<uint32_t>(kMenuWidth * m_menuScale),
                            static_cast<uint32_t>(kMenuHeight * m_menuScale));
