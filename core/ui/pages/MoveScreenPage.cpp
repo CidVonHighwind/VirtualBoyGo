@@ -3,6 +3,7 @@
 #include "../MenuPage.h"
 #include "AppMenuLayout.h"
 
+#include <algorithm>
 #include <cstdio>
 
 namespace
@@ -108,8 +109,7 @@ void MoveScreenPage::ChangeDistance(float delta)
 void MoveScreenPage::ChangeScale(float delta)
 {
     if (!m_settings) return;
-    m_settings->screenScale += delta;
-    if (m_settings->screenScale < 0.1f) m_settings->screenScale = 0.1f;
+    m_settings->screenScale = std::clamp(m_settings->screenScale + delta, 0.2f, 2.0f);
     RefreshLabels();
 }
 

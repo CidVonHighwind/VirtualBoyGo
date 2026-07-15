@@ -363,11 +363,12 @@ void OpenXrApp::UpdateMenuRenderScale()
         return;
 
     // Preserve the panel's existing real-world size (the legacy scale-2
-    // pixel dimensions times the screen layer's meters-per-pixel), then find
-    // how many pixels that angular area warrants at the headset's PPD.
-    const float screenQuadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
+    // pixel dimensions times the screen layer's meters-per-pixel at the
+    // default 1.0x screen scale - the user's screen-scale setting must not
+    // resize the menu), then find how many pixels that angular area warrants
+    // at the headset's PPD.
     const float metersPerPixel = m_screenSwapchainLeft.height != 0
-                                     ? screenQuadHeight / static_cast<float>(m_screenSwapchainLeft.height)
+                                     ? kScreenQuadHeightMeters / static_cast<float>(m_screenSwapchainLeft.height)
                                      : 1.0f;
     const float panelWidthMeters = kMenuWidth * kMenuScale * metersPerPixel;
     const float panelHeightMeters = kMenuHeight * kMenuScale * metersPerPixel;
@@ -583,12 +584,13 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
     CheckXr(xrReleaseSwapchainImage(m_menuSwapchain.handle, &releaseInfo), "xrReleaseSwapchainImage (menu)");
 
-    // Same meters-per-pixel scale as the screen layer, so the menu doesn't
-    // appear to change size just for being on its own swapchain now. Both
-    // per-eye screen swapchains share the same height, so either works here.
-    const float screenQuadHeight = kScreenQuadHeightMeters * m_settings.screenScale;
+    // Same meters-per-pixel scale as the screen layer at its default 1.0x
+    // size, so the menu doesn't appear to change size just for being on its
+    // own swapchain now - deliberately NOT multiplied by the screen-scale
+    // setting, so scaling the screen never resizes the menu. Both per-eye
+    // screen swapchains share the same height, so either works here.
     const float metersPerPixel =
-        m_screenSwapchainLeft.height != 0 ? screenQuadHeight / static_cast<float>(m_screenSwapchainLeft.height) : 1.0f;
+        m_screenSwapchainLeft.height != 0 ? kScreenQuadHeightMeters / static_cast<float>(m_screenSwapchainLeft.height) : 1.0f;
 
     const bool followHeadActive = m_settings.followHead && m_headPoseValid;
     const XrQuaternionf orientation = ComputeScreenOrientation(m_settings, followHeadActive, m_headOrientation);
