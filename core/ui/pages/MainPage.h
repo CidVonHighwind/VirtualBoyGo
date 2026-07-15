@@ -31,13 +31,12 @@ public:
 private:
     static constexpr int kMinSaveSlot = 0;
     static constexpr int kMaxSaveSlot = 9; // 10 slots total (0-9), matches FrontendGo's saveStates[10]
-    static constexpr int kSaveSlotEntryIndex = 3; // Resume, Reset Game, [spacer], Save Slot, ...
-    static constexpr int kLoadRomEntryIndex = 7;  // ...Load, [spacer], Load ROM, ...
 
     void ChangeSaveSlot(int delta);
     void RefreshSavePreview();
 
-    std::shared_ptr<MenuList> m_list;
+    std::shared_ptr<MenuList::Entry> m_saveSlotEntry;
+    std::shared_ptr<MenuList::Entry> m_loadRomEntry;
     std::shared_ptr<MenuImage> m_preview;
     Emulator *m_emulator = nullptr;
     int m_saveSlot = kMinSaveSlot;

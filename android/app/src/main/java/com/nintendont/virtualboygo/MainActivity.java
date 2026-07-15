@@ -68,11 +68,9 @@ public class MainActivity extends NativeActivity {
     // ---- Called from native code (core/AndroidRomAccess.h) via JNI ----
 
     // Lets the user pick a different folder after first launch. Only clears
-    // the saved folder - it does NOT re-pop the picker or restart, since a
-    // mid-session picker loses VR focus (see requestPickRomsFolder) and a
-    // programmatic relaunch raced its own process-kill. Instead the user
-    // relaunches manually and onCreate's picker fires again (HasRomsFolder
-    // is now false).
+    // the saved folder - relaunching mid-session loses VR focus (see
+    // requestPickRomsFolder), so the user restarts manually and onCreate's
+    // picker fires again (getRomsTreeUriString is now null).
     public void requestChangeRomsFolder() {
         String saved = getRomsTreeUriString();
         if (saved != null) {

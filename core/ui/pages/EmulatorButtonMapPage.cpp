@@ -56,9 +56,9 @@ void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resource
     for (int i = 0; i < kButtonCount; ++i)
     {
         const ButtonRow &row = kButtons[i];
-        list->AddEntry(std::string(row.name) + ": [Unset]",
+        m_rowEntries.push_back(list->AddEntry(std::string(row.name) + ": [Unset]",
             [this, i, vbBit = row.vbBit](MenuItem *) { StartCapture(i, vbBit); },
-            nullptr, nullptr, row.icon);
+            nullptr, nullptr, row.icon));
     }
 
     list->AddSpacer(kMenuSpacerSize);
@@ -66,7 +66,6 @@ void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resource
     list->AddEntry("Reset Mapping", [this](MenuItem *) { ResetMapping(); }, nullptr, nullptr, UiIconId::ResetView);
 
     m_menu.MenuItems.push_back(list);
-    m_list = list;
     m_menu.BackPress = [this]() { if (settingsPage) Navigate(settingsPage, -1); };
     m_menu.Init();
 
@@ -75,10 +74,10 @@ void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resource
 
 void EmulatorButtonMapPage::StartCapture(int rowIndex, uint32_t vbBit)
 {
-    if (!m_settings || !m_list)
+    if (!m_settings)
         return;
 
-    m_list->SetEntryText(rowIndex, std::string(kButtons[rowIndex].name) + ": press a button...");
+    m_rowEntries[rowIndex]->SetText(std::string(kButtons[rowIndex].name) + ": press a button...");
 
     // Two-phase: first wait for every button already held (the one that
     // triggered this row's select) to be released, then watch for the next
@@ -123,10 +122,10 @@ void EmulatorButtonMapPage::ResetMapping()
 
 void EmulatorButtonMapPage::RefreshLabels()
 {
-    if (!m_settings || !m_list)
+    if (!m_settings)
         return;
     for (int i = 0; i < kButtonCount; ++i)
-        m_list->SetEntryText(i, FormatBinding(kButtons[i].name, m_settings->vbButtons[kButtons[i].vbBit]));
+        m_rowEntries[i]->SetText(FormatBinding(kButtons[i].name, m_settings->vbButtons[kButtons[i].vbBit]));
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

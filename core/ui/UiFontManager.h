@@ -127,11 +127,6 @@ public:
     // Raw access for UiRenderer's DrawText (needs Character + descriptorSet).
     const Font &Get(UiFontHandle handle) const { return *m_fonts[handle.id]; }
 
-    // TEMP debug: dumps the atlas's current CPU-side pixels as a raw PGM
-    // (P5) file - visualize glyph packing directly instead of guessing from
-    // rendered (and possibly mis-rendered) text.
-    void DebugDumpAtlas(UiFontHandle handle, const char *path) const;
-
 private:
     // Rasterizes one codepoint via FreeType and packs it into font's atlas
     // (shelf-packing; grows atlasHeight via GrowAtlasHeight if it doesn't

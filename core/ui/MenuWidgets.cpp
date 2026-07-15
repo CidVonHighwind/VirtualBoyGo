@@ -354,34 +354,62 @@ MenuList::MenuList(UiRenderer &ui, UiFontHandle font, float posX, float posY, fl
     Selectable = true;
 }
 
-void MenuList::AddEntry(const std::string &text,
-                        std::function<void(MenuItem *)> press,
-                        std::function<void(MenuItem *)> left,
-                        std::function<void(MenuItem *)> right,
-                        UiIconId icon,
-                        AccessoryDrawFn accessoryDraw)
+void MenuList::Entry::SetText(const std::string &newText)
+{
+    text = newText;
+    // Bake any glyphs the new label needs (a no-op for pure ASCII, which is
+    // always pre-baked). See UiFontManager::EnsureGlyphsForText.
+    if (m_owner)
+        m_owner->m_ui->EnsureGlyphsForText(m_owner->m_font, newText);
+}
+
+void MenuList::Entry::Select()
+{
+    if (!m_owner)
+        return;
+    for (size_t i = 0; i < m_owner->m_entries.size(); ++i)
+    {
+        if (m_owner->m_entries[i].get() == this)
+        {
+            m_owner->SelectIndex(static_cast<int>(i));
+            return;
+        }
+    }
+}
+
+std::shared_ptr<MenuList::Entry> MenuList::AddEntry(const std::string &text,
+                                                    std::function<void(MenuItem *)> press,
+                                                    std::function<void(MenuItem *)> left,
+                                                    std::function<void(MenuItem *)> right,
+                                                    UiIconId icon,
+                                                    AccessoryDrawFn accessoryDraw)
 {
     // Row text isn't known upfront (ROM file names, etc.) - bake whatever
-    // glyphs it needs now, not while drawing. See MenuLabel::SetText.
+    // glyphs it needs now, not while drawing. See UiFontManager::EnsureGlyphsForText.
     m_ui->EnsureGlyphsForText(m_font, text);
-    m_entries.push_back({text, press, left, right, icon, std::move(accessoryDraw)});
-}
-
-void MenuList::AddSpacer(float height)
-{
-    Entry entry;
-    entry.isSpacer = true;
-    entry.height = height;
+    auto entry = std::make_shared<Entry>();
+    entry->text = text;
+    entry->pressFunction = std::move(press);
+    entry->leftFunction = std::move(left);
+    entry->rightFunction = std::move(right);
+    entry->icon = icon;
+    entry->accessoryDraw = std::move(accessoryDraw);
+    entry->m_owner = this;
     m_entries.push_back(entry);
+    return entry;
 }
 
-void MenuList::SetEntryText(int index, const std::string &text)
+std::shared_ptr<MenuList::Entry> MenuList::AddSpacer(float height)
 {
-    m_ui->EnsureGlyphsForText(m_font, text);
-    m_entries[index].text = text;
+    auto entry = std::make_shared<Entry>();
+    entry->isSpacer = true;
+    entry->height = height;
+    entry->m_owner = this;
+    m_entries.push_back(entry);
+    return entry;
 }
 
-float MenuList::rowHeight(int index) const { return m_entries[index].isSpacer ? m_entries[index].height : m_itemHeight; }
+float MenuList::rowHeight(int index) const { return m_entries[index]->isSpacer ? m_entries[index]->height : m_itemHeight; }
 
 // How many entries starting at `first` fit within the list's height, packing
 // by each row's own height rather than assuming a uniform m_itemHeight.
@@ -405,14 +433,14 @@ bool MenuList::needsScrollbar() const { return maxVisibleFrom(0) < (int)m_entrie
 void MenuList::ResetSelection()
 {
     m_selectedIndex = 0;
-    while (m_selectedIndex < (int)m_entries.size() - 1 && m_entries[m_selectedIndex].isSpacer)
+    while (m_selectedIndex < (int)m_entries.size() - 1 && m_entries[m_selectedIndex]->isSpacer)
         ++m_selectedIndex;
     m_firstVisible = 0;
 }
 
 void MenuList::SelectIndex(int index)
 {
-    if (index < 0 || index >= (int)m_entries.size() || m_entries[index].isSpacer)
+    if (index < 0 || index >= (int)m_entries.size() || m_entries[index]->isSpacer)
         return;
 
     m_selectedIndex = index;
@@ -433,7 +461,7 @@ int MenuList::PressedUp()
             --m_selectedIndex;
         else
             m_selectedIndex = (int)m_entries.size() - 1; // wrap to bottom
-    } while (m_entries[m_selectedIndex].isSpacer && m_selectedIndex != start);
+    } while (m_entries[m_selectedIndex]->isSpacer && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
@@ -453,7 +481,7 @@ int MenuList::PressedDown()
             ++m_selectedIndex;
         else
             m_selectedIndex = 0; // wrap to top
-    } while (m_entries[m_selectedIndex].isSpacer && m_selectedIndex != start);
+    } while (m_entries[m_selectedIndex]->isSpacer && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
@@ -466,7 +494,7 @@ int MenuList::PressedLeft()
 {
     if (m_entries.empty())
         return 0;
-    const auto &entry = m_entries[m_selectedIndex];
+    const Entry &entry = *m_entries[m_selectedIndex];
     if (entry.leftFunction)
     {
         entry.leftFunction(this);
@@ -479,7 +507,7 @@ int MenuList::PressedRight()
 {
     if (m_entries.empty())
         return 0;
-    const auto &entry = m_entries[m_selectedIndex];
+    const Entry &entry = *m_entries[m_selectedIndex];
     if (entry.rightFunction)
     {
         entry.rightFunction(this);
@@ -492,7 +520,7 @@ int MenuList::PressedEnter()
 {
     if (m_entries.empty())
         return 0;
-    const auto &entry = m_entries[m_selectedIndex];
+    const Entry &entry = *m_entries[m_selectedIndex];
     if (entry.pressFunction)
     {
         entry.pressFunction(this);
@@ -521,7 +549,7 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     for (int i = 0; i < visible && (m_firstVisible + i) < (int)m_entries.size(); ++i)
     {
         const int idx = m_firstVisible + i;
-        const Entry &entry = m_entries[idx];
+        const Entry &entry = *m_entries[idx];
         const float h = rowHeight(idx);
 
         if (!entry.isSpacer)

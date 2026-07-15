@@ -19,12 +19,6 @@ public:
     void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 
 private:
-    static constexpr int kYawIndex = 0;
-    static constexpr int kPitchIndex = 1;
-    static constexpr int kRollIndex = 2;
-    static constexpr int kDistanceIndex = 3;
-    static constexpr int kScaleIndex = 4;
-
     static constexpr float kRotationStep = 5.0f;   // degrees
     static constexpr float kDistanceStep = 0.1f;   // meters
     static constexpr float kScaleStep = 0.1f;
@@ -37,6 +31,10 @@ private:
     void ResetView();
     void RefreshLabels();
 
-    std::shared_ptr<MenuList> m_list;
+    std::shared_ptr<MenuList::Entry> m_yawEntry;
+    std::shared_ptr<MenuList::Entry> m_pitchEntry;
+    std::shared_ptr<MenuList::Entry> m_rollEntry;
+    std::shared_ptr<MenuList::Entry> m_distanceEntry;
+    std::shared_ptr<MenuList::Entry> m_scaleEntry;
     AppSettings *m_settings = nullptr;
 };

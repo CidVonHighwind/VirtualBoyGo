@@ -3,7 +3,6 @@
 #include "UiVulkanUtils.h"
 
 #include <algorithm>
-#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -378,15 +377,3 @@ float UiFontManager::GetFontPStart(UiFontHandle handle) const
     return handle.IsValid() ? m_fonts[handle.id]->pStart : 0.0f;
 }
 
-void UiFontManager::DebugDumpAtlas(UiFontHandle handle, const char *path) const
-{
-    if (!handle.IsValid())
-        return;
-    const Font &font = *m_fonts[handle.id];
-    std::FILE *f = std::fopen(path, "wb");
-    if (!f)
-        return;
-    std::fprintf(f, "P5\n%d %d\n255\n", font.atlasWidth, font.atlasHeight);
-    std::fwrite(font.atlasPixels.data(), 1, font.atlasPixels.size(), f);
-    std::fclose(f);
-}

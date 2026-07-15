@@ -4,6 +4,9 @@
 #include "AndroidRomAccess.h"
 #else
 #include <filesystem>
+#if defined(_DEBUG)
+#include "DebugPaths.h"
+#endif
 #endif
 
 #include <algorithm>
@@ -21,10 +24,10 @@ std::string ToLower(std::string s)
 std::string RomDirectory()
 {
 #if defined(_DEBUG)
-    // Fixed path to this repo's checked-in sample ROMs - zero-setup local
-    // testing, at the cost of only working on this machine/checkout. Release
-    // builds use the relative path below instead.
-    return "C:/Users/Patrick/Desktop/VirtualBoyGo Rework/VirtualBoyGo/sd/VB";
+    // This repo's checked-in sample ROMs, for zero-setup local testing -
+    // derived from the source tree's own location (see DebugPaths.h), so it
+    // follows the checkout. Release builds use the relative path below.
+    return DebugSdVbDir();
 #else
     // Relative to the working directory, same convention LoadAssetBytes
     // uses for assets (see AssetLoader.h) - the exe's own folder for how

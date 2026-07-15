@@ -32,18 +32,18 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     // Select acts like Right on every adjustable row below - advances the
     // value the same as pressing right, rather than doing nothing.
-    list->AddEntry("Yaw: 0 deg", [this](MenuItem *) { ChangeYaw(kRotationStep); },
+    m_yawEntry = list->AddEntry("Yaw: 0 deg", [this](MenuItem *) { ChangeYaw(kRotationStep); },
         [this](MenuItem *) { ChangeYaw(-kRotationStep); }, [this](MenuItem *) { ChangeYaw(kRotationStep); }, UiIconId::LeftRight);
-    list->AddEntry("Pitch: 0 deg", [this](MenuItem *) { ChangePitch(kRotationStep); },
+    m_pitchEntry = list->AddEntry("Pitch: 0 deg", [this](MenuItem *) { ChangePitch(kRotationStep); },
         [this](MenuItem *) { ChangePitch(-kRotationStep); }, [this](MenuItem *) { ChangePitch(kRotationStep); }, UiIconId::UpDown);
-    list->AddEntry("Roll: 0 deg", [this](MenuItem *) { ChangeRoll(kRotationStep); },
+    m_rollEntry = list->AddEntry("Roll: 0 deg", [this](MenuItem *) { ChangeRoll(kRotationStep); },
         [this](MenuItem *) { ChangeRoll(-kRotationStep); }, [this](MenuItem *) { ChangeRoll(kRotationStep); }, UiIconId::Reset);
 
     list->AddSpacer(kMenuSpacerSize);
 
-    list->AddEntry("Distance: 2.20", [this](MenuItem *) { ChangeDistance(kDistanceStep); },
+    m_distanceEntry = list->AddEntry("Distance: 2.20", [this](MenuItem *) { ChangeDistance(kDistanceStep); },
         [this](MenuItem *) { ChangeDistance(-kDistanceStep); }, [this](MenuItem *) { ChangeDistance(kDistanceStep); }, UiIconId::Distance);
-    list->AddEntry("Scale: 1.00x", [this](MenuItem *) { ChangeScale(kScaleStep); },
+    m_scaleEntry = list->AddEntry("Scale: 1.00x", [this](MenuItem *) { ChangeScale(kScaleStep); },
         [this](MenuItem *) { ChangeScale(-kScaleStep); }, [this](MenuItem *) { ChangeScale(kScaleStep); }, UiIconId::Scale);
 
     list->AddSpacer(kMenuSpacerSize);
@@ -51,7 +51,6 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->AddEntry("Reset View", [this](MenuItem *) { ResetView(); }, nullptr, nullptr, UiIconId::ResetView);
 
     m_menu.MenuItems.push_back(list);
-    m_list = list;
 
     m_menu.BackPress = [this]() { if (settingsPage) Navigate(settingsPage, -1); };
     m_menu.Init();
@@ -109,14 +108,14 @@ void MoveScreenPage::ResetView()
 
 void MoveScreenPage::RefreshLabels()
 {
-    if (!m_settings || !m_list)
+    if (!m_settings)
         return;
 
-    m_list->SetEntryText(kYawIndex, FormatDeg("Yaw: ", m_settings->screenYaw));
-    m_list->SetEntryText(kPitchIndex, FormatDeg("Pitch: ", m_settings->screenPitch));
-    m_list->SetEntryText(kRollIndex, FormatDeg("Roll: ", m_settings->screenRoll));
-    m_list->SetEntryText(kDistanceIndex, FormatValue("Distance: ", m_settings->screenDistance));
-    m_list->SetEntryText(kScaleIndex, FormatValue("Scale: ", m_settings->screenScale, "x"));
+    m_yawEntry->SetText(FormatDeg("Yaw: ", m_settings->screenYaw));
+    m_pitchEntry->SetText(FormatDeg("Pitch: ", m_settings->screenPitch));
+    m_rollEntry->SetText(FormatDeg("Roll: ", m_settings->screenRoll));
+    m_distanceEntry->SetText(FormatValue("Distance: ", m_settings->screenDistance));
+    m_scaleEntry->SetText(FormatValue("Scale: ", m_settings->screenScale, "x"));
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

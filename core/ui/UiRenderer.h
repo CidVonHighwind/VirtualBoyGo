@@ -45,8 +45,6 @@ public:
     // content is set (not while drawing) so arbitrary Unicode text (e.g. ROM
     // file names) has baked glyphs by the time DrawText/GetTextWidth need them.
     void EnsureGlyphsForText(UiFontHandle font, const std::string &utf8Text);
-    // TEMP debug: see UiFontManager::DebugDumpAtlas.
-    void DebugDumpFontAtlas(UiFontHandle font, const char *path) const;
     float GetTextWidth(UiFontHandle font, const std::string &text) const;
     float GetFontPHeight(UiFontHandle font) const;
     float GetFontPStart(UiFontHandle font) const;

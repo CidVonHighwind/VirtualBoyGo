@@ -107,39 +107,10 @@ bool RetroEnvironment(unsigned cmd, void *data)
     }
 }
 
-void RetroVideoRefresh(const void *data, unsigned width, unsigned height, size_t pitch)
+void RetroVideoRefresh(const void *data, unsigned width, unsigned height, size_t /*pitch*/)
 {
     if (!data)
         return; // core is signalling "same as last frame" (e.g. hardware-render path) - not used by this core
-
-    // TEMP debug: confirm frames are actually arriving and aren't just a
-    // black/zeroed buffer (which would mean the core is running but not
-    // drawing, vs. this data never reaching the screen at all). Scans the
-    // *whole* valid width x height region row-by-row (respecting pitch,
-    // not just the first N flat bytes - the VB's initial "Health and
-    // Safety" text is roughly screen-centered, so a truncated top-rows-only
-    // sample can read as all-zero even when the frame has real content
-    // further down).
-    static int frameCount = 0;
-    if (frameCount < 5 || frameCount % 120 == 0)
-    {
-        const auto *bytes = static_cast<const uint8_t *>(data);
-        uint64_t sum = 0;
-        uint8_t maxByte = 0;
-        for (unsigned row = 0; row < height; ++row)
-        {
-            const uint8_t *rowBytes = bytes + row * pitch;
-            for (unsigned col = 0; col < width * 4; ++col)
-            {
-                sum += rowBytes[col];
-                if (rowBytes[col] > maxByte)
-                    maxByte = rowBytes[col];
-            }
-        }
-        std::fprintf(stderr, "[Emulator] video_cb #%d: %ux%u pitch=%zu byteSum=%llu maxByte=%u\n", frameCount, width,
-                    height, pitch, static_cast<unsigned long long>(sum), maxByte);
-    }
-    ++frameCount;
 
     g_pendingFrame = data;
     g_pendingWidth = width;
@@ -238,6 +209,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
 
     if (m_romLoaded)
     {
+#if defined(__ANDROID__)
         // romPath is a content:// URI, not a filesystem path - use the
         // caller's display name for save-data naming. AndroidRomAccess
         // resolves the folder itself, so m_romDir/m_romStateDir go unused.
@@ -271,24 +243,12 @@ void Emulator::RunFrame(float deltaSeconds)
         m_frameAccumulator = kMaxCatchUp;
 
     bool ranAny = false;
-    int runCount = 0;
     while (m_frameAccumulator >= framePeriod)
     {
         retro_run();
         m_frameAccumulator -= framePeriod;
         ranAny = true;
-        ++runCount;
     }
-
-    // TEMP debug: confirm RunFrame is actually being called/pumping
-    // retro_run(), and whether a new frame made it to UpdateStreamingImage.
-    static int callCount = 0;
-    if (callCount < 5 || callCount % 120 == 0)
-    {
-        std::fprintf(stderr, "[Emulator] RunFrame #%d: deltaSeconds=%.4f runCount=%d g_frameReady=%d\n", callCount,
-                    deltaSeconds, runCount, g_frameReady ? 1 : 0);
-    }
-    ++callCount;
 
     if (ranAny && g_frameReady && m_ui)
     {

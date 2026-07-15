@@ -31,7 +31,7 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     list->AddSpacer(kMenuSpacerSize);
 
-    list->AddEntry("Save Slot: " + std::to_string(m_saveSlot),
+    m_saveSlotEntry = list->AddEntry("Save Slot: " + std::to_string(m_saveSlot),
         [this](MenuItem *) { ChangeSaveSlot(1); }, // Select acts like Right - advance the slot
         [this](MenuItem *) { ChangeSaveSlot(-1); },
         [this](MenuItem *) { ChangeSaveSlot(1); },
@@ -52,7 +52,7 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     list->AddSpacer(kMenuSpacerSize);
 
-    list->AddEntry("Load ROM", [this](MenuItem *) { if (romSelectPage) Navigate(romSelectPage, 1); },
+    m_loadRomEntry = list->AddEntry("Load ROM", [this](MenuItem *) { if (romSelectPage) Navigate(romSelectPage, 1); },
         nullptr, nullptr, UiIconId::RomList);
 
     list->AddSpacer(kMenuSpacerSize);
@@ -75,7 +75,6 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     m_menu.Init();
 
-    m_list = list;
     RefreshSavePreview();
 }
 
@@ -87,8 +86,8 @@ void MainPage::ResetSelection()
 
 void MainPage::SelectLoadRomEntry()
 {
-    if (m_list)
-        m_list->SelectIndex(kLoadRomEntryIndex);
+    if (m_loadRomEntry)
+        m_loadRomEntry->Select();
 }
 
 void MainPage::ChangeSaveSlot(int delta)
@@ -99,7 +98,7 @@ void MainPage::ChangeSaveSlot(int delta)
     else if (m_saveSlot > kMaxSaveSlot)
         m_saveSlot = kMinSaveSlot;
 
-    m_list->SetEntryText(kSaveSlotEntryIndex, "Save Slot: " + std::to_string(m_saveSlot));
+    m_saveSlotEntry->SetText("Save Slot: " + std::to_string(m_saveSlot));
     RefreshSavePreview();
 }
 

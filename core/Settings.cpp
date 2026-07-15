@@ -1,5 +1,9 @@
 #include "Settings.h"
 
+#if defined(_DEBUG) && !defined(__ANDROID__)
+#include "DebugPaths.h"
+#endif
+
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -20,15 +24,16 @@ const XrColor4f kPredefColors[11] = {
 
 namespace
 {
-// Same per-platform layout RomScanner.cpp's RomDirectory() uses (not
-// exported from there, so duplicated here) - settings live next to the ROMs,
-// the only writable-location precedent in this project.
+// Settings live next to the ROMs (the only writable-location precedent in
+// this project), so this mirrors RomScanner.cpp's RomDirectory() per-platform
+// layout - the shared _DEBUG folder comes from DebugPaths.h so it isn't
+// duplicated as a literal path.
 std::string SettingsFilePath()
 {
 #if defined(__ANDROID__)
     return "/sdcard/VB/settings.dat";
 #elif defined(_DEBUG)
-    return "C:/Users/Patrick/Desktop/VirtualBoyGo Rework/VirtualBoyGo/sd/VB/settings.dat";
+    return DebugSdVbDir() + "/settings.dat";
 #else
     return "VB/settings.dat";
 #endif

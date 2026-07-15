@@ -18,10 +18,12 @@ public:
 
 private:
     void ToggleSwap();
-    void StartCapture(int rowIndex, int slot); // slot: 0 = menuButton1, 1 = menuButton2
+    void StartCapture(int slot); // slot: 0 = menuButton1, 1 = menuButton2
     void RefreshLabels();
 
-    std::shared_ptr<MenuList> m_list;
+    std::shared_ptr<MenuList::Entry> m_swapEntry;
+    std::shared_ptr<MenuList::Entry> m_button1Entry;
+    std::shared_ptr<MenuList::Entry> m_button2Entry;
     AppSettings *m_settings = nullptr;
     AppMenu *m_appMenu = nullptr;
 };

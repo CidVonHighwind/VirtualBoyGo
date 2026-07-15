@@ -18,10 +18,9 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     {
         // Only reachable if "Change ROMs Folder..." (SettingsPage) cleared the
         // folder this session - re-picking needs an app restart, so just say so.
-        MenuList *listPtr = list.get();
-        list->AddEntry("Pick ROMs folder...", [listPtr](MenuItem *) {
+        m_pickEntry = list->AddEntry("Pick ROMs folder...", [this](MenuItem *) {
             AndroidRomAccess::RequestChangeRomsFolder();
-            listPtr->SetEntryText(0, "Folder cleared - restart the app!");
+            m_pickEntry->SetText("Folder cleared - restart the app!");
         });
     }
     else

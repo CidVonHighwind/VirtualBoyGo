@@ -6,10 +6,6 @@
 
 namespace
 {
-constexpr int kSwapIndex = 0;
-constexpr int kButton1Index = 1;
-constexpr int kButton2Index = 2;
-
 std::string FormatBinding(const char *name, const ButtonMapper::MappedButton &b)
 {
     if (!b.IsSet)
@@ -28,15 +24,14 @@ void MenuButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->Color          = kMenuTextColor;
     list->SelectionColor = kMenuSelectionColor;
 
-    list->AddEntry("Swap Select/Back: No", [this](MenuItem *) { ToggleSwap(); }, // Select acts like Right - same toggle
+    m_swapEntry = list->AddEntry("Swap Select/Back: No", [this](MenuItem *) { ToggleSwap(); }, // Select acts like Right - same toggle
         [this](MenuItem *) { ToggleSwap(); }, [this](MenuItem *) { ToggleSwap(); });
-    list->AddEntry("Menu Button 1: [Unset]",
-        [this](MenuItem *) { StartCapture(kButton1Index, 0); }, nullptr, nullptr);
-    list->AddEntry("Menu Button 2: [Unset]",
-        [this](MenuItem *) { StartCapture(kButton2Index, 1); }, nullptr, nullptr);
+    m_button1Entry = list->AddEntry("Menu Button 1: [Unset]",
+        [this](MenuItem *) { StartCapture(0); }, nullptr, nullptr);
+    m_button2Entry = list->AddEntry("Menu Button 2: [Unset]",
+        [this](MenuItem *) { StartCapture(1); }, nullptr, nullptr);
 
     m_menu.MenuItems.push_back(list);
-    m_list = list;
     m_menu.BackPress = [this]() { if (settingsPage) Navigate(settingsPage, -1); };
     m_menu.Init();
 
@@ -53,12 +48,13 @@ void MenuButtonMapPage::ToggleSwap()
     RefreshLabels();
 }
 
-void MenuButtonMapPage::StartCapture(int rowIndex, int slot)
+void MenuButtonMapPage::StartCapture(int slot)
 {
-    if (!m_settings || !m_list)
+    if (!m_settings)
         return;
 
-    m_list->SetEntryText(rowIndex, (slot == 0 ? "Menu Button 1: press a button..." : "Menu Button 2: press a button..."));
+    const auto &entry = (slot == 0) ? m_button1Entry : m_button2Entry;
+    entry->SetText(slot == 0 ? "Menu Button 1: press a button..." : "Menu Button 2: press a button...");
 
     // Same two-phase release-then-capture as EmulatorButtonMapPage - see its
     // StartCapture doc comment.
@@ -95,11 +91,11 @@ void MenuButtonMapPage::StartCapture(int rowIndex, int slot)
 
 void MenuButtonMapPage::RefreshLabels()
 {
-    if (!m_settings || !m_list)
+    if (!m_settings)
         return;
-    m_list->SetEntryText(kSwapIndex, m_settings->swapSelectBackButton ? "Swap Select/Back: Yes" : "Swap Select/Back: No");
-    m_list->SetEntryText(kButton1Index, FormatBinding("Menu Button 1", m_settings->menuButton1));
-    m_list->SetEntryText(kButton2Index, FormatBinding("Menu Button 2", m_settings->menuButton2));
+    m_swapEntry->SetText(m_settings->swapSelectBackButton ? "Swap Select/Back: Yes" : "Swap Select/Back: No");
+    m_button1Entry->SetText(FormatBinding("Menu Button 1", m_settings->menuButton1));
+    m_button2Entry->SetText(FormatBinding("Menu Button 2", m_settings->menuButton2));
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

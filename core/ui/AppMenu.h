@@ -19,7 +19,7 @@ struct AppSettings;
 // between them. Renders the active page into an offscreen buffer each frame,
 // then composites it onto the real target with rounded corners.
 //
-// Transition model (ported from FrontendGo`s MenuGo):
+// Transition model (ported from FrontendGo's MenuGo):
 //   StartTransition(target, dir)  ->  m_transitionState slides 1->0 over
 //   kTransitionSpeed seconds using a sine-eased progress value.
 //   dir: +1 = target slides in from right, -1 = from left.

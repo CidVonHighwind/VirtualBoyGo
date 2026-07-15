@@ -213,8 +213,14 @@ public:
     static constexpr float kIconSize = 10.0f;
     static constexpr float kIconTextGap = 4.0f;
 
-    struct Entry
+    // One row of the list. AddEntry/AddSpacer hand it back as a shared_ptr so
+    // a page can keep it and change any property later: text via SetText
+    // (re-bakes glyphs, so a raw text = ... would miss new ones), everything
+    // else (icon, colors, callbacks, ...) by direct assignment. Read live
+    // every frame by Draw - no separate "apply" step.
+    class Entry
     {
+    public:
         std::string text;
         std::function<void(MenuItem *)> pressFunction;
         std::function<void(MenuItem *)> leftFunction;
@@ -223,32 +229,34 @@ public:
         AccessoryDrawFn accessoryDraw;
         bool isSpacer = false;
         float height = 0; // only used when isSpacer
+
+        // Sets the label and bakes any glyphs it needs. Prefer this over
+        // assigning text directly for anything but pure ASCII (always pre-
+        // baked) - see UiFontManager::EnsureGlyphsForText. Call outside a
+        // frame only (it may re-upload the font atlas).
+        void SetText(const std::string &newText);
+
+        // Moves the list's highlight to this row, scrolling it into view.
+        void Select();
+
+    private:
+        friend class MenuList;
+        MenuList *m_owner = nullptr;
     };
 
-    void AddEntry(const std::string &text,
-                  std::function<void(MenuItem *)> press = nullptr,
-                  std::function<void(MenuItem *)> left = nullptr,
-                  std::function<void(MenuItem *)> right = nullptr,
-                  UiIconId icon = UiIconId::None,
-                  AccessoryDrawFn accessoryDraw = nullptr);
+    // Adds a row and returns it. Optional press/left/right callbacks, an
+    // icon, and an accessoryDraw (see above) - all also settable later on
+    // the returned Entry.
+    std::shared_ptr<Entry> AddEntry(const std::string &text,
+                                    std::function<void(MenuItem *)> press = nullptr,
+                                    std::function<void(MenuItem *)> left = nullptr,
+                                    std::function<void(MenuItem *)> right = nullptr,
+                                    UiIconId icon = UiIconId::None,
+                                    AccessoryDrawFn accessoryDraw = nullptr);
 
-    // Adds a non-selectable blank row of the given height, used to visually
-    // separate logical groups of entries.
-    void AddSpacer(float height);
-
-    // Rewrites an already-added entry's label in place - e.g. a "Save Slot:
-    // N" row updating N in response to its own left/right functions,
-    // without needing to rebuild the whole list.
-    void SetEntryText(int index, const std::string &text);
-
-    int GetSelectedIndex() const { return m_selectedIndex; }
-
-    // Jumps the highlighted row straight to index, no animation, scrolling
-    // it into view if needed - e.g. AppMenu pre-selecting MainPage's "Load
-    // ROM" row when booting straight into RomSelectPage, so backing out
-    // lands where a real "MainPage -> Load ROM -> RomSelectPage" navigation
-    // would have left it, instead of back at row 0.
-    void SelectIndex(int index);
+    // Adds (and returns) a non-selectable blank row of the given height, used
+    // to visually separate logical groups of entries.
+    std::shared_ptr<Entry> AddSpacer(float height);
 
     int PressedUp() override;
     int PressedDown() override;
@@ -261,6 +269,11 @@ public:
     void Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha) override;
 
 private:
+    // Moves the highlight straight to index (no animation), scrolling it into
+    // view. Backs Entry::Select; also used to pre-select a row - e.g. AppMenu
+    // landing on MainPage's "Load ROM" row when booting into RomSelectPage.
+    void SelectIndex(int index);
+
     float rowHeight(int index) const;
     int maxVisibleFrom(int first) const;
     bool needsScrollbar() const;
@@ -273,7 +286,7 @@ private:
     int m_selectedIndex = 0;
     int m_firstVisible = 0;
     float m_textRowOffset = 0; // baseline-centering offset within each slot, baked at init
-    std::vector<Entry> m_entries;
+    std::vector<std::shared_ptr<Entry>> m_entries;
 
     static constexpr float kScrollbarWidth = 2.0f;
     static constexpr float kScrollbarGap = 2.0f;

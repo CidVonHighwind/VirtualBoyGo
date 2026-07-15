@@ -2,28 +2,19 @@
 
 #include <openxr/openxr.h> // XrColor4f
 
-// Layout constants shared across all menu pages. Mirror AppMenu's static
-// members so page .cpp files don't need to include the full AppMenu header.
+// Layout constants shared across all menu pages, mirroring AppMenu's static
+// members so page .cpp files don't need the full AppMenu header.
 //
-// kMenuWidth/kMenuHeight (and every other constant below) are logical
-// units, not physical pixels. AppMenu renders into an offscreen texture
-// sized kMenuWidth*kMenuScale x kMenuHeight*kMenuScale (see
-// AppMenu::Initialize) - full physical resolution, so text/shapes stay
-// crisp - but tells UiRenderer to map that logical 320x240 coordinate
-// space across the whole physical viewport (BeginOffscreenFrame's
-// logicalWidth/logicalHeight; see its doc comment in UiRenderer.h for the
-// mechanism). The composite step then draws that texture 1:1 (AppMenu::Draw).
-// At the default 320x240 logical size and 2x scale, that's the same
-// 640x480 apparent size the menu always had, but a platform can now pick a
-// different kMenuScale (e.g. render sharper into a higher-res VR panel)
-// without touching any layout math below - only kMenuScale changes.
+// All values are logical units, not physical pixels. AppMenu renders into an
+// offscreen texture sized kMenuWidth*kMenuScale x kMenuHeight*kMenuScale but
+// maps this logical 320x240 space across the whole physical viewport (see
+// UiRenderer::BeginOffscreenFrame), so a platform can raise kMenuScale for a
+// sharper VR panel without touching any layout math below.
 //
-// Most position/size constants here are float rather than int: halving the
-// old 640x480-scale layout doesn't always land on a whole logical-space
-// pixel (75/2 = 37.5), and truncating that to 37 would drift the composited
-// result off the original by a scaled pixel. Keeping the fraction and
-// letting kMenuScale multiply it back out lands exactly on the same final
-// pixel instead.
+// Values are float, not int: halving the old 640x480-scale layout lands on
+// sub-pixel positions (75/2 = 37.5); keeping the fraction and letting
+// kMenuScale multiply it back out hits the exact same final pixel that
+// truncating to int would drift off.
 inline constexpr int kMenuWidth = 320;
 inline constexpr int kMenuHeight = 240;
 inline constexpr float kMenuScale = 2.0f;

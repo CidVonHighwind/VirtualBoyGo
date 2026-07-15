@@ -2,6 +2,7 @@
 #include "../MenuPage.h"
 
 #include <memory>
+#include <vector>
 
 class MenuList;
 struct AppSettings;
@@ -23,6 +24,6 @@ private:
     void ResetMapping();
     void RefreshLabels();
 
-    std::shared_ptr<MenuList> m_list;
+    std::vector<std::shared_ptr<MenuList::Entry>> m_rowEntries;
     AppSettings *m_settings = nullptr;
 };

@@ -164,11 +164,6 @@ void UiRenderer::EnsureGlyphsForText(UiFontHandle font, const std::string &utf8T
     m_fontManager.EnsureGlyphsForText(font, utf8Text);
 }
 
-void UiRenderer::DebugDumpFontAtlas(UiFontHandle font, const char *path) const
-{
-    m_fontManager.DebugDumpAtlas(font, path);
-}
-
 float UiRenderer::GetTextWidth(UiFontHandle font, const std::string &text) const
 {
     return m_fontManager.GetTextWidth(font, text);

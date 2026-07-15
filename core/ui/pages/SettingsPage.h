@@ -22,20 +22,6 @@ public:
     void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 
 private:
-    // Entry indices within m_list - used by SetEntryText to relabel a row
-    // after its value changes.
-    static constexpr int kFollowHeadIndex = 4;
-    static constexpr int kThreeDeeModeIndex = 6;
-    static constexpr int kIpdIndex = 7;
-    // 9 is "Color Palette" - its label never changes (see RefreshLabels).
-    static constexpr int kColorRIndex = 10;
-    static constexpr int kColorGIndex = 11;
-    static constexpr int kColorBIndex = 12;
-#if defined(__ANDROID__)
-    // 13 is the spacer ahead of it.
-    static constexpr int kChangeRomsFolderIndex = 14;
-#endif
-
     static constexpr float kIpdStep = 1.0f / 256.0f; // matches FrontendGo's IPD_STEP_SIZE
     static constexpr float kIpdMin = -0.125f;
     static constexpr float kIpdMax = 0.125f;
@@ -51,6 +37,14 @@ private:
     void RequestChangeRomsFolder();
 #endif
 
-    std::shared_ptr<MenuList> m_list;
+    std::shared_ptr<MenuList::Entry> m_followHeadEntry;
+    std::shared_ptr<MenuList::Entry> m_threeDeeEntry;
+    std::shared_ptr<MenuList::Entry> m_ipdEntry;
+    std::shared_ptr<MenuList::Entry> m_colorREntry;
+    std::shared_ptr<MenuList::Entry> m_colorGEntry;
+    std::shared_ptr<MenuList::Entry> m_colorBEntry;
+#if defined(__ANDROID__)
+    std::shared_ptr<MenuList::Entry> m_changeRomsFolderEntry;
+#endif
     AppSettings *m_settings = nullptr;
 };
