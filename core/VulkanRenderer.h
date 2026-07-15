@@ -62,7 +62,9 @@ class VulkanRenderer {
     // smaller than its native resolution, e.g. far away), regardless of how
     // carefully we sampled while drawing mip 0 ourselves. mipLevels must
     // match what the image was actually created with (XrSwapchainCreateInfo
-    // ::mipCount) - see OpenXrApp::ComputeMipLevels.
+    // ::mipCount). Currently unused - swapchain mips are disabled while
+    // SteamVR stability is being established; re-test with mips before
+    // re-enabling.
     void GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels);
 
    private:

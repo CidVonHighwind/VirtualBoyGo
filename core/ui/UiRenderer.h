@@ -117,14 +117,6 @@ public:
     void BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clearColor,
                              float logicalWidth = 0.0f, float logicalHeight = 0.0f);
 
-    // Restricts subsequent Draw* calls to the given sub-rect of the target
-    // (in the target's own pixel space) and remaps their local coordinate
-    // space to treat that sub-rect's top-left as (0,0) - lets a
-    // fixed-resolution UI be drawn as a smaller inset panel within a larger
-    // target. Does not clear - whatever was already drawn into the target
-    // stays put outside this sub-rect, and blends normally inside it.
-    void SetViewportRegion(float x, float y, float w, float h);
-
     // cornerRadiusPx > 0 rounds all four corners (antialiased); 0 (default)
     // is a plain sharp-cornered rect.
     void DrawQuad(float x, float y, float w, float h, const XrColor4f &color);

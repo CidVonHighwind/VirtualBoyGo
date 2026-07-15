@@ -42,6 +42,10 @@ class OpenXrApp {
     void InitializeSystem();
     void InitializeSession();
     void CreateSwapchains();
+    // (Re)creates m_menuSwapchain at the active m_menuRenderScale tier -
+    // see the definition's doc comment for why it must be sized exactly
+    // (full-rect submission) instead of allocated once at the max tier.
+    void EnsureMenuSwapchain();
     void UpdateMenuRenderScale();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
     // Renders the emulator screen into its two dedicated per-eye quad
@@ -77,6 +81,7 @@ class OpenXrApp {
     XrSpace m_appSpace{XR_NULL_HANDLE};
     XrSessionState m_sessionState{XR_SESSION_STATE_UNKNOWN};
     bool m_sessionRunning{false};
+    std::string m_runtimeName;
 
     XrViewConfigurationType m_viewConfigType{XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO};
     std::vector<XrViewConfigurationView> m_configViews;
@@ -97,9 +102,10 @@ class OpenXrApp {
     // Dedicated swapchain for the menu's own quad composition layer -
     // separate from the screen so the menu can be positioned at its own
     // depth (see RenderMenuLayer) instead of being baked into the same
-    // texture/plane as the screen. Allocated for the maximum menu tier; only
-    // the active PPD-derived sub-rectangle is rendered and submitted. It is
-    // cleared to transparent so the compositor blends through to the screen.
+    // texture/plane as the screen. Sized exactly to the active PPD-derived
+    // tier and recreated when the tier changes (see EnsureMenuSwapchain). It
+    // is cleared to transparent so the compositor blends through to the
+    // screen.
     Swapchain m_menuSwapchain;
     // Integer supersampling tier selected from the headset's recommended
     // pixels-per-degree and the menu quad's current angular size.

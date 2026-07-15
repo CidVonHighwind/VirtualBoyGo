@@ -42,22 +42,29 @@ int main() {
     }
 
     bool requestRestart = false;
+    int exitCode = 0;
     while (!quitRequested) {
-        bool exitRenderLoop = false;
-        app.PollEvents(exitRenderLoop, requestRestart);
-        if (exitRenderLoop) {
-            std::printf("VirtualBoyGo PC: exitRenderLoop requested\n");
-            break;
-        }
+        try {
+            bool exitRenderLoop = false;
+            app.PollEvents(exitRenderLoop, requestRestart);
+            if (exitRenderLoop) {
+                std::printf("VirtualBoyGo PC: exitRenderLoop requested\n");
+                break;
+            }
 
-        if (app.IsSessionRunning()) {
-            app.RenderFrame();
-        } else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            if (app.IsSessionRunning()) {
+                app.RenderFrame();
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+        } catch (const std::exception& ex) {
+            std::fprintf(stderr, "VirtualBoyGo: render loop failed: %s\n", ex.what());
+            exitCode = 1;
+            break;
         }
     }
 
     app.Shutdown();
     std::printf("VirtualBoyGo PC exiting\n");
-    return 0;
+    return exitCode;
 }

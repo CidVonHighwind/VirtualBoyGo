@@ -275,7 +275,7 @@ VkRenderPass VulkanRenderer::GetOrCreateRenderPass(VkFormat colorFormat) {
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colorRef{0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
@@ -285,21 +285,11 @@ VkRenderPass VulkanRenderer::GetOrCreateRenderPass(VkFormat colorFormat) {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorRef;
 
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
     VkRenderPassCreateInfo renderPassInfo{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
     renderPassInfo.attachmentCount = 1;
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
     CheckVk(vkCreateRenderPass(m_device, &renderPassInfo, nullptr, &m_renderPass), "vkCreateRenderPass");
     m_renderPassFormat = colorFormat;
     return m_renderPass;
@@ -361,7 +351,7 @@ void VulkanRenderer::RenderEye(VkImage image, int64_t swapchainFormat, uint32_t 
     CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit");
     // Simplicity over performance: block until the eye is fully rendered
     // before returning, instead of proper fence/semaphore pipelining.
-    vkQueueWaitIdle(m_queue);
+    CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (eye render)");
 }
 
 void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels) {
@@ -456,5 +446,5 @@ void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t hei
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &m_commandBuffer;
     CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (mipmaps)");
-    vkQueueWaitIdle(m_queue);
+    CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (mipmaps)");
 }

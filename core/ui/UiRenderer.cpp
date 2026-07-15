@@ -517,7 +517,7 @@ void UiRenderer::UpdateStreamingImage(UiImageHandle handle, const void *pixels, 
     // Simplicity over performance, consistent with the rest of this
     // codebase's one-time-submit-and-wait pattern - a real double-buffered/
     // fenced upload would avoid this CPU stall, but isn't needed yet.
-    vkQueueWaitIdle(m_queue);
+    CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (streaming update)");
 
     img.currentLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 }
@@ -601,19 +601,6 @@ void UiRenderer::BeginOffscreenFrame(UiImageHandle target, const XrColor4f &clea
     vkCmdBindVertexBuffers(m_commandBuffer, 0, 1, &m_unitQuadVertexBuffer, &offset);
 }
 
-void UiRenderer::SetViewportRegion(float x, float y, float w, float h)
-{
-    VkViewport viewport{x, y, w, h, 0.0f, 1.0f};
-    vkCmdSetViewport(m_commandBuffer, 0, 1, &viewport);
-    VkRect2D scissor{{static_cast<int32_t>(x), static_cast<int32_t>(y)},
-                     {static_cast<uint32_t>(w), static_cast<uint32_t>(h)}};
-    vkCmdSetScissor(m_commandBuffer, 0, 1, &scissor);
-
-    m_frameWidth = w;
-    m_frameHeight = h;
-    m_pixelScale = 1.0f;
-}
-
 void UiRenderer::EndFrame()
 {
     vkCmdEndRenderPass(m_commandBuffer);
@@ -623,7 +610,7 @@ void UiRenderer::EndFrame()
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &m_commandBuffer;
     CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (ui frame)");
-    vkQueueWaitIdle(m_queue);
+    CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (ui frame)");
 }
 
 void UiRenderer::InvalidateRenderTargets()
