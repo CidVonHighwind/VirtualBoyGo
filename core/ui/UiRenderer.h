@@ -138,6 +138,17 @@ public:
     void DrawImageRegion(UiImageHandle image, float x, float y, float w, float h,
                          float u0, float v0, float u1, float v1, float alpha = 1.0f,
                          const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f});
+    // Like DrawImageRegion, but recolors via screen_pattern.frag's
+    // luminance-gradient technique instead of a flat tint multiply - stops
+    // is 5 colors (darkest to brightest), forwarded to the shader as-is
+    // (see kScreenPatterns in Settings.h, the single source of truth also
+    // used for the settings menu's preview swatches). Used by
+    // Emulator::DrawScreen when AppSettings::selectedPattern is set instead
+    // of the usual colorR/G/B tint; every other caller keeps using
+    // DrawImageRegion unchanged.
+    void DrawImageRegionPattern(UiImageHandle image, float x, float y, float w, float h,
+                                float u0, float v0, float u1, float v1, const XrColor4f (&stops)[5],
+                                float alpha = 1.0f);
     // Like DrawImage, but masks the sampled texture to rounded corners - the
     // intended way to composite a whole pre-rendered buffer (e.g. an
     // offscreen-rendered AppMenu) as a single rounded panel, instead of
@@ -152,6 +163,15 @@ public:
     // which case the stale cache entry would point at a framebuffer/view
     // built from the destroyed image instead of the new one.
     void InvalidateRenderTargets();
+
+    // Debug-only readback of a CreateRenderTexture target (must already be
+    // in SHADER_READ_ONLY_OPTIMAL, i.e. right after BeginOffscreenFrame/
+    // EndFrame) into a CPU buffer - width*height*4 bytes, same byte order as
+    // the texture's own format (e.g. BGRA for VK_FORMAT_B8G8R8A8_*). Used by
+    // tools/PatternPreviewTool.cpp to dump exactly what the real shader
+    // pipeline produces for a given input, bypassing the need for a
+    // headset/display to inspect it. Blocks until the copy completes.
+    void ReadRenderTexture(UiImageHandle handle, uint32_t width, uint32_t height, std::vector<uint8_t> &outBytes);
 
 private:
     // Push-constant layout shared by all UI pipelines (vertex stage).
@@ -172,6 +192,11 @@ private:
         // as m_menuScale grows (a scale-4 corner would blur across 4
         // physical pixels instead of 1).
         float pixelScale;
+        // 5 vec3 gradient stops (tightly packed - std430 gives a float[]
+        // array 4-byte, not 16-byte, element stride, so this stays 60
+        // bytes), only read by screen_pattern.frag (see its doc comment).
+        // Zero-filled for every other draw call.
+        float patternColors[15];
     };
 
 private:
@@ -220,9 +245,11 @@ private:
     void DestroyImageResources(Image &img);
     RenderTarget &GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width, uint32_t height,
                                           VkRenderPass renderPass);
+    // patternColors, when non-null, must point at 15 floats (5 packed vec3
+    // stops - see PushConstants::patternColors); left zero-filled otherwise.
     void DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDescriptorSet descriptorSet, float x, float y,
                       float w, float h, float u0, float v0, float u1, float v1, const XrColor4f &color,
-                      float cornerRadiusPx = 0.0f);
+                      float cornerRadiusPx = 0.0f, const float *patternColors = nullptr);
 
     VkDevice m_device{VK_NULL_HANDLE};
     VkPhysicalDevice m_physicalDevice{VK_NULL_HANDLE};
@@ -256,6 +283,9 @@ private:
     VkPipeline m_textPipeline{VK_NULL_HANDLE};
     VkPipeline m_imagePipeline{VK_NULL_HANDLE};
     VkPipeline m_imageRoundedPipeline{VK_NULL_HANDLE};
+    // screen_pattern.frag - same descriptor shape as m_imagePipeline (one
+    // sampler at binding 0), so it also reuses m_textPipelineLayout.
+    VkPipeline m_screenPatternPipeline{VK_NULL_HANDLE};
     VkDescriptorPool m_descriptorPool{VK_NULL_HANDLE};
 
     UiFontManager m_fontManager;

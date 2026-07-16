@@ -421,7 +421,7 @@ int main()
             {
                 const XrColor4f tint{settings.colorR, settings.colorG, settings.colorB, 1.0f};
                 emulator.DrawScreen(uiRenderer, 0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height),
-                                    Emulator::Eye::Left, tint);
+                                    Emulator::Eye::Left, tint, settings.selectedPattern);
             }
             if (appMenu.IsVisible())
                 appMenu.Draw(uiRenderer, menuX, menuY);

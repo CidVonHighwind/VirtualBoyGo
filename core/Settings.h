@@ -29,7 +29,7 @@ struct AppSettings
     // Bumped whenever the on-disk layout changes - Load() refuses (leaves
     // defaults in place) on a mismatch rather than attempting any migration,
     // same as FrontendGo's own SAVE_FILE_VERSION check.
-    static constexpr int kVersion = 10;
+    static constexpr int kVersion = 11;
 
     // Move Screen / Follow Head - ported from FrontendGo's LayerBuilder
     // (screenYaw/screenPitch/screenRoll/radiusMenuScreen/screenSize) and
@@ -57,6 +57,12 @@ struct AppSettings
     float ipdOffset = 0.0f;  // meters, range/step match FrontendGo's IPD_STEP_SIZE/min/maxIPD
     int selectedPalette = 0; // authentic Virtual Boy red
     float colorR = 1.0f, colorG = 0.0f, colorB = 0.0f;
+    // -1 = off (screen uses the flat colorR/G/B tint above, unchanged
+    // multiply path); 0-5 = index into kScreenPatterns, a multi-hue
+    // gradient recolor instead of a flat tint - see screen_pattern.frag and
+    // Emulator::DrawScreen. Mutually exclusive with the tint: SettingsPage
+    // hides the R/G/B rows while this is >= 0.
+    int selectedPattern = -1;
 
     // VB gameplay button remapping - indexed directly by VBButtonBit
     // constants (see Emulator.h); some slots (1, 9) are unused gaps in that
@@ -81,3 +87,16 @@ struct AppSettings
 // VirtualBoyGoMaster/Src/Emulator.h's predefColors[11] table. Index 0 is
 // the authentic red Virtual Boy display and is the factory default.
 extern const XrColor4f kPredefColors[11];
+
+// 6 named multi-hue gradients (5 stops each, darkest to brightest - same
+// left-to-right order as the tint preview's 4 brightness swatches) - the
+// single source of truth for both screen_pattern.frag's rendering (passed
+// straight through via push constants, see UiRenderer::DrawImageRegionPattern)
+// and the Color Palette row's preview swatches (SettingsPage::DrawColorPreview) -
+// no color data duplicated into the shader itself. Inspired by
+// AshleyPikachu's Super Bit Shader (github.com/AshleyPikachu/Super-Bit-Shader),
+// a RetroArch shader that recolors monochrome cores by bucketing luminance
+// into several bands and remapping each to a hand-picked color, instead of
+// one flat tint - see screen_pattern.frag's doc comment for how this
+// reinterprets that as a smooth gradient.
+extern const XrColor4f kScreenPatterns[6][5];

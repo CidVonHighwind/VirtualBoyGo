@@ -13,6 +13,16 @@ layout(push_constant) uniform PushConstants {
     vec2 screenSizePx;
     float cornerRadiusPx;  // only read by ui_solid.frag - 0 for a plain rect
     float pixelScale;      // physical pixels per logical unit - see PushConstants comment
+    // 5 vec3 gradient stops (tightly packed, 15 floats), only read directly
+    // from the push constant block by screen_pattern.frag (which
+    // redeclares this exact same full struct, field-for-field - a partial
+    // layout(offset=...) redeclaration skipping the earlier fields worked
+    // on desktop but produced garbage/stale data on Quest's mobile GPU
+    // driver, so every stage now declares the complete block) - not
+    // consumed here or passed down as a varying, since a fragment shader
+    // can read push constants without going through the vertex stage. See
+    // UiRenderer::PushConstants.
+    float patternColors[15];
 } pc;
 
 layout(location = 0) out vec2 vUV;

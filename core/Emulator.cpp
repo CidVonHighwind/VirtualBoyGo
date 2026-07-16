@@ -1,4 +1,5 @@
 #include "Emulator.h"
+#include "Settings.h"
 
 #if defined(__ANDROID__)
 #include "AndroidRomAccess.h"
@@ -7,6 +8,7 @@
 #include <libretro.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -280,7 +282,8 @@ void Emulator::RunFrame(float deltaSeconds)
     }
 }
 
-void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye, const XrColor4f &tint) const
+void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye, const XrColor4f &tint,
+                          int patternIndex) const
 {
     if (!m_screenTexture.IsValid())
         return;
@@ -299,7 +302,10 @@ void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Ey
     else if (eye == Eye::Right)
         u0 = fullU1 * 0.5f;
 
-    ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
+    if (patternIndex >= 0 && patternIndex < 6)
+        ui.DrawImageRegionPattern(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, kScreenPatterns[patternIndex]);
+    else
+        ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
 }
 
 std::string Emulator::StateFileName(int uiSlot, const char *ext) const
@@ -347,7 +353,12 @@ void Emulator::CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const
             const uint8_t r = m_frameBufferRgba[srcIndex + 0];
             const uint8_t g = m_frameBufferRgba[srcIndex + 1];
             const uint8_t b = m_frameBufferRgba[srcIndex + 2];
-            outGray[static_cast<size_t>(y) * kPreviewWidth + x] = std::max({r, g, b});
+            // Core output is gamma-encoded (sRGB-like). Linearize before
+            // storing so .stateimg holds true luminance - byte-compatible
+            // with old save files (pre-fed1a44) which were also linear.
+            const uint8_t srgb = std::max({r, g, b});
+            outGray[static_cast<size_t>(y) * kPreviewWidth + x] =
+                static_cast<uint8_t>(std::round(255.0f * std::pow(srgb / 255.0f, 2.2f)));
         }
     }
 }
@@ -449,12 +460,15 @@ bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
     in.read(reinterpret_cast<char *>(gray.data()), size);
 #endif
 
-    // Expand to RGBA (untinted - see LoadStatePreview's doc comment) for the
-    // caller, since UiRenderer's streaming-texture path expects RGBA.
+    // Expand to RGBA for the caller. .stateimg stores linear luminance;
+    // the streaming texture is UNORM and the display chain expects
+    // gamma-encoded values, so apply sRGB gamma encode here. This also
+    // fixes old (pre-fed1a44) save files which were already linear.
     outRgba.resize(kGraySize * 4);
     for (size_t i = 0; i < kGraySize; ++i)
     {
-        const uint8_t lum = gray[i];
+        const uint8_t lum = static_cast<uint8_t>(
+            std::round(255.0f * std::pow(gray[i] / 255.0f, 1.0f / 2.2f)));
         outRgba[i * 4 + 0] = lum;
         outRgba[i * 4 + 1] = lum;
         outRgba[i * 4 + 2] = lum;

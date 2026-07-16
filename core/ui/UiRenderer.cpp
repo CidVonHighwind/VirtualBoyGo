@@ -123,6 +123,8 @@ void UiRenderer::Shutdown()
         vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
     if (m_textDescriptorSetLayout != VK_NULL_HANDLE)
         vkDestroyDescriptorSetLayout(m_device, m_textDescriptorSetLayout, nullptr);
+    if (m_screenPatternPipeline != VK_NULL_HANDLE)
+        vkDestroyPipeline(m_device, m_screenPatternPipeline, nullptr);
     if (m_imageRoundedPipeline != VK_NULL_HANDLE)
         vkDestroyPipeline(m_device, m_imageRoundedPipeline, nullptr);
     if (m_imagePipeline != VK_NULL_HANDLE)
@@ -623,12 +625,88 @@ void UiRenderer::InvalidateRenderTargets()
     m_renderTargets.clear();
 }
 
+void UiRenderer::ReadRenderTexture(UiImageHandle handle, uint32_t width, uint32_t height, std::vector<uint8_t> &outBytes)
+{
+    outBytes.clear();
+    if (!handle.IsValid())
+        return;
+    Image &img = m_images[handle.id];
+
+    const VkDeviceSize bufferSize = static_cast<VkDeviceSize>(width) * height * 4;
+    VkBufferCreateInfo bufferInfo{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkBuffer stagingBuffer;
+    CheckVk(vkCreateBuffer(m_device, &bufferInfo, nullptr, &stagingBuffer), "vkCreateBuffer (readback)");
+
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(m_device, stagingBuffer, &memReq);
+    VkMemoryAllocateInfo allocInfo{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = UiFindMemoryType(m_physicalDevice, memReq.memoryTypeBits,
+                                                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    VkDeviceMemory stagingMemory;
+    CheckVk(vkAllocateMemory(m_device, &allocInfo, nullptr, &stagingMemory), "vkAllocateMemory (readback)");
+    vkBindBufferMemory(m_device, stagingBuffer, stagingMemory, 0);
+
+    vkResetCommandBuffer(m_commandBuffer, 0);
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    CheckVk(vkBeginCommandBuffer(m_commandBuffer, &beginInfo), "vkBeginCommandBuffer (readback)");
+
+    VkImageMemoryBarrier toSrc{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    toSrc.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toSrc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toSrc.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toSrc.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toSrc.image = img.image;
+    toSrc.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    toSrc.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    toSrc.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &toSrc);
+
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {width, height, 1};
+    vkCmdCopyImageToBuffer(m_commandBuffer, img.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, stagingBuffer, 1, &region);
+
+    VkImageMemoryBarrier toRead{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    toRead.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    toRead.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    toRead.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    toRead.image = img.image;
+    toRead.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    toRead.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    toRead.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(m_commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                         nullptr, 0, nullptr, 1, &toRead);
+
+    CheckVk(vkEndCommandBuffer(m_commandBuffer), "vkEndCommandBuffer (readback)");
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_commandBuffer;
+    CheckVk(vkQueueSubmit(m_queue, 1, &submitInfo, VK_NULL_HANDLE), "vkQueueSubmit (readback)");
+    CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (readback)");
+
+    outBytes.resize(static_cast<size_t>(bufferSize));
+    void *mapped = nullptr;
+    CheckVk(vkMapMemory(m_device, stagingMemory, 0, bufferSize, 0, &mapped), "vkMapMemory (readback)");
+    std::memcpy(outBytes.data(), mapped, static_cast<size_t>(bufferSize));
+    vkUnmapMemory(m_device, stagingMemory);
+
+    vkDestroyBuffer(m_device, stagingBuffer, nullptr);
+    vkFreeMemory(m_device, stagingMemory, nullptr);
+}
+
 // --- Draw calls ---
 
 void UiRenderer::DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDescriptorSet descriptorSet,
                               float x, float y, float w, float h,
                               float u0, float v0, float u1, float v1,
-                              const XrColor4f &color, float cornerRadiusPx)
+                              const XrColor4f &color, float cornerRadiusPx, const float *patternColors)
 {
     vkCmdBindPipeline(m_commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     if (descriptorSet != VK_NULL_HANDLE)
@@ -664,7 +742,10 @@ void UiRenderer::DrawUnitQuad(VkPipeline pipeline, VkPipelineLayout layout, VkDe
     pc.screenSizePx[1] = m_frameHeight;
     pc.cornerRadiusPx = cornerRadiusPx;
     pc.pixelScale = m_pixelScale;
-    vkCmdPushConstants(m_commandBuffer, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pc);
+    if (patternColors)
+        std::memcpy(pc.patternColors, patternColors, sizeof(pc.patternColors));
+    vkCmdPushConstants(m_commandBuffer, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       sizeof(PushConstants), &pc);
 
     vkCmdDraw(m_commandBuffer, 6, 1, 0, 0);
 }
@@ -725,6 +806,24 @@ void UiRenderer::DrawImageRegion(UiImageHandle imageHandle, float x, float y, fl
     const Image &img = m_images[imageHandle.id];
     DrawUnitQuad(m_imagePipeline, m_textPipelineLayout, img.descriptorSet,
                  x, y, w, h, u0, v0, u1, v1, XrColor4f{tint.r, tint.g, tint.b, alpha});
+}
+
+void UiRenderer::DrawImageRegionPattern(UiImageHandle imageHandle, float x, float y, float w, float h,
+                                        float u0, float v0, float u1, float v1, const XrColor4f (&stops)[5],
+                                        float alpha)
+{
+    if (!imageHandle.IsValid())
+        return;
+    const Image &img = m_images[imageHandle.id];
+    float packed[15];
+    for (int i = 0; i < 5; ++i)
+    {
+        packed[i * 3 + 0] = stops[i].r;
+        packed[i * 3 + 1] = stops[i].g;
+        packed[i * 3 + 2] = stops[i].b;
+    }
+    DrawUnitQuad(m_screenPatternPipeline, m_textPipelineLayout, img.descriptorSet,
+                 x, y, w, h, u0, v0, u1, v1, XrColor4f{1.0f, 1.0f, 1.0f, alpha}, 0.0f, packed);
 }
 
 void UiRenderer::DrawImageRounded(UiImageHandle imageHandle, float x, float y, float w, float h, float cornerRadiusPx, float alpha)

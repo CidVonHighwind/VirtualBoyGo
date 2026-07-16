@@ -162,9 +162,15 @@ public:
     // textureWidth/textureHeight size the backing streaming texture; width/
     // height are the on-screen draw size (stretched to fit). tintProvider,
     // if given, is called fresh every draw to tint the image live (e.g. the
-    // VB color palette).
+    // VB color palette). patternIndexProvider, if given and returning 0-5,
+    // draws through screen_pattern.frag's multi-hue gradient instead (see
+    // UiRenderer::DrawImageRegionPattern) and tintProvider is ignored for
+    // that frame - same tint-vs-pattern split as Emulator::DrawScreen, kept
+    // in sync here so the save-slot preview matches AppSettings::selectedPattern
+    // instead of always falling back to the (possibly stale) flat tint.
     MenuImage(UiRenderer &ui, UiFontHandle font, uint32_t textureWidth, uint32_t textureHeight, float posX, float posY,
-              float width, float height, std::function<XrColor4f()> tintProvider = nullptr);
+              float width, float height, std::function<XrColor4f()> tintProvider = nullptr,
+              std::function<int()> patternIndexProvider = nullptr);
 
     // rgba must be exactly textureWidth*textureHeight*4 bytes.
     void SetImage(const std::vector<uint8_t> &rgba);
@@ -179,6 +185,7 @@ private:
     float m_width, m_height;
     bool m_hasImage = false;
     std::function<XrColor4f()> m_tintProvider;
+    std::function<int()> m_patternIndexProvider;
 };
 
 // A vertically scrollable list that fills a fixed content rect. Handles its
@@ -225,6 +232,12 @@ public:
         AccessoryDrawFn accessoryDraw;
         bool isSpacer = false;
         float height = 0; // only used when isSpacer
+        // Set false to collapse this row to zero height and skip it during
+        // Up/Down navigation - same treatment as isSpacer (see PressedUp/
+        // PressedDown/rowHeight), but toggleable at runtime instead of fixed
+        // at AddEntry time. Used by SettingsPage to hide the R/G/B rows
+        // while a screen pattern (as opposed to a flat tint) is selected.
+        bool Visible = true;
 
         // Two-column rows (twoColumn == true) draw `text` and `textSecondary`
         // side by side after the icon - Left/Right move the highlight between

@@ -75,7 +75,9 @@ void MainPage::Init(UiRenderer &ui, const UiMenuResources &resources)
                                             {
                                                 return settings ? XrColor4f{settings->colorR, settings->colorG, settings->colorB, 1.0f}
                                                                 : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
-                                            });
+                                            },
+                                            [settings]() -> int
+                                            { return settings ? settings->selectedPattern : -1; });
     m_menu.MenuItems.push_back(m_preview);
 
     m_menu.BackPress = [appMenu]() { if (appMenu) appMenu->Hide(); };

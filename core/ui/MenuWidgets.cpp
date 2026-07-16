@@ -1,4 +1,5 @@
 #include "MenuWidgets.h"
+#include "../Settings.h"
 #include "pages/AppMenuLayout.h"
 
 #include <algorithm>
@@ -143,8 +144,10 @@ namespace
 }
 
 MenuImage::MenuImage(UiRenderer &ui, UiFontHandle font, uint32_t textureWidth, uint32_t textureHeight, float posX,
-                     float posY, float width, float height, std::function<XrColor4f()> tintProvider)
-    : m_ui(&ui), m_font(font), m_width(width), m_height(height), m_tintProvider(std::move(tintProvider))
+                     float posY, float width, float height, std::function<XrColor4f()> tintProvider,
+                     std::function<int()> patternIndexProvider)
+    : m_ui(&ui), m_font(font), m_width(width), m_height(height), m_tintProvider(std::move(tintProvider)),
+      m_patternIndexProvider(std::move(patternIndexProvider))
 {
     PosX = posX;
     PosY = posY;
@@ -180,9 +183,18 @@ void MenuImage::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
 
     if (m_hasImage)
     {
-        XrColor4f tint = m_tintProvider ? m_tintProvider() : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
-        tint.a *= alpha;
-        ui.DrawImage(m_texture, x, y, m_width, m_height, tint);
+        const int patternIndex = m_patternIndexProvider ? m_patternIndexProvider() : -1;
+        if (patternIndex >= 0 && patternIndex < 6)
+        {
+            ui.DrawImageRegionPattern(m_texture, x, y, m_width, m_height, 0.0f, 0.0f, 1.0f, 1.0f,
+                                      kScreenPatterns[patternIndex], alpha);
+        }
+        else
+        {
+            XrColor4f tint = m_tintProvider ? m_tintProvider() : XrColor4f{1.0f, 1.0f, 1.0f, 1.0f};
+            tint.a *= alpha;
+            ui.DrawImage(m_texture, x, y, m_width, m_height, tint);
+        }
         return;
     }
 
@@ -418,7 +430,12 @@ std::shared_ptr<MenuList::Entry> MenuList::AddSpacer(float height)
     return entry;
 }
 
-float MenuList::rowHeight(int index) const { return m_entries[index]->isSpacer ? m_entries[index]->height : m_itemHeight; }
+float MenuList::rowHeight(int index) const
+{
+    if (m_entries[index]->isSpacer)
+        return m_entries[index]->height;
+    return m_entries[index]->Visible ? m_itemHeight : 0.0f;
+}
 
 // How many entries starting at `first` fit within the list's height, packing
 // by each row's own height rather than assuming a uniform m_itemHeight.
@@ -443,14 +460,15 @@ void MenuList::ResetSelection()
 {
     m_selectedIndex = 0;
     m_activeColumn = 0;
-    while (m_selectedIndex < (int)m_entries.size() - 1 && m_entries[m_selectedIndex]->isSpacer)
+    while (m_selectedIndex < (int)m_entries.size() - 1 &&
+           (m_entries[m_selectedIndex]->isSpacer || !m_entries[m_selectedIndex]->Visible))
         ++m_selectedIndex;
     m_firstVisible = 0;
 }
 
 void MenuList::SelectIndex(int index)
 {
-    if (index < 0 || index >= (int)m_entries.size() || m_entries[index]->isSpacer)
+    if (index < 0 || index >= (int)m_entries.size() || m_entries[index]->isSpacer || !m_entries[index]->Visible)
         return;
 
     m_selectedIndex = index;
@@ -471,7 +489,7 @@ int MenuList::PressedUp()
             --m_selectedIndex;
         else
             m_selectedIndex = (int)m_entries.size() - 1; // wrap to bottom
-    } while (m_entries[m_selectedIndex]->isSpacer && m_selectedIndex != start);
+    } while ((m_entries[m_selectedIndex]->isSpacer || !m_entries[m_selectedIndex]->Visible) && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
@@ -491,7 +509,7 @@ int MenuList::PressedDown()
             ++m_selectedIndex;
         else
             m_selectedIndex = 0; // wrap to top
-    } while (m_entries[m_selectedIndex]->isSpacer && m_selectedIndex != start);
+    } while ((m_entries[m_selectedIndex]->isSpacer || !m_entries[m_selectedIndex]->Visible) && m_selectedIndex != start);
 
     if (m_selectedIndex < m_firstVisible)
         m_firstVisible = m_selectedIndex;
@@ -572,7 +590,7 @@ void MenuList::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
         const Entry &entry = *m_entries[idx];
         const float h = rowHeight(idx);
 
-        if (!entry.isSpacer)
+        if (!entry.isSpacer && entry.Visible)
         {
             const bool sel = (idx == m_selectedIndex);
             const float x = m_posX + offsetX + (sel ? 2.5f : 0.0f);

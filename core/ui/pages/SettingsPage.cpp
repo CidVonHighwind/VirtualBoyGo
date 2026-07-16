@@ -42,6 +42,19 @@ void DrawColorPreview(UiRenderer &ui, UiFontHandle labelFont, AppSettings *setti
     float x = rowX + MenuList::kIconSize + MenuList::kIconTextGap + labelWidth + kSwatchLeftGap;
     const float y = rowY + (rowH - kSwatchSize) / 2.0f;
 
+    // A pattern's 5 gradient stops stand in for the 4 tint brightness
+    // swatches below - same kScreenPatterns array the screen shader itself
+    // reads (see Settings.h), so this always matches what's actually drawn.
+    if (settings->selectedPattern >= 0 && settings->selectedPattern < 6)
+    {
+        for (const XrColor4f &stop : kScreenPatterns[settings->selectedPattern])
+        {
+            ui.DrawQuadRounded(x, y, kSwatchSize, kSwatchSize, XrColor4f{stop.r, stop.g, stop.b, alpha}, 1.0f);
+            x += kSwatchSize + kSwatchGap;
+        }
+        return;
+    }
+
     for (int i = 0; i < 4; ++i)
     {
         const float level = kBrightnessLevels[i];
@@ -120,14 +133,35 @@ void SettingsPage::ChangePalette(int delta)
 {
     if (!m_settings)
         return;
-    int index = m_settings->selectedPalette;
-    if (index < 0)
+    // One combined cycle: the 11 flat-tint presets, then the 6 gradient
+    // patterns (kScreenPatterns) - exactly one of selectedPalette/
+    // selectedPattern is "active" on any given index (see RefreshLabels,
+    // which hides the R/G/B rows for the pattern half).
+    constexpr int kPresetCount = 11;
+    constexpr int kPatternCount = 6;
+    constexpr int kTotal = kPresetCount + kPatternCount;
+
+    int index;
+    if (m_settings->selectedPattern >= 0)
+        index = kPresetCount + m_settings->selectedPattern;
+    else if (m_settings->selectedPalette >= 0)
+        index = m_settings->selectedPalette;
+    else
         index = 0; // was on a custom (non-preset) color - start cycling from the first preset
-    index = (index + delta + 11) % 11;
-    m_settings->selectedPalette = index;
-    m_settings->colorR = kPredefColors[index].r;
-    m_settings->colorG = kPredefColors[index].g;
-    m_settings->colorB = kPredefColors[index].b;
+
+    index = (index + delta + kTotal) % kTotal;
+    if (index < kPresetCount)
+    {
+        m_settings->selectedPalette = index;
+        m_settings->selectedPattern = -1;
+        m_settings->colorR = kPredefColors[index].r;
+        m_settings->colorG = kPredefColors[index].g;
+        m_settings->colorB = kPredefColors[index].b;
+    }
+    else
+    {
+        m_settings->selectedPattern = index - kPresetCount;
+    }
     RefreshLabels();
 }
 
@@ -140,6 +174,7 @@ void SettingsPage::ChangeColorChannel(float AppSettings::*channel, float delta)
     if (value < 0.0f) value = 0.0f;
     if (value > 1.0f) value = 1.0f;
     m_settings->selectedPalette = -1; // diverges from whatever preset was selected, matches FrontendGo
+    m_settings->selectedPattern = -1; // R/G/B rows are only reachable in tint mode anyway, but stay defensive
     RefreshLabels();
 }
 
@@ -165,6 +200,12 @@ void SettingsPage::RefreshLabels()
     m_colorREntry->SetText(FormatFloat("Red: ", m_settings->colorR, 2));
     m_colorGEntry->SetText(FormatFloat("Green: ", m_settings->colorG, 2));
     m_colorBEntry->SetText(FormatFloat("Blue: ", m_settings->colorB, 2));
+    // A gradient pattern has no R/G/B of its own to adjust - hide those
+    // rows entirely while one's selected (see MenuList::Entry::Visible).
+    const bool tintMode = m_settings->selectedPattern < 0;
+    m_colorREntry->Visible = tintMode;
+    m_colorGEntry->Visible = tintMode;
+    m_colorBEntry->Visible = tintMode;
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

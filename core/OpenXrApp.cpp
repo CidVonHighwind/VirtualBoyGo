@@ -619,7 +619,7 @@ bool OpenXrApp::RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompo
                                 m_appMenu.GetBackgroundColor());
         if (m_emulator.HasScreen())
             m_emulator.DrawScreen(m_uiRenderer, 0.0f, 0.0f, static_cast<float>(sc.width),
-                                  static_cast<float>(sc.height), info.eye, tint);
+                                  static_cast<float>(sc.height), info.eye, tint, m_settings.selectedPattern);
         m_uiRenderer.EndFrame();
         XrSwapchainImageReleaseInfo releaseInfo{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
         CheckXr(xrReleaseSwapchainImage(sc.handle, &releaseInfo), "xrReleaseSwapchainImage (screen eye)");

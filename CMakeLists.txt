@@ -109,8 +109,10 @@ if(NOT ANDROID)
     vbgo_add_shader(UI_TEXT_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_text.frag)
     vbgo_add_shader(UI_IMAGE_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image.frag)
     vbgo_add_shader(UI_IMAGE_ROUNDED_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/ui_image_rounded.frag)
+    vbgo_add_shader(SCREEN_PATTERN_FRAG_HEADER ${CMAKE_SOURCE_DIR}/shaders/screen_pattern.frag)
     add_custom_target(vbgo_shaders DEPENDS ${UI_VERT_HEADER} ${UI_SOLID_FRAG_HEADER}
-                                            ${UI_TEXT_FRAG_HEADER} ${UI_IMAGE_FRAG_HEADER} ${UI_IMAGE_ROUNDED_FRAG_HEADER})
+                                            ${UI_TEXT_FRAG_HEADER} ${UI_IMAGE_FRAG_HEADER} ${UI_IMAGE_ROUNDED_FRAG_HEADER}
+                                            ${SCREEN_PATTERN_FRAG_HEADER})
 endif()
 
 # --------------------------------------------------------------------------
@@ -226,6 +228,13 @@ else()
         platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
+
+    # Headless debug tool - see its own doc comment. Not part of the
+    # shipping app.
+    add_executable(PatternPreviewTool
+        tools/PatternPreviewTool.cpp
+    )
+    target_link_libraries(PatternPreviewTool PRIVATE vbgo_app)
 
     # MSVC's incremental linker has been observed to silently keep a stale
     # .exe (identical byte-for-byte) across rebuilds when only an upstream

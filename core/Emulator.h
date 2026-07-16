@@ -133,8 +133,12 @@ class Emulator
     // the drawn pixels (white = no-op) - the VB color palette/custom RGB
     // tint (AppSettings::colorR/G/B) is applied this way, since the core
     // itself has no palette concept and always outputs pre-colored frames.
+    // patternIndex (0-5, see kScreenPatterns in Settings.h) draws through
+    // screen_pattern.frag's multi-hue gradient instead, ignoring tint
+    // entirely - the flat single-color multiply path above is otherwise
+    // completely unchanged. -1 (default) keeps today's tint-only behavior.
     void DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Eye eye = Eye::Both,
-                    const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}) const;
+                    const XrColor4f &tint = XrColor4f{1.0f, 1.0f, 1.0f, 1.0f}, int patternIndex = -1) const;
 
     // UI slots are 0-9 (10 total, matching FrontendGo's saveStates[10]) -
     // slot 0 is unsuffixed on disk, same as FrontendGo's slot 0 (see
@@ -150,8 +154,9 @@ class Emulator
 
     // Reads the preview from the last SaveState(uiSlot) call, expanded to
     // RGBA (R=G=B=lum, A=255) - false if that slot has never been saved.
-    // On-disk format (.stateimg[N]) is raw grayscale, byte-compatible with
-    // FrontendGo; palette tint is applied at display time, not baked in.
+    // On-disk format (.stateimg[N]) is raw linear-luminance grayscale,
+    // byte-compatible with FrontendGo and pre-fed1a44 saves; gamma encode
+    // is applied at load time (LoadStatePreview), not baked in.
     bool LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const;
 
     // Flushes cart SRAM for the currently-loaded ROM, if any, and stops
