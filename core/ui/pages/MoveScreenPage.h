@@ -27,8 +27,8 @@ private:
     static constexpr float kDistanceStep = 0.1f;     // meters
     static constexpr float kScaleStep = 0.1f;
     static constexpr float kIpdStep = 1.0f / 256.0f; // matches FrontendGo's IPD_STEP_SIZE
-    static constexpr float kIpdMin = -0.125f;
-    static constexpr float kIpdMax = 0.125f;
+    static constexpr float kIpdMin = -0.5f;
+    static constexpr float kIpdMax = 0.5f;
 
     static constexpr float kDefaultYaw = 0.0f;
     static constexpr float kDefaultPitch = 0.0f;

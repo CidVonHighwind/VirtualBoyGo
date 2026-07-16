@@ -37,6 +37,25 @@ class OpenXrApp {
 
     void RenderFrame();
 
+    // Feeds a physical/Bluetooth gamepad's current button state (Android
+    // only - see AndroidMain.cpp's HandleInputEvent, which has no polling
+    // API for this like desktop's glfwGetGamepadState and instead builds
+    // this bitmask up from raw AInputEvents) into ButtonMapper::DeviceGamepad
+    // for RenderFrame to pick up next frame. XrInput never populates that
+    // slot itself (only the Quest's own Touch controllers - see its class
+    // comment), so without this call DeviceGamepad silently stays all-zero
+    // on the OpenXR path, even though menu navigation (MenuWidgets.cpp) and
+    // the default gameplay bindings (EmulatorButtonMapPage.cpp) already
+    // handle it like any other input device.
+    void SetGamepadButtonState(uint32_t bits) { m_gamepadButtonState = bits; }
+
+    // Gamepad equivalent of the Touch controllers' dedicated hardware menu
+    // button (XrInput::IsMenuButtonPressed) - a physical gamepad has no such
+    // button of its own, so AndroidMain.cpp's HandleInputEvent designates
+    // one (left stick click) for this. Without it there would be no way to
+    // open/close the menu with a gamepad at all.
+    void SetGamepadMenuButtonPressed(bool pressed) { m_gamepadMenuButtonPressed = pressed; }
+
    private:
     void CreateInstance(const InitInfo& info);
     void InitializeSystem();
@@ -156,4 +175,10 @@ class OpenXrApp {
     bool m_lastMenuButtonPressed{false};
     // Seconds since the last battery poll - see UpdateBatteryPercent.
     float m_batteryPollSeconds{0.0f};
+    // Latest physical-gamepad bitmask from SetGamepadButtonState - merged
+    // into m_buttonStates[DeviceGamepad] each frame in RenderFrame.
+    uint32_t m_gamepadButtonState{0};
+    // Latest state from SetGamepadMenuButtonPressed - OR'd with
+    // XrInput::IsMenuButtonPressed() each frame in RenderFrame.
+    bool m_gamepadMenuButtonPressed{false};
 };

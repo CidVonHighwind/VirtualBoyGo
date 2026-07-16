@@ -757,8 +757,11 @@ void OpenXrApp::RenderFrame()
     std::memcpy(m_lastButtonStates, m_buttonStates, sizeof(m_buttonStates));
     m_input.Sync(m_session);
     m_input.GetButtonStates(m_buttonStates);
+    // XrInput always zeroes this slot (see its class comment) - a physical
+    // gamepad isn't an OpenXR device, so it's fed in separately.
+    m_buttonStates[ButtonMapper::DeviceGamepad] = m_gamepadButtonState;
 
-    const bool menuButtonPressed = m_input.IsMenuButtonPressed();
+    const bool menuButtonPressed = m_input.IsMenuButtonPressed() || m_gamepadMenuButtonPressed;
     if (menuButtonPressed && !m_lastMenuButtonPressed)
         m_appMenu.ToggleOpen();
     m_lastMenuButtonPressed = menuButtonPressed;
@@ -780,6 +783,15 @@ void OpenXrApp::RenderFrame()
             if ((m_buttonStates[device] & mask) && !(m_lastButtonStates[device] & mask))
                 m_appMenu.SubmitRawMappingInput({true, device, bit});
         }
+    }
+    // A physical gamepad has no dedicated menu-nav hardware to disambiguate
+    // from - unlike Touch, its D-pad/stick bits ARE the real buttons, so
+    // they're eligible for capture too (matches pc2d's PollGameplayInput).
+    for (int bit = 0; bit < ButtonMapper::EmuButtonCount; ++bit)
+    {
+        const uint32_t mask = ButtonMapper::ButtonMapping[bit];
+        if ((m_buttonStates[ButtonMapper::DeviceGamepad] & mask) && !(m_lastButtonStates[ButtonMapper::DeviceGamepad] & mask))
+            m_appMenu.SubmitRawMappingInput({true, ButtonMapper::DeviceGamepad, bit});
     }
 
     // Translated from m_buttonStates (already populated above by
