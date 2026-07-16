@@ -52,6 +52,11 @@ class OpenXrApp {
     // XR_FB_display_refresh_rate (e.g. SteamVR).
     void RequestMaxDisplayRefreshRate();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
+    // Polls the device battery level into m_appMenu's header indicator, at
+    // most once a second (AndroidRomAccess::GetBatteryPercent is a JNI call
+    // - see its doc comment). No-op off Android, matching how the indicator
+    // never draws there (m_batteryPercent stays -1).
+    void UpdateBatteryPercent(float deltaSeconds);
     // Renders the emulator screen into its two dedicated per-eye quad
     // swapchains and fills out an XrCompositionLayerQuad for each - the
     // emulator always renders both VB eyes packed side-by-side into a single
@@ -149,4 +154,6 @@ class OpenXrApp {
     // m_appMenu open/closed (see XrInput::IsMenuButtonPressed) - a held
     // button shouldn't toggle every frame.
     bool m_lastMenuButtonPressed{false};
+    // Seconds since the last battery poll - see UpdateBatteryPercent.
+    float m_batteryPollSeconds{0.0f};
 };

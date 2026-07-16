@@ -3,10 +3,12 @@ package com.nintendont.virtualboygo;
 import android.app.NativeActivity;
 import android.content.ContentResolver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.UriPermission;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.BatteryManager;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
@@ -66,6 +68,20 @@ public class MainActivity extends NativeActivity {
     }
 
     // ---- Called from native code (core/AndroidRomAccess.h) via JNI ----
+
+    // 0-100 device battery level, for the in-menu battery indicator.
+    public int getBatteryLevel() {
+        Intent batteryIntent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        if (batteryIntent == null) {
+            return -1;
+        }
+        int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        if (level < 0 || scale <= 0) {
+            return -1;
+        }
+        return (int) (level / (float) scale * 100);
+    }
 
     // Lets the user pick a different folder after first launch. Only clears
     // the saved folder - relaunching mid-session loses VR focus (see

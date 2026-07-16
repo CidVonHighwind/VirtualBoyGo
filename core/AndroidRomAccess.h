@@ -1,9 +1,10 @@
 #pragma once
 
-// JNI bridge to MainActivity.java's Storage Access Framework ROMs folder
-// (see RomScanner.h for why SAF). Header-only inline stubs so it compiles
-// into the shared core/ source list without per-platform .cpp wiring; no-op
-// off Android.
+// JNI bridge to MainActivity.java - mainly its Storage Access Framework ROMs
+// folder (see RomScanner.h for why SAF), plus small misc device queries
+// (battery level) that piggyback on the same g_activity/JNIEnv plumbing.
+// Header-only inline stubs so it compiles into the shared core/ source list
+// without per-platform .cpp wiring; no-op off Android.
 #if defined(__ANDROID__)
 
 #include <jni.h>
@@ -197,6 +198,24 @@ namespace AndroidRomAccess
         return ReadAllFromFd(fd);
     }
 
+    // 0-100 device battery level, ported from FrontendGo's
+    // MainActivity.GetBatteryLevel/MenuGo::UpdateBatteryLevel. -1 if
+    // unavailable (mirrors AppMenu::SetBatteryPercent's "don't draw" sentinel
+    // - see its doc comment).
+    inline int GetBatteryPercent()
+    {
+        if (!g_vm || !g_activity)
+            return -1;
+        JNIEnv *env = nullptr;
+        g_vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6);
+
+        jclass activityClass = env->GetObjectClass(g_activity);
+        jmethodID getBatteryLevel = env->GetMethodID(activityClass, "getBatteryLevel", "()I");
+        const int percent = env->CallIntMethod(g_activity, getBatteryLevel);
+        env->DeleteLocalRef(activityClass);
+        return percent;
+    }
+
     // true if fileName exists in the ROMs folder (root or "States", per
     // inStatesDir).
     inline bool RomsFileExists(const std::string &fileName, bool inStatesDir)
@@ -222,6 +241,7 @@ namespace AndroidRomAccess
 {
     inline bool HasRomsFolder() { return true; } // other platforms don't gate on this
     inline void RequestChangeRomsFolder() {}
+    inline int GetBatteryPercent() { return -1; } // no real battery to read off Android
 } // namespace AndroidRomAccess
 
 #endif

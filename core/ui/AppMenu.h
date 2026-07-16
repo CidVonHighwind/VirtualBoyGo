@@ -51,11 +51,12 @@ public:
     // Battery indicator drawn top-right of the header, ported from
     // FrontendGo's MenuGo::DrawMenu (the coloured fill block + "N%" text).
     // percent: 0-100 shows it: any value outside that range (default -1)
-    // hides it entirely - no platform in this rework can read a real
-    // battery level yet, so callers opt in explicitly instead of the
-    // indicator silently showing a stale/fake reading. Nothing calls this
-    // on the OpenXR path (desktop VR or Android) today, so it stays hidden
-    // there; the flat 2D debug build cycles a fake value through it instead.
+    // hides it entirely, so callers opt in explicitly instead of the
+    // indicator silently showing a stale/fake reading. OpenXrApp polls the
+    // real device battery via AndroidRomAccess::GetBatteryPercent on Android
+    // (see OpenXrApp::UpdateBatteryPercent); it stays hidden on desktop
+    // OpenXR builds (e.g. SteamVR) with no battery to read. The flat 2D
+    // debug build cycles a fake value through it instead.
     void SetBatteryPercent(int percent) { m_batteryPercent = percent; }
 
     // Menu open/closed - closing lets the emulator screen show unobstructed

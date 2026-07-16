@@ -1,4 +1,5 @@
 #include "OpenXrApp.h"
+#include "AndroidRomAccess.h"
 #include "ui/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
@@ -726,6 +727,19 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
     return true;
 }
 
+void OpenXrApp::UpdateBatteryPercent(float deltaSeconds)
+{
+#if defined(__ANDROID__)
+    m_batteryPollSeconds += deltaSeconds;
+    if (m_batteryPollSeconds < 1.0f)
+        return;
+    m_batteryPollSeconds = 0.0f;
+    m_appMenu.SetBatteryPercent(AndroidRomAccess::GetBatteryPercent());
+#else
+    (void)deltaSeconds; // no real battery to read (e.g. SteamVR on PC) - indicator stays hidden
+#endif
+}
+
 void OpenXrApp::RenderFrame()
 {
     XrFrameWaitInfo frameWaitInfo{XR_TYPE_FRAME_WAIT_INFO};
@@ -750,6 +764,7 @@ void OpenXrApp::RenderFrame()
     m_lastMenuButtonPressed = menuButtonPressed;
 
     m_appMenu.Update(m_buttonStates, m_lastButtonStates, deltaSeconds);
+    UpdateBatteryPercent(deltaSeconds);
 
     // Mapping capture receives only real, hand-specific controller inputs.
     // Generic direction bits exist solely for menu navigation and are
