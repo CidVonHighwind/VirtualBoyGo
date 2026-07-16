@@ -279,4 +279,12 @@
       <path style="fill:none;stroke:#ffffff;stroke-width:5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" d="m 980,159.49993 c 15,-16.25 30,-16.25 45,0" id="ipd-part-3" inkscape:connector-curvature="0" sodipodi:nodetypes="cc" />
     </g>
   </g>
+  <rect id="icon-frame-flat-screen" data-icon-path="flat_screen_icon.png" x="300" y="200" width="50" height="50" style="fill:#000000;fill-opacity:0;stroke:none" />
+  <g id="art-flat-screen">
+    <path style="fill:none;stroke:#ffffff;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round" d="M 307,214.5 H 343 V 235.5 H 307 Z" id="flat-screen-part-1" />
+  </g>
+  <rect id="icon-frame-curved-screen" data-icon-path="curved_screen_icon.png" x="350" y="200" width="50" height="50" style="fill:#000000;fill-opacity:0;stroke:none" />
+  <g id="art-curved-screen">
+    <path style="fill:none;stroke:#ffffff;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round" d="M 357,214.5 Q 375,208.5 393,214.5 L 393,235.5 Q 375,229.5 357,235.5 Z" id="curved-screen-part-1" />
+  </g>
 </svg>

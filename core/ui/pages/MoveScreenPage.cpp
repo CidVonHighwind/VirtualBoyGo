@@ -62,11 +62,8 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
         [this](MenuItem *) { CycleFollowHeadMode(-1); }, [this](MenuItem *) { CycleFollowHeadMode(1); }, UiIconId::FollowHead);
     m_threeDeeEntry = list->AddEntry("3D Screen: Yes", [this](MenuItem *) { ToggleThreeDeeMode(); }, // Select acts like Right - same toggle
         [this](MenuItem *) { ToggleThreeDeeMode(); }, [this](MenuItem *) { ToggleThreeDeeMode(); }, UiIconId::ThreeD);
-    // No icon fits "curved" among the existing set - reserve the icon gutter
-    // instead so the label still aligns with the rows above/below it.
-    m_curvedScreenEntry = list->AddEntry("Curved Screen: No", [this](MenuItem *) { ToggleCurvedScreen(); }, // Select acts like Right - same toggle
-        [this](MenuItem *) { ToggleCurvedScreen(); }, [this](MenuItem *) { ToggleCurvedScreen(); });
-    m_curvedScreenEntry->reserveIconSpace = true;
+    m_curvedScreenEntry = list->AddEntry("Screen: Flat", [this](MenuItem *) { ToggleCurvedScreen(); }, // Select acts like Right - same toggle
+        [this](MenuItem *) { ToggleCurvedScreen(); }, [this](MenuItem *) { ToggleCurvedScreen(); }, UiIconId::FlatScreen);
     // IPD is the one exception to "Select acts like Right" - press already
     // has a distinct, meaningful action (reset to 0), so it stays that way
     // rather than doubling up with Right's step.
@@ -75,7 +72,7 @@ void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 
     list->AddSpacer(kMenuSpacerSize);
 
-    list->AddEntry("Reset View", [this](MenuItem *) { ResetView(); }, nullptr, nullptr, UiIconId::ResetView);
+    list->AddEntry("Reset Values", [this](MenuItem *) { ResetView(); }, nullptr, nullptr, UiIconId::ResetView);
 
     m_menu.MenuItems.push_back(list);
 
@@ -202,8 +199,10 @@ void MoveScreenPage::RefreshLabels()
                                                                                           : "Instant";
     m_followHeadEntry->SetText(std::string("Follow Head: ") + followHeadLabel);
     m_threeDeeEntry->SetText(m_settings->useThreeDeeMode ? "3D Screen: Yes" : "3D Screen: No");
+    m_threeDeeEntry->icon = m_settings->useThreeDeeMode ? UiIconId::ThreeD : UiIconId::TwoD;
     m_ipdEntry->SetText(FormatFloat("IPD offset: ", m_settings->ipdOffset));
-    m_curvedScreenEntry->SetText(m_settings->curvedScreen ? "Curved Screen: Yes" : "Curved Screen: No");
+    m_curvedScreenEntry->SetText(m_settings->curvedScreen ? "Screen: Curved" : "Screen: Flat");
+    m_curvedScreenEntry->icon = m_settings->curvedScreen ? UiIconId::CurvedScreen : UiIconId::FlatScreen;
 
     m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

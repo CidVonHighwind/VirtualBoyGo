@@ -38,6 +38,8 @@ ICONS = [
     ("ButtonY", "button_y_icon.dds"),
     ("TwoD", "2d_icon.dds"),
     ("ThreeD", "3d_icon.dds"),
+    ("FlatScreen", "flat_screen_icon.dds"),
+    ("CurvedScreen", "curved_screen_icon.dds"),
     ("ForceDmg", "force_dmg_icon.dds"),
     ("Mapping", "mapping_icon.dds"),
     ("Palette", "palette_icon.dds"),

@@ -7,8 +7,9 @@ class MenuList;
 struct AppSettings;
 
 // Adjust Screen: screen placement and view mode - position (Yaw/Pitch/Roll/
-// Distance/Scale + Reset View), Follow Head, 3D Screen, and IPD offset. Back
-// is the bottom-bar B hint, not an in-list entry (see MenuPage::HasBackAction).
+// Distance/Scale + Reset Values), Follow Head, 3D Screen, Screen: Flat/Curved,
+// and IPD offset. Back is the bottom-bar B hint, not an in-list entry (see
+// MenuPage::HasBackAction).
 // These only matter on the OpenXR path (they feed OpenXrApp's screen quad
 // pose); pc2d's flat debug window has no 3D screen to move.
 class MoveScreenPage : public MenuPage
