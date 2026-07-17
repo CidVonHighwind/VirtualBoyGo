@@ -73,6 +73,24 @@ connected (Virtual Desktop, SteamVR, or Oculus Link) - it streams straight to
 the headset with no APK/adb involved. `XR_ERROR_FORM_FACTOR_UNAVAILABLE`
 means the headset isn't currently connected, not a code bug.
 
+### Version string
+
+The Settings page's version label is auto-generated at build time (see
+`cmake/GenerateVersion.cmake`) - by default `v<VBGO_VERSION>-dev.<commit
+count>` (e.g. `v2.0.0-dev.81`, `-dirty` appended if the working tree has
+uncommitted changes). This is deliberately independent of `--config
+Debug`/`Release` - an optimized Release build is still just a local dev/perf-
+test build unless you explicitly say otherwise. Only pass this for the build
+you're actually cutting as a numbered release:
+
+```
+cmake -B build-pc -G "Visual Studio 18 2026" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DVBGO_RELEASE_BUILD=ON
+cmake --build build-pc --config Release
+```
+
+which produces the clean `v<VBGO_VERSION>` string instead. Bump `VBGO_VERSION`
+in the root `CMakeLists.txt` by hand at each release.
+
 ## Building - Android (Quest)
 
 Requires Android SDK (compileSdk 34, build-tools 34.0.0) + NDK 23.2.8568313 +
@@ -123,7 +141,18 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Or `assembleRelease` / `app/build/outputs/apk/release/app-release.apk`.
+Or `assembleRelease` / `app/build/outputs/apk/release/app-release.apk` - an
+optimized build for testing on-device (fast enough to actually play), but
+still just a dev build (`v2.0.0-dev.<commit count>` in Settings) unless you
+add `-Pofficial=true`:
+
+```
+./gradlew assembleRelease -Pofficial=true
+```
+
+which is what actually cutting a numbered release should use - see
+"Version string" above for why this is a separate flag from the Debug/Release
+build type.
 
 ### Run
 

@@ -5,10 +5,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Single source of truth for the release version (SettingsPage's version
-# label) - bump this by hand at each release tag. Dev builds (anything but
-# a Release config) get this plus the current git commit appended - see
-# cmake/GenerateVersion.cmake.
+# label) - bump this by hand at each release tag.
 set(VBGO_VERSION "2.0.0")
+
+# Deliberately independent of CMAKE_BUILD_TYPE/$<CONFIG>: an optimized
+# Release-config build is still just a local dev build (e.g. for on-device
+# perf testing) unless this is explicitly set, so it gets the same
+# dev.<commit count> version string as a Debug build - see
+# cmake/GenerateVersion.cmake. Only flip this ON for the build you're
+# actually cutting as a numbered release (Android: `./gradlew assembleRelease
+# -Pofficial=true`; PC: `-DVBGO_RELEASE_BUILD=ON` on the cmake configure line).
+option(VBGO_RELEASE_BUILD "This is an official numbered release, not a dev build" OFF)
 
 # MSVC's default source/execution charset isn't UTF-8 - without this, UTF-8
 # string literals in source (e.g. any future non-ASCII text in this project)
@@ -207,14 +214,15 @@ endif()
 
 # Generates generated/Version.h (kGeneratedVersionString - see
 # AppMenuLayout.h) fresh on every build, not just every configure, so the
-# git hash always reflects HEAD even if nothing else triggered a reconfigure.
+# commit count always reflects HEAD even if nothing else triggered a
+# reconfigure.
 set(VBGO_GENERATED_VERSION_DIR "${CMAKE_BINARY_DIR}/generated")
 add_custom_target(vbgo_version ALL
     COMMAND ${CMAKE_COMMAND}
             -DSRC_DIR=${CMAKE_SOURCE_DIR}
             -DOUT_FILE=${VBGO_GENERATED_VERSION_DIR}/Version.h
             -DVBGO_VERSION=${VBGO_VERSION}
-            -DBUILD_TYPE=$<CONFIG>
+            -DVBGO_RELEASE_BUILD=${VBGO_RELEASE_BUILD}
             -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
     BYPRODUCTS ${VBGO_GENERATED_VERSION_DIR}/Version.h
     COMMENT "Generating version header"

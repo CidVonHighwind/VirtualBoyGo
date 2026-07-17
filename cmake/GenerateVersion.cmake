@@ -2,7 +2,8 @@
 # CMakeLists.txt) so the commit count/dirty state is always current, even if
 # nothing else changed since the last CMake configure.
 #
-# Expects -D SRC_DIR, OUT_FILE, VBGO_VERSION, BUILD_TYPE on the command line.
+# Expects -D SRC_DIR, OUT_FILE, VBGO_VERSION, VBGO_RELEASE_BUILD on the
+# command line.
 
 find_package(Git QUIET)
 
@@ -30,12 +31,14 @@ if(GIT_EXECUTABLE)
     )
 endif()
 
-# Release: clean "v<VERSION>", no build number - what actually ships.
-# Anything else (Debug/RelWithDebInfo/unset, i.e. every local dev build):
+# VBGO_RELEASE_BUILD=ON (explicitly opted into, independent of optimization
+# level - see CMakeLists.txt): clean "v<VERSION>", no build number - what
+# actually ships. Everything else, including an optimized Release-config
+# build not explicitly flagged as the release, gets
 # "v<VERSION>-dev.<commit count>", "-dirty" appended if the working tree has
 # uncommitted changes. Falls back to just "-dev" (no number) if git isn't
 # available or this isn't a git checkout (e.g. a source tarball).
-if(BUILD_TYPE STREQUAL "Release")
+if(VBGO_RELEASE_BUILD)
     set(VERSION_STRING "v${VBGO_VERSION}")
 else()
     set(VERSION_STRING "v${VBGO_VERSION}-dev")

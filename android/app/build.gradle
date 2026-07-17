@@ -20,6 +20,14 @@ android {
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"
+                // VBGO_RELEASE_BUILD is deliberately independent of the
+                // debug/release build type (see CMakeLists.txt) - assembleRelease
+                // is normally still just a fast local build for on-device
+                // testing (dev version string). Only pass -Pofficial=true when
+                // actually cutting a numbered release.
+                if (project.hasProperty("official")) {
+                    arguments "-DVBGO_RELEASE_BUILD=ON"
+                }
                 cppFlags "-std=c++17"
             }
         }
