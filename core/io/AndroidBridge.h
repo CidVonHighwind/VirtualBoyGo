@@ -1,10 +1,8 @@
 #pragma once
 
-// JNI bridge to MainActivity.java - mainly its Storage Access Framework ROMs
-// folder (see RomScanner.h for why SAF), plus small misc device queries
-// (battery level) that piggyback on the same g_activity/JNIEnv plumbing.
-// Header-only inline stubs so it compiles into the shared core/ source list
-// without per-platform .cpp wiring; no-op off Android.
+// JNI bridge to MainActivity.java's SAF ROMs folder (see RomScanner.h) plus
+// misc device queries (battery). Header-only so it needs no per-platform
+// .cpp wiring; no-op off Android.
 #if defined(__ANDROID__)
 
 #include <jni.h>
@@ -14,7 +12,7 @@
 #include <unistd.h>
 #include <vector>
 
-namespace AndroidRomAccess
+namespace AndroidBridge
 {
     struct RomFile
     {
@@ -34,8 +32,8 @@ namespace AndroidRomAccess
         g_activity = env->NewGlobalRef(activityClazz);
     }
 
-    // true once the user has picked a still-accessible ROMs folder (checks
-    // the OS's persisted-permission list, so external revocation shows up).
+    // True once a still-accessible ROMs folder is picked (checks the OS's
+    // persisted-permission list, so external revocation shows up).
     inline bool HasRomsFolder()
     {
         if (!g_vm || !g_activity)
@@ -53,9 +51,8 @@ namespace AndroidRomAccess
         return has;
     }
 
-    // Clears the current ROMs folder - does NOT re-pop the picker or restart
-    // (see MainActivity.requestChangeRomsFolder). The user relaunches, and
-    // onCreate's picker fires again since HasRomsFolder() is now false.
+    // Clears the ROMs folder; picker re-fires on next relaunch since
+    // HasRomsFolder() is now false. Doesn't restart the app itself.
     inline void RequestChangeRomsFolder()
     {
         if (!g_vm || !g_activity)
@@ -148,9 +145,8 @@ namespace AndroidRomAccess
         return ReadAllFromFd(fd);
     }
 
-    // Writes fileName (truncating) inside the ROMs folder, creating it as
-    // needed. inStatesDir false = folder root (.srm), true = "States"
-    // subfolder (save states/previews). false on failure.
+    // Writes fileName (truncating), creating it as needed. inStatesDir
+    // selects the folder root (.srm) vs "States" subfolder (states/previews).
     inline bool WriteRomsFile(const std::string &fileName, bool inStatesDir, const void *data, size_t size)
     {
         if (!g_vm || !g_activity)
@@ -179,8 +175,7 @@ namespace AndroidRomAccess
         return written == size;
     }
 
-    // Read counterpart to WriteRomsFile - empty if fileName doesn't exist
-    // or couldn't be opened.
+    // Read counterpart to WriteRomsFile - empty if not found or unreadable.
     inline std::vector<uint8_t> ReadRomsFile(const std::string &fileName, bool inStatesDir)
     {
         if (!g_vm || !g_activity)
@@ -198,10 +193,8 @@ namespace AndroidRomAccess
         return ReadAllFromFd(fd);
     }
 
-    // 0-100 device battery level, ported from FrontendGo's
-    // MainActivity.GetBatteryLevel/MenuGo::UpdateBatteryLevel. -1 if
-    // unavailable (mirrors AppMenu::SetBatteryPercent's "don't draw" sentinel
-    // - see its doc comment).
+    // 0-100 device battery level, -1 if unavailable (AppMenu::SetBatteryPercent
+    // treats -1 as "don't draw").
     inline int GetBatteryPercent()
     {
         if (!g_vm || !g_activity)
@@ -216,8 +209,7 @@ namespace AndroidRomAccess
         return percent;
     }
 
-    // true if fileName exists in the ROMs folder (root or "States", per
-    // inStatesDir).
+    // True if fileName exists in the ROMs folder (root or "States").
     inline bool RomsFileExists(const std::string &fileName, bool inStatesDir)
     {
         if (!g_vm || !g_activity)
@@ -233,15 +225,15 @@ namespace AndroidRomAccess
         env->DeleteLocalRef(nameJString);
         return exists;
     }
-} // namespace AndroidRomAccess
+} // namespace AndroidBridge
 
 #else
 
-namespace AndroidRomAccess
+namespace AndroidBridge
 {
     inline bool HasRomsFolder() { return true; } // other platforms don't gate on this
     inline void RequestChangeRomsFolder() {}
     inline int GetBatteryPercent() { return -1; } // no real battery to read off Android
-} // namespace AndroidRomAccess
+} // namespace AndroidBridge
 
 #endif

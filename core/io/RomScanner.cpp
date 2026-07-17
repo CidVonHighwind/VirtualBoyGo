@@ -1,16 +1,24 @@
 #include "io/RomScanner.h"
 
 #if defined(__ANDROID__)
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #else
 #include <filesystem>
-#if defined(_DEBUG)
-#include "io/DebugPaths.h"
-#endif
 #endif
 
 #include <algorithm>
 #include <cctype>
+
+#if !defined(__ANDROID__) && defined(_DEBUG)
+std::string DebugSdVbDir()
+{
+    // Derived from this file's own path (three parents up from
+    // <repo>/core/io/RomScanner.cpp) so it follows the checkout instead of
+    // a hardcoded absolute path.
+    const std::filesystem::path repoRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
+    return (repoRoot / "sd" / "VB").string();
+}
+#endif
 
 namespace
 {
@@ -25,15 +33,9 @@ namespace
     std::string RomDirectory()
     {
 #if defined(_DEBUG)
-        // This repo's checked-in sample ROMs, for zero-setup local testing -
-        // derived from the source tree's own location (see DebugPaths.h), so it
-        // follows the checkout. Release builds use the relative path below.
-        return DebugSdVbDir();
+        return DebugSdVbDir(); // repo's checked-in sample ROMs
 #else
-        // Relative to the working directory, same convention LoadAssetBytes
-        // uses for assets (see AssetLoader.h) - the exe's own folder for how
-        // this app is packaged/run.
-        return "VB";
+        return "VB"; // relative to the exe's folder, like LoadAssetBytes
 #endif
     }
 #endif
@@ -44,7 +46,7 @@ std::vector<RomEntry> ScanRoms()
     std::vector<RomEntry> roms;
 
 #if defined(__ANDROID__)
-    for (AndroidRomAccess::RomFile &file : AndroidRomAccess::ListRomFiles())
+    for (AndroidBridge::RomFile &file : AndroidBridge::ListRomFiles())
         roms.push_back({std::move(file.name), std::move(file.uri)});
 #else
     const std::string dir = RomDirectory();

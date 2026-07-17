@@ -74,7 +74,7 @@ private:
     void RequestMaxDisplayRefreshRate();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged &event, bool &exitRenderLoop, bool &requestRestart);
     // Polls the device battery level into m_appMenu's header indicator, at
-    // most once a second (AndroidRomAccess::GetBatteryPercent is a JNI call
+    // most once a second (AndroidBridge::GetBatteryPercent is a JNI call
     // - see its doc comment). No-op off Android, matching how the indicator
     // never draws there (m_batteryPercent stays -1).
     void UpdateBatteryPercent(float deltaSeconds);

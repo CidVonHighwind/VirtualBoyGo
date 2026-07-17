@@ -3,7 +3,7 @@
 // event pump and OpenXR's Android-specific loader/instance init.
 #include "app/OpenXrApp.h"
 #include "io/AssetLoader.h"
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #include "input/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
@@ -195,7 +195,7 @@ void android_main(struct android_app *app)
     app->onInputEvent = HandleInputEvent;
 
     SetAndroidAssetManager(app->activity->assetManager);
-    AndroidRomAccess::Init(app->activity->vm, app->activity->clazz);
+    AndroidBridge::Init(app->activity->vm, app->activity->clazz);
 
     // OpenXR's Android loader needs explicit init before xrCreateInstance.
     PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
@@ -227,7 +227,7 @@ void android_main(struct android_app *app)
             // Gated on HasRomsFolder() too, so the loop stays blocked (no
             // busy-spin) while the ROMs-folder picker is up, like it does for
             // resume.
-            const bool readyToInit = state.resumed && AndroidRomAccess::HasRomsFolder();
+            const bool readyToInit = state.resumed && AndroidBridge::HasRomsFolder();
             const int timeoutMs = (!readyToInit && (!initialized || !xrApp.IsSessionRunning())) ? -1 : 0;
             if (ALooper_pollAll(timeoutMs, nullptr, &events, reinterpret_cast<void **>(&source)) < 0)
                 break;
@@ -245,9 +245,9 @@ void android_main(struct android_app *app)
         // Wait for a ROMs folder before starting the OpenXR session: the
         // picker (MainActivity.onCreate) runs concurrently with this thread,
         // and launching it once immersed makes Horizon OS drop VR focus for
-        // good (see AndroidRomAccess::RequestChangeRomsFolder). Staying non-
+        // good (see AndroidBridge::RequestChangeRomsFolder). Staying non-
         // immersive until it's done keeps focus handoff normal.
-        if (!initialized && state.resumed && AndroidRomAccess::HasRomsFolder())
+        if (!initialized && state.resumed && AndroidBridge::HasRomsFolder())
         {
             try
             {

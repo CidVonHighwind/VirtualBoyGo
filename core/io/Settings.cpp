@@ -1,12 +1,12 @@
 #include "io/Settings.h"
 
 #if defined(__ANDROID__)
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #include <cstring>
 #include <vector>
 #else
 #if defined(_DEBUG)
-#include "io/DebugPaths.h"
+#include "io/RomScanner.h"
 #endif
 #include <filesystem>
 #include <fstream>
@@ -48,25 +48,21 @@ namespace
     constexpr const char *kSettingsFileName = "settings.dat";
 
 #if !defined(__ANDROID__)
-    // Settings live next to the ROMs (the only writable-location precedent in
-    // this project), so this mirrors RomScanner.cpp's RomDirectory() per-platform
-    // layout - the shared _DEBUG folder comes from DebugPaths.h so it isn't
-    // duplicated as a literal path. On Android they instead go through the SAF
-    // ROMs-folder grant (AndroidRomAccess), same as .srm saves - a raw /sdcard
-    // path is neither readable nor writable at target SDK 34 (see RomScanner.h).
+    // Settings live in the States folder alongside save states, mirroring
+    // RomScanner.cpp's RomDirectory(). Android instead goes through the SAF
+    // ROMs-folder grant (AndroidBridge), same as .srm saves.
     std::string SettingsFilePath()
     {
 #if defined(_DEBUG)
-        return DebugSdVbDir() + "/" + kSettingsFileName;
+        return DebugSdVbDir() + "/States/" + kSettingsFileName;
 #else
-        return std::string("VB/") + kSettingsFileName;
+        return std::string("VB/States/") + kSettingsFileName;
 #endif
     }
 #endif
 
-    // Version check + v7->v8 screenScale baseline conversion, shared by both
-    // platform Load paths. Version 8 defines 1.0x as the old 1.4x physical
-    // size; converting keeps existing users' apparent screen size identical.
+    // Version check + v7->v8 screenScale baseline conversion (v8 redefines
+    // 1.0x as the old 1.4x size), shared by both platform Load paths.
     bool ApplyLoadedSettings(AppSettings &self, int version, AppSettings &loaded)
     {
         constexpr int kPreviousScaleBaselineVersion = 7;
@@ -88,7 +84,7 @@ void AppSettings::Save() const
     const int version = kVersion;
     std::memcpy(bytes.data(), &version, sizeof(version));
     std::memcpy(bytes.data() + sizeof(version), this, sizeof(AppSettings));
-    AndroidRomAccess::WriteRomsFile(kSettingsFileName, false, bytes.data(), bytes.size());
+    AndroidBridge::WriteRomsFile(kSettingsFileName, true, bytes.data(), bytes.size());
 #else
     const std::string path = SettingsFilePath();
     std::error_code ec;
@@ -107,7 +103,7 @@ void AppSettings::Save() const
 bool AppSettings::Load()
 {
 #if defined(__ANDROID__)
-    const std::vector<uint8_t> bytes = AndroidRomAccess::ReadRomsFile(kSettingsFileName, false);
+    const std::vector<uint8_t> bytes = AndroidBridge::ReadRomsFile(kSettingsFileName, true);
     if (bytes.size() < sizeof(int) + sizeof(AppSettings))
         return false;
 

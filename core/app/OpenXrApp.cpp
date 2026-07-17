@@ -1,5 +1,5 @@
 #include "app/OpenXrApp.h"
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #include "input/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
@@ -736,7 +736,7 @@ void OpenXrApp::UpdateBatteryPercent(float deltaSeconds)
     if (m_batteryPollSeconds < 1.0f)
         return;
     m_batteryPollSeconds = 0.0f;
-    m_appMenu.SetBatteryPercent(AndroidRomAccess::GetBatteryPercent());
+    m_appMenu.SetBatteryPercent(AndroidBridge::GetBatteryPercent());
 #else
     (void)deltaSeconds; // no real battery to read (e.g. SteamVR on PC) - indicator stays hidden
 #endif

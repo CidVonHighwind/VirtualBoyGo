@@ -20,7 +20,7 @@ import java.util.List;
 // Extends NativeActivity (native side still loads as before) only to get the
 // onCreate/onActivityResult lifecycle callbacks the SAF folder picker
 // (ACTION_OPEN_DOCUMENT_TREE) needs - see core/RomScanner.h for why SAF. The
-// methods below are called from native code via JNI (core/AndroidRomAccess.h);
+// methods below are called from native code via JNI (core/AndroidBridge.h);
 // they're plain polled methods, so no JNI_OnLoad/RegisterNatives is needed.
 public class MainActivity extends NativeActivity {
     private static final String TAG = "VirtualBoyGo";
@@ -67,7 +67,7 @@ public class MainActivity extends NativeActivity {
         startActivityForResult(intent, REQUEST_PICK_ROMS_FOLDER);
     }
 
-    // ---- Called from native code (core/AndroidRomAccess.h) via JNI ----
+    // ---- Called from native code (core/AndroidBridge.h) via JNI ----
 
     // 0-100 device battery level, for the in-menu battery indicator.
     public int getBatteryLevel() {

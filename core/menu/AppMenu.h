@@ -53,7 +53,7 @@ public:
     // percent: 0-100 shows it: any value outside that range (default -1)
     // hides it entirely, so callers opt in explicitly instead of the
     // indicator silently showing a stale/fake reading. OpenXrApp polls the
-    // real device battery via AndroidRomAccess::GetBatteryPercent on Android
+    // real device battery via AndroidBridge::GetBatteryPercent on Android
     // (see OpenXrApp::UpdateBatteryPercent); it stays hidden on desktop
     // OpenXR builds (e.g. SteamVR) with no battery to read. The flat 2D
     // debug build cycles a fake value through it instead.

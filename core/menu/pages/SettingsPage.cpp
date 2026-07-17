@@ -1,5 +1,5 @@
 #include "menu/pages/SettingsPage.h"
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #include "io/Settings.h"
 #include "menu/MenuPage.h"
 #include "menu/pages/AppMenuLayout.h"
@@ -101,7 +101,7 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 #if defined(__ANDROID__)
     // Way back into the ROMs-folder picker (SAF, see RomScanner.h). Clears
     // the folder and asks for a restart rather than re-popping the picker
-    // directly (see AndroidRomAccess::RequestChangeRomsFolder).
+    // directly (see AndroidBridge::RequestChangeRomsFolder).
     list->AddSpacer(kMenuSpacerSize);
     m_changeRomsFolderEntry = list->AddEntry("Change ROMs Folder...", [this](MenuItem *) { RequestChangeRomsFolder(); },
         nullptr, nullptr, UiIconId::RomList);
@@ -181,7 +181,7 @@ void SettingsPage::ChangeColorChannel(float AppSettings::*channel, float delta)
 #if defined(__ANDROID__)
 void SettingsPage::RequestChangeRomsFolder()
 {
-    AndroidRomAccess::RequestChangeRomsFolder();
+    AndroidBridge::RequestChangeRomsFolder();
     if (m_changeRomsFolderEntry)
         m_changeRomsFolderEntry->SetText("Folder cleared - restart the app!");
 }

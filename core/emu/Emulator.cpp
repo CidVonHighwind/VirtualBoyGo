@@ -2,7 +2,7 @@
 #include "io/Settings.h"
 
 #if defined(__ANDROID__)
-#include "io/AndroidRomAccess.h"
+#include "io/AndroidBridge.h"
 #endif
 
 #include <libretro.h>
@@ -177,7 +177,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
         return false;
 
 #if defined(__ANDROID__)
-    const std::vector<uint8_t> romBytes = AndroidRomAccess::ReadFile(romPath);
+    const std::vector<uint8_t> romBytes = AndroidBridge::ReadFile(romPath);
 #else
     std::vector<uint8_t> romBytes;
     {
@@ -213,7 +213,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
     {
 #if defined(__ANDROID__)
         // romPath is a content:// URI, not a filesystem path - use the
-        // caller's display name for save-data naming. AndroidRomAccess
+        // caller's display name for save-data naming. AndroidBridge
         // resolves the folder itself, so m_romDir/m_romStateDir go unused.
         m_romBaseName = displayName.empty() ? "rom" : displayName;
 #else
@@ -380,9 +380,9 @@ bool Emulator::SaveState(int uiSlot)
     CaptureScreenshotGrayscale(preview);
 
 #if defined(__ANDROID__)
-    if (!AndroidRomAccess::WriteRomsFile(StateFileName(uiSlot, "state"), true, data.data(), data.size()))
+    if (!AndroidBridge::WriteRomsFile(StateFileName(uiSlot, "state"), true, data.data(), data.size()))
         return false;
-    AndroidRomAccess::WriteRomsFile(StateFileName(uiSlot, "stateimg"), true, preview.data(), preview.size());
+    AndroidBridge::WriteRomsFile(StateFileName(uiSlot, "stateimg"), true, preview.data(), preview.size());
 #else
     {
         std::ofstream out(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::trunc);
@@ -405,7 +405,7 @@ bool Emulator::LoadState(int uiSlot)
         return false;
 
 #if defined(__ANDROID__)
-    std::vector<uint8_t> data = AndroidRomAccess::ReadRomsFile(StateFileName(uiSlot, "state"), true);
+    std::vector<uint8_t> data = AndroidBridge::ReadRomsFile(StateFileName(uiSlot, "state"), true);
     // Refuse rather than feed the core a stale/mismatched-size buffer -
     // FrontendGo's own LoadState skipped this check.
     if (data.size() != retro_serialize_size())
@@ -430,7 +430,7 @@ bool Emulator::LoadState(int uiSlot)
 bool Emulator::SaveStateExists(int uiSlot) const
 {
 #if defined(__ANDROID__)
-    return AndroidRomAccess::RomsFileExists(StateFileName(uiSlot, "state"), true);
+    return AndroidBridge::RomsFileExists(StateFileName(uiSlot, "state"), true);
 #else
     std::error_code ec;
     return std::filesystem::exists(StateFilePath(uiSlot, "state"), ec) && !ec;
@@ -443,7 +443,7 @@ bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
     std::vector<uint8_t> gray;
 
 #if defined(__ANDROID__)
-    gray = AndroidRomAccess::ReadRomsFile(StateFileName(uiSlot, "stateimg"), true);
+    gray = AndroidBridge::ReadRomsFile(StateFileName(uiSlot, "stateimg"), true);
     if (gray.size() != kGraySize)
         return false;
 #else
@@ -488,7 +488,7 @@ void Emulator::SaveRam()
         return; // this ROM has no battery-backed SRAM
 
 #if defined(__ANDROID__)
-    AndroidRomAccess::WriteRomsFile(m_romBaseName + ".srm", false, data, size);
+    AndroidBridge::WriteRomsFile(m_romBaseName + ".srm", false, data, size);
 #else
     if (m_romDir.empty())
         return;
@@ -509,7 +509,7 @@ void Emulator::LoadRam()
         return;
 
 #if defined(__ANDROID__)
-    const std::vector<uint8_t> bytes = AndroidRomAccess::ReadRomsFile(m_romBaseName + ".srm", false);
+    const std::vector<uint8_t> bytes = AndroidBridge::ReadRomsFile(m_romBaseName + ".srm", false);
     // Ignore rather than feed the core a stale/mismatched-size buffer.
     if (bytes.size() != size)
         return;
