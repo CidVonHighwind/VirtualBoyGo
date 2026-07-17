@@ -63,5 +63,9 @@ void main() {
 
     // patternColor is hand-authored in gamma space, same as ui_image.frag's
     // vColor tint - see its doc comment for why this needs the pre-decode.
-    outColor = vec4(pow(patternColor, vec3(2.2)), texColor.a);
+    // pc.color.a lets callers fade a drawn region (e.g. MenuImage's save-slot
+    // preview during a page transition) - see ui_image.frag's vColor.a
+    // comment. Emulator::DrawScreen always passes alpha=1, so this is a
+    // no-op there.
+    outColor = vec4(pow(patternColor, vec3(2.2)), texColor.a * pc.color.a);
 }
