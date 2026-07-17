@@ -43,7 +43,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(OpenXR-SDK)
 
-# Font glyph rasterization for the menu UI (core/ui/UiRenderer). Only needs
+# Font glyph rasterization for the menu UI (core/gfx/UiRenderer). Only needs
 # to run at font-load time (baking a glyph atlas), not per-frame.
 set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
 set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
@@ -65,12 +65,12 @@ FetchContent_MakeAvailable(freetype)
 # Only built for the host (PC) configuration - the compiler is a build tool
 # that must run on the machine doing the build, not on the target (Android
 # cross-compiles produce ARM64 binaries that can't run during their own
-# build). The generated headers land in the committed core/generated_shaders/
+# build). The generated headers land in the committed core/gfx/generated_shaders/
 # directory, so an Android build just consumes whatever the PC build most
 # recently produced instead of re-running the compiler itself. Re-run a PC
 # configure/build after changing shaders/*.vert|frag to refresh them.
 # --------------------------------------------------------------------------
-set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/core/generated_shaders")
+set(VBGO_GENERATED_SHADER_DIR "${CMAKE_SOURCE_DIR}/core/gfx/generated_shaders")
 
 if(NOT ANDROID)
     set(ENABLE_GLSLANG_BINARIES OFF CACHE BOOL "" FORCE)
@@ -82,7 +82,7 @@ if(NOT ANDROID)
     FetchContent_Declare(
         glslang
         GIT_REPOSITORY https://github.com/KhronosGroup/glslang.git
-        GIT_TAG main
+        GIT_TAG vulkan-sdk-1.3.290.0
         GIT_SHALLOW TRUE
     )
     FetchContent_MakeAvailable(glslang)
@@ -172,29 +172,29 @@ endif()
 # android/) live under platform/ and just call into this.
 # --------------------------------------------------------------------------
 add_library(vbgo_app STATIC
-    core/OpenXrApp.cpp
-    core/VulkanRenderer.cpp
-    core/AssetLoader.cpp
-    core/RomScanner.cpp
-    core/Settings.cpp
-    core/XrInput.cpp
-    core/Emulator.cpp
-    core/AudioOutput.cpp
-    core/ui/UiRenderer.cpp
-    core/ui/UiRendererPipelines.cpp
-    core/ui/UiFontManager.cpp
-    core/ui/UiVulkanUtils.cpp
-    core/ui/UiIconSet.cpp
-    core/ui/ButtonMapping.cpp
-    core/ui/pages/MainPage.cpp
-    core/ui/pages/SettingsPage.cpp
-    core/ui/pages/RomSelectPage.cpp
-    core/ui/pages/EmulatorButtonMapPage.cpp
-    core/ui/pages/MoveScreenPage.cpp
-    core/ui/MenuWidgets.cpp
-    core/ui/AppMenu.cpp
+    core/app/OpenXrApp.cpp
+    core/gfx/VulkanRenderer.cpp
+    core/gfx/UiRenderer.cpp
+    core/gfx/UiRendererPipelines.cpp
+    core/gfx/UiFontManager.cpp
+    core/gfx/UiVulkanUtils.cpp
+    core/gfx/UiIconSet.cpp
+    core/menu/AppMenu.cpp
+    core/menu/MenuWidgets.cpp
+    core/menu/pages/MainPage.cpp
+    core/menu/pages/SettingsPage.cpp
+    core/menu/pages/RomSelectPage.cpp
+    core/menu/pages/EmulatorButtonMapPage.cpp
+    core/menu/pages/MoveScreenPage.cpp
+    core/emu/Emulator.cpp
+    core/emu/AudioOutput.cpp
+    core/input/XrInput.cpp
+    core/input/ButtonMapping.cpp
+    core/io/AssetLoader.cpp
+    core/io/RomScanner.cpp
+    core/io/Settings.cpp
 )
-target_include_directories(vbgo_app PUBLIC core)
+target_include_directories(vbgo_app PUBLIC core ${CMAKE_SOURCE_DIR}/third_party)
 target_link_libraries(vbgo_app PUBLIC openxr_loader volk freetype vb_core)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
@@ -228,13 +228,6 @@ else()
         platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
-
-    # Headless debug tool - see its own doc comment. Not part of the
-    # shipping app.
-    add_executable(PatternPreviewTool
-        tools/PatternPreviewTool.cpp
-    )
-    target_link_libraries(PatternPreviewTool PRIVATE vbgo_app)
 
     # MSVC's incremental linker has been observed to silently keep a stale
     # .exe (identical byte-for-byte) across rebuilds when only an upstream

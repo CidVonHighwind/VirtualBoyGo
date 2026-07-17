@@ -4,13 +4,13 @@
 // OpenXR session, driven by arrow keys/A/S instead of controller
 // input. This is the fast local-iteration debug build the emulator/menu
 // rendering will eventually show up in without needing to put the headset on.
-#include "VulkanRenderer.h"
-#include "AssetLoader.h"
-#include "Emulator.h"
-#include "Settings.h"
-#include "ui/AppMenu.h"
-#include "ui/ButtonMapping.h"
-#include "ui/UiRenderer.h"
+#include "gfx/VulkanRenderer.h"
+#include "io/AssetLoader.h"
+#include "emu/Emulator.h"
+#include "io/Settings.h"
+#include "menu/AppMenu.h"
+#include "input/ButtonMapping.h"
+#include "gfx/UiRenderer.h"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -18,7 +18,7 @@
 // Only need stbi_info_from_memory here, to size the window to the game
 // image before a Vulkan device/surface exist (STB_IMAGE_IMPLEMENTATION is
 // defined once in VulkanRenderer.cpp, same vbgo_app link unit).
-#include "third_party/stb_image.h"
+#include "stb_image.h"
 
 #include <algorithm>
 #include <chrono>

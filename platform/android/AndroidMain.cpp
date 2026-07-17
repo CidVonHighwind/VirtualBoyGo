@@ -1,10 +1,10 @@
 // Android (Quest/Frame/Android VR) entry point via android_native_app_glue's
 // NativeActivity. Mirrors Platform/PC/Main.cpp's loop, adapted for Android's
 // event pump and OpenXR's Android-specific loader/instance init.
-#include "OpenXrApp.h"
-#include "AssetLoader.h"
-#include "AndroidRomAccess.h"
-#include "ui/ButtonMapping.h"
+#include "app/OpenXrApp.h"
+#include "io/AssetLoader.h"
+#include "io/AndroidRomAccess.h"
+#include "input/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
 

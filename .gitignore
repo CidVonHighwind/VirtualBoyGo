@@ -6,7 +6,7 @@ CMakeFiles/
 cmake_install.cmake
 _deps/
 
-# Note: core/generated_shaders/ is intentionally NOT ignored - it holds
+# Note: core/gfx/generated_shaders/ is intentionally NOT ignored - it holds
 # SPIR-V headers produced by the PC build's shader compiler (glslang isn't
 # built for Android cross-compiles, so that build just consumes whatever the
 # PC build most recently generated there). Re-run a PC build after editing

@@ -39,22 +39,34 @@ android {
         }
     }
 
-    // reference/keystore.txt: line 1 = store password, line 2 = key password.
-    def keystoreDir = rootProject.file("../reference")
-    def keystoreProps = new File(keystoreDir, "keystore.txt").readLines()
-    signingConfigs {
-        release {
-            storeFile new File(keystoreDir, "android.keystore")
-            storePassword keystoreProps[0].trim()
-            keyAlias "key0"
-            keyPassword keystoreProps[1].trim()
+    // Release keystore lives outside the repo - set keystore.dir in
+    // android/local.properties (gitignored). keystore.txt: line 1 = store
+    // password, line 2 = key password. Absent = unsigned debug builds still work.
+    def localProps = new Properties()
+    def localPropsFile = rootProject.file("local.properties")
+    if (localPropsFile.exists()) {
+        localPropsFile.withInputStream { localProps.load(it) }
+    }
+    def keystoreDir = localProps.getProperty("keystore.dir")
+    def keystoreConfigured = keystoreDir != null && new File(keystoreDir, "keystore.txt").exists()
+    if (keystoreConfigured) {
+        def keystoreProps = new File(keystoreDir, "keystore.txt").readLines()
+        signingConfigs {
+            release {
+                storeFile new File(keystoreDir, "android.keystore")
+                storePassword keystoreProps[0].trim()
+                keyAlias "key0"
+                keyPassword keystoreProps[1].trim()
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            if (keystoreConfigured) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

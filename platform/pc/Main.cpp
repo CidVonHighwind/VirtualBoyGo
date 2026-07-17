@@ -3,7 +3,7 @@
 // Desktop, SteamVR, Oculus Link, ...). No desktop window - see the
 // Rework-branch session notes for why (VD/SteamVR both stream a runtime's
 // compositor output directly; a mirror window is a later nice-to-have).
-#include "OpenXrApp.h"
+#include "app/OpenXrApp.h"
 
 #include <chrono>
 #include <cstdio>

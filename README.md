@@ -62,7 +62,7 @@ No Vulkan SDK required (Vulkan is loaded dynamically via `volk`; shaders are
 compiled via glslang's C++ API, fetched and built as part of this project).
 
 ```
-cmake -B build-pc -G "Visual Studio 17 2022" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake -B build-pc -G "Visual Studio 18 2026" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build build-pc --config Debug
 build-pc\Debug\VirtualBoyGoPC.exe
 ```
@@ -86,6 +86,16 @@ sdk.dir=C\:/Users/<you>/AppData/Local/Android/Sdk
 ```
 
 Or set the `ANDROID_HOME` environment variable instead.
+
+For **release** builds only, point at the signing keystore folder (kept
+outside the repo) in the same `android/local.properties`:
+
+```
+keystore.dir=D\:/Development/VR/VirtualBoyGo Key
+```
+
+The folder must contain `android.keystore` and a `keystore.txt` (line 1 =
+store password, line 2 = key password). Debug builds don't need this.
 
 Gradle (`./gradlew`) also needs a JDK, separate from the Android SDK/NDK
 above - if you get an error like "JAVA_HOME is not set" or "java: command not
