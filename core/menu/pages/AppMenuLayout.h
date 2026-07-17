@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Version.h" // kGeneratedVersionString - build-generated, see cmake/GenerateVersion.cmake
+
 #include <openxr/openxr.h> // XrColor4f
 
 // Layout constants shared across all menu pages, mirroring AppMenu's static
@@ -49,4 +51,4 @@ inline constexpr XrColor4f kMenuBodyColor = {0.2f, 0.2f, 0.2f, 0.975f};
 // than kMenuFontSize since it's decorative/informational, not a menu row.
 inline constexpr int kSmallFontSize = 8;
 inline constexpr XrColor4f kMenuVersionColor = {0.6f, 0.6f, 0.6f, 1.0f};
-inline constexpr const char *kVersionString = "v2.0.0-dev";
+inline constexpr const char *kVersionString = kGeneratedVersionString;

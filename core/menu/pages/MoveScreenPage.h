@@ -21,11 +21,11 @@ public:
     void Init(UiRenderer &ui, const UiMenuResources &resources) override;
 
 private:
-    static constexpr float kYawPitchStep = 1.0f;     // degrees
-    static constexpr float kYawPitchMin = -25.0f;    // degrees
-    static constexpr float kYawPitchMax = 25.0f;     // degrees
-    static constexpr float kRollStep = 5.0f;         // degrees
-    static constexpr float kDistanceStep = 0.1f;     // meters
+    static constexpr float kYawPitchStep = 1.0f;  // degrees
+    static constexpr float kYawPitchMin = -25.0f; // degrees
+    static constexpr float kYawPitchMax = 25.0f;  // degrees
+    static constexpr float kRollStep = 1.0f;      // degrees
+    static constexpr float kDistanceStep = 0.1f;  // meters
     static constexpr float kScaleStep = 0.1f;
     static constexpr float kIpdStep = 1.0f / 256.0f; // matches FrontendGo's IPD_STEP_SIZE
     static constexpr float kIpdMin = -0.5f;

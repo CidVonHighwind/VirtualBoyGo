@@ -4,6 +4,12 @@ project(VirtualBoyGo LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Single source of truth for the release version (SettingsPage's version
+# label) - bump this by hand at each release tag. Dev builds (anything but
+# a Release config) get this plus the current git commit appended - see
+# cmake/GenerateVersion.cmake.
+set(VBGO_VERSION "2.0.0")
+
 # MSVC's default source/execution charset isn't UTF-8 - without this, UTF-8
 # string literals in source (e.g. any future non-ASCII text in this project)
 # get silently mangled at compile time before the UI's UTF-8-aware text
@@ -198,6 +204,23 @@ target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
     add_dependencies(vbgo_app vbgo_shaders)
 endif()
+
+# Generates generated/Version.h (kGeneratedVersionString - see
+# AppMenuLayout.h) fresh on every build, not just every configure, so the
+# git hash always reflects HEAD even if nothing else triggered a reconfigure.
+set(VBGO_GENERATED_VERSION_DIR "${CMAKE_BINARY_DIR}/generated")
+add_custom_target(vbgo_version ALL
+    COMMAND ${CMAKE_COMMAND}
+            -DSRC_DIR=${CMAKE_SOURCE_DIR}
+            -DOUT_FILE=${VBGO_GENERATED_VERSION_DIR}/Version.h
+            -DVBGO_VERSION=${VBGO_VERSION}
+            -DBUILD_TYPE=$<CONFIG>
+            -P ${CMAKE_SOURCE_DIR}/cmake/GenerateVersion.cmake
+    BYPRODUCTS ${VBGO_GENERATED_VERSION_DIR}/Version.h
+    COMMENT "Generating version header"
+)
+target_include_directories(vbgo_app PUBLIC ${VBGO_GENERATED_VERSION_DIR})
+add_dependencies(vbgo_app vbgo_version)
 
 if(ANDROID)
     target_compile_definitions(vbgo_app PUBLIC XR_USE_PLATFORM_ANDROID)
