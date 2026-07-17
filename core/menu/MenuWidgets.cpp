@@ -184,7 +184,7 @@ void MenuImage::Draw(UiRenderer &ui, float offsetX, float offsetY, float alpha)
     if (m_hasImage)
     {
         const int patternIndex = m_patternIndexProvider ? m_patternIndexProvider() : -1;
-        if (patternIndex >= 0 && patternIndex < 6)
+        if (patternIndex >= 0 && patternIndex < kScreenPatternCount)
         {
             ui.DrawImageRegionPattern(m_texture, x, y, m_width, m_height, 0.0f, 0.0f, 1.0f, 1.0f,
                                       kScreenPatterns[patternIndex], alpha);

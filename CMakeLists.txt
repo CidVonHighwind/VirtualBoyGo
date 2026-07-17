@@ -190,11 +190,9 @@ add_library(vbgo_app STATIC
     core/emu/AudioOutput.cpp
     core/input/XrInput.cpp
     core/input/ButtonMapping.cpp
-    core/io/AssetLoader.cpp
-    core/io/RomScanner.cpp
     core/io/Settings.cpp
 )
-target_include_directories(vbgo_app PUBLIC core ${CMAKE_SOURCE_DIR}/third_party)
+target_include_directories(vbgo_app PUBLIC core ${CMAKE_SOURCE_DIR}/third_party ${CMAKE_SOURCE_DIR}/platform)
 target_link_libraries(vbgo_app PUBLIC openxr_loader volk freetype vb_core)
 target_compile_definitions(vbgo_app PUBLIC XR_USE_GRAPHICS_API_VULKAN)
 if(NOT ANDROID)
@@ -203,6 +201,9 @@ endif()
 
 if(ANDROID)
     target_compile_definitions(vbgo_app PUBLIC XR_USE_PLATFORM_ANDROID)
+    target_sources(vbgo_app PRIVATE platform/android/AndroidPlatform.cpp)
+else()
+    target_sources(vbgo_app PRIVATE platform/desktop/DesktopPlatform.cpp)
 endif()
 
 if(ANDROID)
@@ -248,8 +249,9 @@ else()
         endif()
     endif()
 
-    # LoadAssetBytes() on PC reads relative to the working directory, which
-    # is the exe's own folder for how we've been running/testing it.
+    # DesktopPlatform::LoadAssetBytes() reads relative to the working
+    # directory, which is the exe's own folder for how we've been
+    # running/testing it.
     add_custom_command(
         TARGET VirtualBoyGoPC POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

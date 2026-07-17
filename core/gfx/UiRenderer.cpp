@@ -809,7 +809,7 @@ void UiRenderer::DrawImageRegion(UiImageHandle imageHandle, float x, float y, fl
 }
 
 void UiRenderer::DrawImageRegionPattern(UiImageHandle imageHandle, float x, float y, float w, float h,
-                                        float u0, float v0, float u1, float v1, const XrColor4f (&stops)[5],
+                                        float u0, float v0, float u1, float v1, const std::array<XrColor4f, 5> &stops,
                                         float alpha)
 {
     if (!imageHandle.IsValid())

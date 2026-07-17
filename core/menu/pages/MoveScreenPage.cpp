@@ -1,4 +1,5 @@
 #include "menu/pages/MoveScreenPage.h"
+#include "io/Platform.h"
 #include "io/Settings.h"
 #include "menu/MenuPage.h"
 #include "menu/pages/AppMenuLayout.h"
@@ -32,6 +33,7 @@ std::string FormatFloat(const char *prefix, float value, int precision = 3, cons
 void MoveScreenPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
     m_settings = resources.settings;
+    m_platform = resources.platform;
 
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
                                            kMenuItemSize, resources.icons);
@@ -204,5 +206,5 @@ void MoveScreenPage::RefreshLabels()
     m_curvedScreenEntry->SetText(m_settings->curvedScreen ? "Screen: Curved" : "Screen: Flat");
     m_curvedScreenEntry->icon = m_settings->curvedScreen ? UiIconId::CurvedScreen : UiIconId::FlatScreen;
 
-    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
+    m_settings->Save(*m_platform); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

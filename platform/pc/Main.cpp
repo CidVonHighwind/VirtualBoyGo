@@ -4,6 +4,7 @@
 // Rework-branch session notes for why (VD/SteamVR both stream a runtime's
 // compositor output directly; a mirror window is a later nice-to-have).
 #include "app/OpenXrApp.h"
+#include "desktop/DesktopPlatform.h"
 
 #include <chrono>
 #include <cstdio>
@@ -32,10 +33,12 @@ int main()
 
     std::printf("VirtualBoyGo PC starting...\n");
 
+    DesktopPlatform platform;
     OpenXrApp app;
     try
     {
         OpenXrApp::InitInfo info;
+        info.platform = &platform;
         app.Initialize(info);
         std::printf("VirtualBoyGo PC initialized OK\n");
     }

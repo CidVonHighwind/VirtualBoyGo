@@ -1,5 +1,4 @@
 #include "app/OpenXrApp.h"
-#include "io/AndroidBridge.h"
 #include "input/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
@@ -172,6 +171,8 @@ namespace
 
 void OpenXrApp::Initialize(const InitInfo &info)
 {
+    m_platform = info.platform;
+
     CreateInstance(info);
     InitializeSystem();
     m_renderer.CreateDevice(m_instance, m_systemId);
@@ -182,14 +183,14 @@ void OpenXrApp::Initialize(const InitInfo &info)
     // CreateSwapchains.
     m_uiRenderer.Initialize(m_renderer.GetDevice(), m_renderer.GetPhysicalDevice(), m_renderer.GetQueue(),
                             m_renderer.GetQueueFamilyIndex(), m_renderer.GetCommandPool(), m_renderer.GetCommandBuffer());
-    m_emulator.Initialize(m_uiRenderer);
+    m_emulator.Initialize(m_uiRenderer, *m_platform);
 
     InitializeSession();
     CreateSwapchains();
 
-    m_settings.Load(); // no-op (defaults stand) on first run/missing file
+    m_settings.Load(*m_platform); // no-op (defaults stand) on first run/missing file
     ApplyDefaultGameplayBindings(m_settings);
-    m_appMenu.Initialize(m_uiRenderer, static_cast<VkFormat>(m_colorFormat), m_emulator, m_settings);
+    m_appMenu.Initialize(m_uiRenderer, static_cast<VkFormat>(m_colorFormat), m_emulator, m_settings, *m_platform);
 
     m_input.Initialize(m_instance, m_session);
 }
@@ -731,15 +732,11 @@ bool OpenXrApp::RenderMenuLayer(XrCompositionLayerQuad &quadLayer)
 
 void OpenXrApp::UpdateBatteryPercent(float deltaSeconds)
 {
-#if defined(__ANDROID__)
     m_batteryPollSeconds += deltaSeconds;
     if (m_batteryPollSeconds < 1.0f)
         return;
     m_batteryPollSeconds = 0.0f;
-    m_appMenu.SetBatteryPercent(AndroidBridge::GetBatteryPercent());
-#else
-    (void)deltaSeconds; // no real battery to read (e.g. SteamVR on PC) - indicator stays hidden
-#endif
+    m_appMenu.SetBatteryPercent(m_platform->GetBatteryPercent());
 }
 
 void OpenXrApp::RenderFrame()

@@ -4,7 +4,10 @@
 
 #include <openxr/openxr.h> // XrColor4f
 
+#include <array>
 #include <cstdint>
+
+class Platform;
 
 // How the screen/menu quads react to head rotation - see
 // OpenXrApp::ComputeScreenOrientation.
@@ -54,20 +57,49 @@ struct AppSettings
     // (MappedButtons::Buttons[0]/[1]) - either triggers it.
     ButtonMapper::MappedButtons vbButtons[16];
 
-    // Best-effort; failures are silently ignored.
-    void Save() const;
+    // Best-effort; failures are silently ignored. Takes Platform by
+    // reference rather than storing one - this struct is memcpy'd whole
+    // to/from disk (see Settings.cpp), so it must stay trivially copyable.
+    void Save(Platform &platform) const;
 
     // Replaces every field; returns false (self left untouched) if the file
     // doesn't exist or its version doesn't match kVersion.
-    bool Load();
+    bool Load(Platform &platform);
 };
 
-// 11 preset VB screen colors. Index 0 is the authentic red Virtual Boy
-// display and the factory default.
-extern const XrColor4f kPredefColors[11];
+// Preset VB screen colors. Index 0 is the authentic red Virtual Boy display
+// and the factory default.
+inline constexpr std::array<XrColor4f, 11> kPredefColors = {{
+    {1.0f, 0.0f, 0.0f, 1.0f},
+    {0.9f, 0.3f, 0.1f, 1.0f},
+    {1.0f, 0.85f, 0.1f, 1.0f},
+    {0.25f, 1.0f, 0.1f, 1.0f},
+    {0.0f, 1.0f, 0.45f, 1.0f},
+    {0.0f, 1.0f, 0.85f, 1.0f},
+    {0.0f, 0.85f, 1.0f, 1.0f},
+    {0.15f, 1.0f, 1.0f, 1.0f},
+    {0.75f, 0.65f, 1.0f, 1.0f},
+    {1.0f, 1.0f, 1.0f, 1.0f},
+    {1.0f, 0.3f, 0.2f, 1.0f},
+}};
+inline constexpr int kPredefColorCount = static_cast<int>(kPredefColors.size());
 
-// 6 named multi-hue gradients (5 stops each, darkest to brightest) - shared
+// Named multi-hue gradients (5 stops each, darkest to brightest) - shared
 // by screen_pattern.frag's rendering and the Color Palette row's preview
 // swatches (SettingsPage::DrawColorPreview), so no color data is duplicated
 // into the shader itself.
-extern const XrColor4f kScreenPatterns[6][5];
+inline constexpr std::array<std::array<XrColor4f, 5>, 6> kScreenPatterns = {{
+    // Jade - near black -> deep green -> teal -> yellow-green -> cream white
+    {{{0.02f, 0.03f, 0.02f, 1.0f}, {0.05f, 0.20f, 0.10f, 1.0f}, {0.10f, 0.45f, 0.40f, 1.0f}, {0.55f, 0.75f, 0.35f, 1.0f}, {0.97f, 0.96f, 0.85f, 1.0f}}},
+    // Ocean - near black -> navy -> azure -> sky blue -> ice white
+    {{{0.01f, 0.02f, 0.04f, 1.0f}, {0.05f, 0.15f, 0.35f, 1.0f}, {0.10f, 0.35f, 0.65f, 1.0f}, {0.55f, 0.80f, 0.90f, 1.0f}, {0.95f, 0.98f, 1.00f, 1.0f}}},
+    // Sunset - near black -> deep purple -> magenta -> orange -> pale gold
+    {{{0.04f, 0.01f, 0.05f, 1.0f}, {0.30f, 0.05f, 0.35f, 1.0f}, {0.75f, 0.20f, 0.25f, 1.0f}, {0.95f, 0.55f, 0.20f, 1.0f}, {1.00f, 0.92f, 0.75f, 1.0f}}},
+    // Ember - near black -> maroon -> deep red -> amber -> pale yellow
+    {{{0.03f, 0.01f, 0.00f, 1.0f}, {0.35f, 0.04f, 0.02f, 1.0f}, {0.65f, 0.15f, 0.02f, 1.0f}, {0.95f, 0.55f, 0.10f, 1.0f}, {1.00f, 0.95f, 0.75f, 1.0f}}},
+    // Frost - near black -> indigo -> violet -> lavender -> ice white
+    {{{0.02f, 0.02f, 0.05f, 1.0f}, {0.15f, 0.15f, 0.40f, 1.0f}, {0.40f, 0.35f, 0.70f, 1.0f}, {0.75f, 0.75f, 0.95f, 1.0f}, {0.98f, 0.98f, 1.00f, 1.0f}}},
+    // Toxic - near black -> dark olive -> teal-green -> chartreuse -> pale lime
+    {{{0.02f, 0.03f, 0.00f, 1.0f}, {0.15f, 0.30f, 0.02f, 1.0f}, {0.35f, 0.55f, 0.05f, 1.0f}, {0.65f, 0.85f, 0.15f, 1.0f}, {0.95f, 1.00f, 0.70f, 1.0f}}},
+}};
+inline constexpr int kScreenPatternCount = static_cast<int>(kScreenPatterns.size());

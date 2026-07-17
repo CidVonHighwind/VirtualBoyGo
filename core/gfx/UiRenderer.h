@@ -6,6 +6,7 @@
 
 #include "gfx/UiFontManager.h" // also provides UiFontHandle
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -147,7 +148,7 @@ public:
     // of the usual colorR/G/B tint; every other caller keeps using
     // DrawImageRegion unchanged.
     void DrawImageRegionPattern(UiImageHandle image, float x, float y, float w, float h,
-                                float u0, float v0, float u1, float v1, const XrColor4f (&stops)[5],
+                                float u0, float v0, float u1, float v1, const std::array<XrColor4f, 5> &stops,
                                 float alpha = 1.0f);
     // Like DrawImage, but masks the sampled texture to rounded corners - the
     // intended way to composite a whole pre-rendered buffer (e.g. an

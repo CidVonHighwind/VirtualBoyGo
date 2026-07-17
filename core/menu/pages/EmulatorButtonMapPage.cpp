@@ -1,5 +1,6 @@
 #include "menu/pages/EmulatorButtonMapPage.h"
 #include "emu/Emulator.h"
+#include "io/Platform.h"
 #include "io/Settings.h"
 #include "menu/MenuPage.h"
 #include "menu/pages/AppMenuLayout.h"
@@ -77,6 +78,7 @@ std::string BindingStr(const ButtonMapper::MappedButton &b, ButtonMappingProfile
 void EmulatorButtonMapPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
     m_settings = resources.settings;
+    m_platform = resources.platform;
     m_mappingProfile = resources.buttonMappingProfile;
 
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
@@ -246,5 +248,5 @@ void EmulatorButtonMapPage::RefreshLabels()
         m_rowEntries[i]->SetSecondaryText(BindingStr(pair.Buttons[1], m_mappingProfile));
     }
 
-    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
+    m_settings->Save(*m_platform); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

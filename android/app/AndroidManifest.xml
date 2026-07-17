@@ -9,7 +9,7 @@
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
 
     <!-- No storage permission: ROMs come from a SAF folder the user picks
-         once (see MainActivity.java, core/RomScanner.h). -->
+         once (see MainActivity.java, platform/android/AndroidPlatform.h). -->
 
     <queries>
         <provider android:authorities="org.khronos.openxr.runtime_broker;org.khronos.openxr.system_runtime_broker" />

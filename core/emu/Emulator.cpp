@@ -1,10 +1,6 @@
 #include "emu/Emulator.h"
 #include "io/Settings.h"
 
-#if defined(__ANDROID__)
-#include "io/AndroidBridge.h"
-#endif
-
 #include <libretro.h>
 
 #include <algorithm>
@@ -12,9 +8,6 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 
 namespace
 {
@@ -145,9 +138,10 @@ namespace
     }
 } // namespace
 
-void Emulator::Initialize(UiRenderer &ui)
+void Emulator::Initialize(UiRenderer &ui, Platform &platform)
 {
     m_ui = &ui;
+    m_platform = &platform;
 
     retro_set_environment(RetroEnvironment);
     retro_set_video_refresh(RetroVideoRefresh);
@@ -176,17 +170,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
     if (!m_coreInitialized)
         return false;
 
-#if defined(__ANDROID__)
-    const std::vector<uint8_t> romBytes = AndroidBridge::ReadFile(romPath);
-#else
-    std::vector<uint8_t> romBytes;
-    {
-        std::ifstream in(romPath, std::ios::binary);
-        if (!in)
-            return false;
-        romBytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-    }
-#endif
+    const std::vector<uint8_t> romBytes = m_platform->ReadRomFile(romPath);
     if (romBytes.empty())
         return false;
 
@@ -211,17 +195,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
 
     if (m_romLoaded)
     {
-#if defined(__ANDROID__)
-        // romPath is a content:// URI, not a filesystem path - use the
-        // caller's display name for save-data naming. AndroidBridge
-        // resolves the folder itself, so m_romDir/m_romStateDir go unused.
         m_romBaseName = displayName.empty() ? "rom" : displayName;
-#else
-        const std::filesystem::path path(romPath);
-        m_romDir = path.parent_path().string();
-        m_romStateDir = (path.parent_path() / "States").string();
-        m_romBaseName = path.stem().string();
-#endif
         LoadRam();
     }
 
@@ -302,7 +276,7 @@ void Emulator::DrawScreen(UiRenderer &ui, float x, float y, float w, float h, Ey
     else if (eye == Eye::Right)
         u0 = fullU1 * 0.5f;
 
-    if (patternIndex >= 0 && patternIndex < 6)
+    if (patternIndex >= 0 && patternIndex < kScreenPatternCount)
         ui.DrawImageRegionPattern(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, kScreenPatterns[patternIndex]);
     else
         ui.DrawImageRegion(m_screenTexture, x, y, w, h, u0, 0.0f, u1, v1, 1.0f, tint);
@@ -314,13 +288,6 @@ std::string Emulator::StateFileName(int uiSlot, const char *ext) const
     if (uiSlot != 0)
         name += std::to_string(uiSlot);
     return name;
-}
-
-std::string Emulator::StateFilePath(int uiSlot, const char *ext) const
-{
-    std::error_code ec;
-    std::filesystem::create_directories(m_romStateDir, ec);
-    return m_romStateDir + "/" + StateFileName(uiSlot, ext);
 }
 
 void Emulator::CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const
@@ -379,22 +346,9 @@ bool Emulator::SaveState(int uiSlot)
     std::vector<uint8_t> preview;
     CaptureScreenshotGrayscale(preview);
 
-#if defined(__ANDROID__)
-    if (!AndroidBridge::WriteRomsFile(StateFileName(uiSlot, "state"), true, data.data(), data.size()))
+    if (!m_platform->WriteRomsFile(StateFileName(uiSlot, "state"), true, data.data(), data.size()))
         return false;
-    AndroidBridge::WriteRomsFile(StateFileName(uiSlot, "stateimg"), true, preview.data(), preview.size());
-#else
-    {
-        std::ofstream out(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::trunc);
-        if (!out)
-            return false;
-        out.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
-    }
-
-    std::ofstream previewOut(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::trunc);
-    if (previewOut)
-        previewOut.write(reinterpret_cast<const char *>(preview.data()), static_cast<std::streamsize>(preview.size()));
-#endif
+    m_platform->WriteRomsFile(StateFileName(uiSlot, "stateimg"), true, preview.data(), preview.size());
 
     return true;
 }
@@ -404,61 +358,27 @@ bool Emulator::LoadState(int uiSlot)
     if (!m_romLoaded)
         return false;
 
-#if defined(__ANDROID__)
-    std::vector<uint8_t> data = AndroidBridge::ReadRomsFile(StateFileName(uiSlot, "state"), true);
+    std::vector<uint8_t> data = m_platform->ReadRomsFile(StateFileName(uiSlot, "state"), true);
     // Refuse rather than feed the core a stale/mismatched-size buffer -
     // FrontendGo's own LoadState skipped this check.
     if (data.size() != retro_serialize_size())
         return false;
-#else
-    std::ifstream in(StateFilePath(uiSlot, "state"), std::ios::binary | std::ios::ate);
-    if (!in)
-        return false;
-
-    const std::streamsize size = in.tellg();
-    if (size <= 0 || static_cast<size_t>(size) != retro_serialize_size())
-        return false;
-
-    std::vector<uint8_t> data(static_cast<size_t>(size));
-    in.seekg(0, std::ios::beg);
-    in.read(reinterpret_cast<char *>(data.data()), size);
-#endif
 
     return retro_unserialize(data.data(), data.size());
 }
 
 bool Emulator::SaveStateExists(int uiSlot) const
 {
-#if defined(__ANDROID__)
-    return AndroidBridge::RomsFileExists(StateFileName(uiSlot, "state"), true);
-#else
-    std::error_code ec;
-    return std::filesystem::exists(StateFilePath(uiSlot, "state"), ec) && !ec;
-#endif
+    return m_platform->RomsFileExists(StateFileName(uiSlot, "state"), true);
 }
 
 bool Emulator::LoadStatePreview(int uiSlot, std::vector<uint8_t> &outRgba) const
 {
     constexpr size_t kGraySize = static_cast<size_t>(kPreviewWidth) * kPreviewHeight;
-    std::vector<uint8_t> gray;
 
-#if defined(__ANDROID__)
-    gray = AndroidBridge::ReadRomsFile(StateFileName(uiSlot, "stateimg"), true);
+    std::vector<uint8_t> gray = m_platform->ReadRomsFile(StateFileName(uiSlot, "stateimg"), true);
     if (gray.size() != kGraySize)
         return false;
-#else
-    std::ifstream in(StateFilePath(uiSlot, "stateimg"), std::ios::binary | std::ios::ate);
-    if (!in)
-        return false;
-
-    const std::streamsize size = in.tellg();
-    if (size <= 0 || static_cast<size_t>(size) != kGraySize)
-        return false;
-
-    gray.resize(kGraySize);
-    in.seekg(0, std::ios::beg);
-    in.read(reinterpret_cast<char *>(gray.data()), size);
-#endif
 
     // Expand to RGBA for the caller. .stateimg stores linear luminance;
     // the streaming texture is UNORM and the display chain expects
@@ -487,15 +407,7 @@ void Emulator::SaveRam()
     if (size == 0 || !data)
         return; // this ROM has no battery-backed SRAM
 
-#if defined(__ANDROID__)
-    AndroidBridge::WriteRomsFile(m_romBaseName + ".srm", false, data, size);
-#else
-    if (m_romDir.empty())
-        return;
-    std::ofstream out(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::trunc);
-    if (out)
-        out.write(static_cast<const char *>(data), static_cast<std::streamsize>(size));
-#endif
+    m_platform->WriteRomsFile(m_romBaseName + ".srm", false, data, size);
 }
 
 void Emulator::LoadRam()
@@ -508,27 +420,11 @@ void Emulator::LoadRam()
     if (size == 0 || !data)
         return;
 
-#if defined(__ANDROID__)
-    const std::vector<uint8_t> bytes = AndroidBridge::ReadRomsFile(m_romBaseName + ".srm", false);
+    const std::vector<uint8_t> bytes = m_platform->ReadRomsFile(m_romBaseName + ".srm", false);
     // Ignore rather than feed the core a stale/mismatched-size buffer.
     if (bytes.size() != size)
         return;
     std::memcpy(data, bytes.data(), size);
-#else
-    if (m_romDir.empty())
-        return;
-    std::ifstream in(m_romDir + "/" + m_romBaseName + ".srm", std::ios::binary | std::ios::ate);
-    if (!in)
-        return;
-
-    const std::streamsize fileSize = in.tellg();
-    // Ignore rather than feed the core a stale/mismatched-size buffer.
-    if (fileSize <= 0 || static_cast<size_t>(fileSize) != size)
-        return;
-
-    in.seekg(0, std::ios::beg);
-    in.read(static_cast<char *>(data), fileSize);
-#endif
 }
 
 void Emulator::Shutdown()

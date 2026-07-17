@@ -2,6 +2,7 @@
 
 #include "emu/AudioOutput.h"
 #include "gfx/UiRenderer.h"
+#include "io/Platform.h"
 
 #include <cstdint>
 #include <string>
@@ -74,16 +75,16 @@ public:
     static constexpr uint32_t kSideBySideWidth = 384 * 2;
     static constexpr uint32_t kSideBySideHeight = 224;
 
-    void Initialize(UiRenderer &ui);
+    void Initialize(UiRenderer &ui, Platform &platform);
 
-    // Reads romPath's bytes and hands them to the core via retro_load_game.
-    // Safe to call more than once (unloads whatever ROM was previously
-    // loaded first). Returns false if the file couldn't be read or the core
-    // rejected it.
+    // Reads romPath's bytes (via Platform::ReadRomFile) and hands them to
+    // the core via retro_load_game. Safe to call more than once (unloads
+    // whatever ROM was previously loaded first). Returns false if the file
+    // couldn't be read or the core rejected it.
     //
-    // On Android romPath is a content:// URI, so displayName (RomEntry::name)
-    // is used for save-state/SRAM naming instead of the path stem. Ignored
-    // elsewhere.
+    // displayName (RomEntry::name) is used for save-state/SRAM naming -
+    // romPath itself may be a content:// URI (Android), not a usable
+    // filename stem.
     bool LoadRom(const std::string &romPath, const std::string &displayName = "");
 
     // Cold-resets the currently loaded game through the libretro core.
@@ -166,12 +167,8 @@ public:
 
 private:
     // <m_romBaseName>.<ext><suffix>; suffix empty for uiSlot==0, else uiSlot.
-    // Bare filename - used directly on Android, joined with m_romStateDir
-    // elsewhere (see StateFilePath).
+    // Passed to Platform::WriteRomsFile/ReadRomsFile/RomsFileExists.
     std::string StateFileName(int uiSlot, const char *ext) const;
-
-    // <m_romStateDir>/<StateFileName(...)>. Unused on Android.
-    std::string StateFilePath(int uiSlot, const char *ext) const;
 
     void CaptureScreenshotGrayscale(std::vector<uint8_t> &outGray) const;
 
@@ -181,15 +178,14 @@ private:
     void LoadRam();
 
     UiRenderer *m_ui = nullptr;
+    Platform *m_platform = nullptr;
     UiImageHandle m_screenTexture;
     bool m_coreInitialized = false;
     bool m_romLoaded = false;
 
-    // Set by LoadRom: the ROM's directory (.srm) and its "States" subfolder
-    // (save states/previews). On Android only m_romBaseName is set (the dirs
-    // are unused). Empty before any ROM loads, when SaveRam/SaveState no-op.
-    std::string m_romDir;
-    std::string m_romStateDir;
+    // Set by LoadRom - the currently-loaded ROM's display name, used to
+    // build save-state/SRAM file names. Empty before any ROM loads, when
+    // SaveRam/SaveState no-op.
     std::string m_romBaseName;
 
     float m_frameAccumulator = 0.0f; // real time not yet consumed by retro_run() - see kCoreFps

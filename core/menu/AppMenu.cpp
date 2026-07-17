@@ -1,5 +1,5 @@
 #include "menu/AppMenu.h"
-#include "io/AssetLoader.h"
+#include "io/Platform.h"
 #include "io/Settings.h"
 
 #include <algorithm>
@@ -80,11 +80,11 @@ namespace
 // Initialise
 
 void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings,
-                         ButtonMappingProfile mappingProfile)
+                         Platform &platform, ButtonMappingProfile mappingProfile)
 {
-    const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
-    const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
-    const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
+    const std::vector<uint8_t> headerFontBytes = platform.LoadAssetBytes("fonts/VirtualLogo.ttf");
+    const std::vector<uint8_t> menuFontBytes = platform.LoadAssetBytes("fonts/Roboto-Regular.ttf");
+    const std::vector<uint8_t> smallFontBytes = platform.LoadAssetBytes("fonts/Roboto-Bold.ttf");
 
     // Bake glyphs at physical resolution (kMenuScale x the logical size) for
     // crisp text - see UiFontManager::LoadFont's renderScale doc comment.
@@ -92,12 +92,13 @@ void AppMenu::Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulat
     m_resources.menuFont = ui.LoadFont(menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
     m_resources.smallFont = ui.LoadFont(smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);
 
-    m_icons.Load(ui, m_menuScale);
+    m_icons.Load(ui, platform, m_menuScale);
     m_resources.icons = &m_icons;
     m_resources.emulator = &emulator;
     m_resources.appMenu = this;
     m_resources.settings = &settings;
     m_resources.buttonMappingProfile = mappingProfile;
+    m_resources.platform = &platform;
     // Physical pixel size - kMenuWidth/kMenuHeight are logical units (see
     // AppMenuLayout.h); RenderToBuffer maps them onto this full-resolution
     // texture via BeginOffscreenFrame's logicalWidth/logicalHeight, so the
@@ -121,14 +122,14 @@ void AppMenu::SetMenuScale(UiRenderer &ui, float scale)
     if (scale == m_menuScale)
         return;
     m_menuScale = scale;
-    m_icons.SetMenuScale(ui, m_menuScale);
+    m_icons.SetMenuScale(ui, *m_resources.platform, m_menuScale);
 
     ui.ResizeRenderTexture(m_offscreenTexture, static_cast<uint32_t>(kMenuWidth * m_menuScale),
                            static_cast<uint32_t>(kMenuHeight * m_menuScale));
 
-    const std::vector<uint8_t> headerFontBytes = LoadAssetBytes("fonts/VirtualLogo.ttf");
-    const std::vector<uint8_t> menuFontBytes = LoadAssetBytes("fonts/Roboto-Regular.ttf");
-    const std::vector<uint8_t> smallFontBytes = LoadAssetBytes("fonts/Roboto-Bold.ttf");
+    const std::vector<uint8_t> headerFontBytes = m_resources.platform->LoadAssetBytes("fonts/VirtualLogo.ttf");
+    const std::vector<uint8_t> menuFontBytes = m_resources.platform->LoadAssetBytes("fonts/Roboto-Regular.ttf");
+    const std::vector<uint8_t> smallFontBytes = m_resources.platform->LoadAssetBytes("fonts/Roboto-Bold.ttf");
     ui.RebakeFont(m_titleFont, headerFontBytes, static_cast<int>(kHeaderFontSize * m_menuScale), m_menuScale);
     ui.RebakeFont(m_resources.menuFont, menuFontBytes, static_cast<int>(kMenuFontSize * m_menuScale), m_menuScale);
     ui.RebakeFont(m_resources.smallFont, smallFontBytes, static_cast<int>(kSmallFontSize * m_menuScale), m_menuScale);

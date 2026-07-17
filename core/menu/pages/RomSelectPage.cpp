@@ -1,7 +1,6 @@
 #include "menu/pages/RomSelectPage.h"
-#include "io/AndroidBridge.h"
 #include "emu/Emulator.h"
-#include "io/RomScanner.h"
+#include "io/Platform.h"
 #include "menu/AppMenu.h"
 #include "menu/MenuPage.h"
 #include "menu/pages/AppMenuLayout.h"
@@ -14,18 +13,19 @@ void RomSelectPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     list->SelectionColor = kMenuSelectionColor;
     list->TintIconOnSelect = false; // cartridge glyph, not a status indicator - stays put when a row is selected
 
-    if (!AndroidBridge::HasRomsFolder())
+    Platform *platform = resources.platform;
+    if (!platform->HasRomsFolder())
     {
         // Only reachable if "Change ROMs Folder..." (SettingsPage) cleared the
         // folder this session - re-picking needs an app restart, so just say so.
-        m_pickEntry = list->AddEntry("Pick ROMs folder...", [this](MenuItem *) {
-            AndroidBridge::RequestChangeRomsFolder();
+        m_pickEntry = list->AddEntry("Pick ROMs folder...", [this, platform](MenuItem *) {
+            platform->RequestChangeRomsFolder();
             m_pickEntry->SetText("Folder cleared - restart the app!");
         });
     }
     else
     {
-        const std::vector<RomEntry> roms = ScanRoms();
+        const std::vector<RomEntry> roms = platform->ScanRoms();
         if (roms.empty())
         {
             list->AddEntry("(No ROMs found)");

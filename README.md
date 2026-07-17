@@ -28,7 +28,8 @@ core/                        shared, platform-agnostic app code
   OpenXrApp.cpp/.h           instance/system/session/swapchain/event loop
   VulkanRenderer.cpp/.h      Vulkan device/pipelines/rendering
   XrMath.h                   small self-contained matrix math
-  AssetLoader.cpp/.h         cross-platform file loading (APK assets / PC files)
+  io/Platform.h              platform interface (asset/ROM/settings I/O, battery),
+                             implemented per-platform under platform/
   third_party/stb_image.h    vendored image decoder (JPEG/PNG)
   generated_shaders/         SPIR-V headers, produced by the PC build's
                              shader compiler and committed (Android's

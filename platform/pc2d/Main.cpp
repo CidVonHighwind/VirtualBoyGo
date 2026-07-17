@@ -5,12 +5,12 @@
 // input. This is the fast local-iteration debug build the emulator/menu
 // rendering will eventually show up in without needing to put the headset on.
 #include "gfx/VulkanRenderer.h"
-#include "io/AssetLoader.h"
 #include "emu/Emulator.h"
 #include "io/Settings.h"
 #include "menu/AppMenu.h"
 #include "input/ButtonMapping.h"
 #include "gfx/UiRenderer.h"
+#include "desktop/DesktopPlatform.h"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -168,13 +168,15 @@ namespace
 
 int main()
 {
+    DesktopPlatform platform;
+
     // Peek the game image's dimensions up front (pure file IO, no Vulkan
     // device needed yet) so its native resolution can size the window
     // before glfwCreateWindow - the window must exist before the Vulkan
     // instance/surface/device can be created, and Emulator::Initialize
     // (which actually uploads the texture) needs that device. Emulator
     // re-reads/re-decodes the same file itself once the device exists.
-    const std::vector<uint8_t> gameImageBytes = LoadAssetBytes("game_image.png");
+    const std::vector<uint8_t> gameImageBytes = platform.LoadAssetBytes("game_image.png");
     int gameImageNativeWidth = 0, gameImageNativeHeight = 0;
     if (!gameImageBytes.empty())
     {
@@ -217,7 +219,7 @@ int main()
     Emulator emulator;
     AppMenu appMenu;
     AppSettings settings;
-    settings.Load(); // no-op (defaults stand) on first run/missing file
+    settings.Load(platform); // no-op (defaults stand) on first run/missing file
     ApplyDefaultGameplayBindings(settings);
     VkSurfaceKHR surface = VK_NULL_HANDLE;
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
@@ -303,8 +305,8 @@ int main()
 
         uiRenderer.Initialize(renderer.GetDevice(), renderer.GetPhysicalDevice(), renderer.GetQueue(),
                               renderer.GetQueueFamilyIndex(), renderer.GetCommandPool(), renderer.GetCommandBuffer());
-        emulator.Initialize(uiRenderer);
-        appMenu.Initialize(uiRenderer, chosen.format, emulator, settings, ButtonMappingProfile::Desktop);
+        emulator.Initialize(uiRenderer, platform);
+        appMenu.Initialize(uiRenderer, chosen.format, emulator, settings, platform, ButtonMappingProfile::Desktop);
 
         VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
         CheckVk(vkCreateFence(renderer.GetDevice(), &fenceInfo, nullptr, &acquireFence), "vkCreateFence");

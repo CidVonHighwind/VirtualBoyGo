@@ -1,5 +1,5 @@
 #include "gfx/UiIconSet.h"
-#include "io/AssetLoader.h"
+#include "io/Platform.h"
 
 namespace
 {
@@ -9,23 +9,23 @@ namespace
     constexpr float kMaxLogicalIconSize = 10.0f;
 }
 
-void UiIconSet::Load(UiRenderer &ui, float menuScale)
+void UiIconSet::Load(UiRenderer &ui, Platform &platform, float menuScale)
 {
-    SetMenuScale(ui, menuScale);
+    SetMenuScale(ui, platform, menuScale);
 }
 
-void UiIconSet::EnsureAtlasLoaded(UiRenderer &ui, size_t index)
+void UiIconSet::EnsureAtlasLoaded(UiRenderer &ui, Platform &platform, size_t index)
 {
     if (m_atlases[index].IsValid())
         return;
 
     const std::string atlasPath = "icons/icons_atlas_" + std::to_string(kAtlasSizes[index]) + ".png";
-    const std::vector<uint8_t> atlasBytes = LoadAssetBytes(atlasPath.c_str());
+    const std::vector<uint8_t> atlasBytes = platform.LoadAssetBytes(atlasPath);
     uint32_t width = 0, height = 0;
     m_atlases[index] = ui.LoadImage(atlasBytes, width, height);
 }
 
-void UiIconSet::SetMenuScale(UiRenderer &ui, float menuScale)
+void UiIconSet::SetMenuScale(UiRenderer &ui, Platform &platform, float menuScale)
 {
     // Choose the smallest source that covers the largest physical icon.
     // Downsampling from the next tier is crisp; upsampling a smaller tier is
@@ -35,7 +35,7 @@ void UiIconSet::SetMenuScale(UiRenderer &ui, float menuScale)
     m_activeAtlas = 0;
     while (m_activeAtlas + 1 < m_atlases.size() && kAtlasSizes[m_activeAtlas] < requiredPixels)
         ++m_activeAtlas;
-    EnsureAtlasLoaded(ui, m_activeAtlas);
+    EnsureAtlasLoaded(ui, platform, m_activeAtlas);
 }
 
 void UiIconSet::Draw(UiRenderer &ui, UiIconId id, float x, float y, float size, float alpha, const XrColor4f &tint) const

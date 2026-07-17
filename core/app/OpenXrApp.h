@@ -1,6 +1,7 @@
 #pragma once
 
 #include "emu/Emulator.h"
+#include "io/Platform.h"
 #include "io/Settings.h"
 #include "gfx/VulkanRenderer.h"
 #include "input/XrInput.h"
@@ -27,6 +28,9 @@ public:
         const void *instanceCreateNext = nullptr;
         // Android only: XR_KHR_android_create_instance must be enabled.
         bool isAndroid = false;
+        // Platform implementation for this run (DesktopPlatform/AndroidPlatform)
+        // - owned by the caller, must outlive this OpenXrApp.
+        Platform *platform = nullptr;
     };
 
     void Initialize(const InitInfo &info);
@@ -74,9 +78,9 @@ private:
     void RequestMaxDisplayRefreshRate();
     void HandleSessionStateChanged(const XrEventDataSessionStateChanged &event, bool &exitRenderLoop, bool &requestRestart);
     // Polls the device battery level into m_appMenu's header indicator, at
-    // most once a second (AndroidBridge::GetBatteryPercent is a JNI call
-    // - see its doc comment). No-op off Android, matching how the indicator
-    // never draws there (m_batteryPercent stays -1).
+    // most once a second (Platform::GetBatteryPercent may be a JNI call on
+    // Android). No-op where GetBatteryPercent() returns -1 (e.g. desktop),
+    // matching how the indicator never draws there.
     void UpdateBatteryPercent(float deltaSeconds);
     // Renders the emulator screen into its two dedicated per-eye quad
     // swapchains and fills out an XrCompositionLayerQuad for each - the
@@ -155,6 +159,7 @@ private:
     VulkanRenderer m_renderer;
     UiRenderer m_uiRenderer;
     XrInput m_input;
+    Platform *m_platform = nullptr;
     Emulator m_emulator;
     AppMenu m_appMenu;
     AppSettings m_settings;

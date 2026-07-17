@@ -1,5 +1,5 @@
 #include "menu/pages/SettingsPage.h"
-#include "io/AndroidBridge.h"
+#include "io/Platform.h"
 #include "io/Settings.h"
 #include "menu/MenuPage.h"
 #include "menu/pages/AppMenuLayout.h"
@@ -45,7 +45,7 @@ void DrawColorPreview(UiRenderer &ui, UiFontHandle labelFont, AppSettings *setti
     // A pattern's 5 gradient stops stand in for the 4 tint brightness
     // swatches below - same kScreenPatterns array the screen shader itself
     // reads (see Settings.h), so this always matches what's actually drawn.
-    if (settings->selectedPattern >= 0 && settings->selectedPattern < 6)
+    if (settings->selectedPattern >= 0 && settings->selectedPattern < kScreenPatternCount)
     {
         for (const XrColor4f &stop : kScreenPatterns[settings->selectedPattern])
         {
@@ -68,6 +68,7 @@ void DrawColorPreview(UiRenderer &ui, UiFontHandle labelFont, AppSettings *setti
 void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
 {
     m_settings = resources.settings;
+    m_platform = resources.platform;
 
     auto list = std::make_shared<MenuList>(ui, resources.menuFont, kMenuContentX, kMenuContentY, kListWidth, kListHeight,
                                            kMenuItemSize, resources.icons);
@@ -98,14 +99,15 @@ void SettingsPage::Init(UiRenderer &ui, const UiMenuResources &resources)
     m_colorGEntry->reserveIconSpace = true;
     m_colorBEntry->reserveIconSpace = true;
 
-#if defined(__ANDROID__)
-    // Way back into the ROMs-folder picker (SAF, see RomScanner.h). Clears
-    // the folder and asks for a restart rather than re-popping the picker
-    // directly (see AndroidBridge::RequestChangeRomsFolder).
-    list->AddSpacer(kMenuSpacerSize);
-    m_changeRomsFolderEntry = list->AddEntry("Change ROMs Folder...", [this](MenuItem *) { RequestChangeRomsFolder(); },
-        nullptr, nullptr, UiIconId::RomList);
-#endif
+    if (m_platform->SupportsChangeRomsFolder())
+    {
+        // Way back into the ROMs-folder picker (SAF, on Android). Clears the
+        // folder and asks for a restart rather than re-popping the picker
+        // directly (see Platform::RequestChangeRomsFolder).
+        list->AddSpacer(kMenuSpacerSize);
+        m_changeRomsFolderEntry = list->AddEntry("Change ROMs Folder...", [this](MenuItem *) { RequestChangeRomsFolder(); },
+            nullptr, nullptr, UiIconId::RomList);
+    }
 
     m_menu.MenuItems.push_back(list);
 
@@ -133,24 +135,22 @@ void SettingsPage::ChangePalette(int delta)
 {
     if (!m_settings)
         return;
-    // One combined cycle: the 11 flat-tint presets, then the 6 gradient
-    // patterns (kScreenPatterns) - exactly one of selectedPalette/
-    // selectedPattern is "active" on any given index (see RefreshLabels,
-    // which hides the R/G/B rows for the pattern half).
-    constexpr int kPresetCount = 11;
-    constexpr int kPatternCount = 6;
-    constexpr int kTotal = kPresetCount + kPatternCount;
+    // One combined cycle: the flat-tint presets, then the gradient patterns
+    // (kScreenPatterns) - exactly one of selectedPalette/selectedPattern is
+    // "active" on any given index (see RefreshLabels, which hides the R/G/B
+    // rows for the pattern half).
+    constexpr int kTotal = kPredefColorCount + kScreenPatternCount;
 
     int index;
     if (m_settings->selectedPattern >= 0)
-        index = kPresetCount + m_settings->selectedPattern;
+        index = kPredefColorCount + m_settings->selectedPattern;
     else if (m_settings->selectedPalette >= 0)
         index = m_settings->selectedPalette;
     else
         index = 0; // was on a custom (non-preset) color - start cycling from the first preset
 
     index = (index + delta + kTotal) % kTotal;
-    if (index < kPresetCount)
+    if (index < kPredefColorCount)
     {
         m_settings->selectedPalette = index;
         m_settings->selectedPattern = -1;
@@ -160,7 +160,7 @@ void SettingsPage::ChangePalette(int delta)
     }
     else
     {
-        m_settings->selectedPattern = index - kPresetCount;
+        m_settings->selectedPattern = index - kPredefColorCount;
     }
     RefreshLabels();
 }
@@ -178,14 +178,12 @@ void SettingsPage::ChangeColorChannel(float AppSettings::*channel, float delta)
     RefreshLabels();
 }
 
-#if defined(__ANDROID__)
 void SettingsPage::RequestChangeRomsFolder()
 {
-    AndroidBridge::RequestChangeRomsFolder();
+    m_platform->RequestChangeRomsFolder();
     if (m_changeRomsFolderEntry)
         m_changeRomsFolderEntry->SetText("Folder cleared - restart the app!");
 }
-#endif
 
 void SettingsPage::RefreshLabels()
 {
@@ -207,5 +205,5 @@ void SettingsPage::RefreshLabels()
     m_colorGEntry->Visible = tintMode;
     m_colorBEntry->Visible = tintMode;
 
-    m_settings->Save(); // always-on autosave - no explicit save action anywhere in the menu anymore
+    m_settings->Save(*m_platform); // always-on autosave - no explicit save action anywhere in the menu anymore
 }

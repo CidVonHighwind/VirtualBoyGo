@@ -6,6 +6,7 @@
 class Emulator;
 class AppMenu;
 struct AppSettings;
+class Platform;
 
 enum class ButtonMappingProfile
 {
@@ -32,4 +33,5 @@ struct UiMenuResources
     // doc comment) - no per-page copies to keep in sync.
     AppSettings *settings = nullptr;
     ButtonMappingProfile buttonMappingProfile = ButtonMappingProfile::Vr;
+    Platform *platform = nullptr;
 };

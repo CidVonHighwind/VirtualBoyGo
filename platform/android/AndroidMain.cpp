@@ -2,8 +2,7 @@
 // NativeActivity. Mirrors Platform/PC/Main.cpp's loop, adapted for Android's
 // event pump and OpenXR's Android-specific loader/instance init.
 #include "app/OpenXrApp.h"
-#include "io/AssetLoader.h"
-#include "io/AndroidBridge.h"
+#include "android/AndroidPlatform.h"
 #include "input/ButtonMapping.h"
 
 #include <openxr/openxr_platform.h>
@@ -194,8 +193,7 @@ void android_main(struct android_app *app)
     app->onAppCmd = HandleAppCmd;
     app->onInputEvent = HandleInputEvent;
 
-    SetAndroidAssetManager(app->activity->assetManager);
-    AndroidBridge::Init(app->activity->vm, app->activity->clazz);
+    AndroidPlatform platform(app->activity->vm, app->activity->clazz, app->activity->assetManager);
 
     // OpenXR's Android loader needs explicit init before xrCreateInstance.
     PFN_xrInitializeLoaderKHR initializeLoader = nullptr;
@@ -227,7 +225,7 @@ void android_main(struct android_app *app)
             // Gated on HasRomsFolder() too, so the loop stays blocked (no
             // busy-spin) while the ROMs-folder picker is up, like it does for
             // resume.
-            const bool readyToInit = state.resumed && AndroidBridge::HasRomsFolder();
+            const bool readyToInit = state.resumed && platform.HasRomsFolder();
             const int timeoutMs = (!readyToInit && (!initialized || !xrApp.IsSessionRunning())) ? -1 : 0;
             if (ALooper_pollAll(timeoutMs, nullptr, &events, reinterpret_cast<void **>(&source)) < 0)
                 break;
@@ -245,15 +243,16 @@ void android_main(struct android_app *app)
         // Wait for a ROMs folder before starting the OpenXR session: the
         // picker (MainActivity.onCreate) runs concurrently with this thread,
         // and launching it once immersed makes Horizon OS drop VR focus for
-        // good (see AndroidBridge::RequestChangeRomsFolder). Staying non-
+        // good (see AndroidPlatform::RequestChangeRomsFolder). Staying non-
         // immersive until it's done keeps focus handoff normal.
-        if (!initialized && state.resumed && AndroidBridge::HasRomsFolder())
+        if (!initialized && state.resumed && platform.HasRomsFolder())
         {
             try
             {
                 OpenXrApp::InitInfo info;
                 info.instanceCreateNext = &androidCreateInfo;
                 info.isAndroid = true;
+                info.platform = &platform;
                 xrApp.Initialize(info);
                 initialized = true;
                 LOGI("OpenXrApp initialized");

@@ -13,6 +13,7 @@
 
 class Emulator;
 struct AppSettings;
+class Platform;
 
 // Top-level menu system. Owns all menu pages and drives the slide transition
 // between them. Renders the active page into an offscreen buffer each frame,
@@ -31,7 +32,7 @@ public:
     static constexpr float kOpenCloseSpeed = 0.15f;
 
     void Initialize(UiRenderer &ui, VkFormat targetFormat, Emulator &emulator, AppSettings &settings,
-                    ButtonMappingProfile mappingProfile = ButtonMappingProfile::Vr);
+                    Platform &platform, ButtonMappingProfile mappingProfile = ButtonMappingProfile::Vr);
     void Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds);
     void SubmitRawMappingInput(const ButtonMapper::MappedButton &button);
     void RenderToBuffer(UiRenderer &ui);
@@ -53,10 +54,10 @@ public:
     // percent: 0-100 shows it: any value outside that range (default -1)
     // hides it entirely, so callers opt in explicitly instead of the
     // indicator silently showing a stale/fake reading. OpenXrApp polls the
-    // real device battery via AndroidBridge::GetBatteryPercent on Android
-    // (see OpenXrApp::UpdateBatteryPercent); it stays hidden on desktop
-    // OpenXR builds (e.g. SteamVR) with no battery to read. The flat 2D
-    // debug build cycles a fake value through it instead.
+    // real device battery via Platform::GetBatteryPercent (see
+    // OpenXrApp::UpdateBatteryPercent); it stays hidden on desktop OpenXR
+    // builds (e.g. SteamVR) with no battery to read. The flat 2D debug
+    // build cycles a fake value through it instead.
     void SetBatteryPercent(int percent) { m_batteryPercent = percent; }
 
     // Menu open/closed - closing lets the emulator screen show unobstructed

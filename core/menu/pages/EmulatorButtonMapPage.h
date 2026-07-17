@@ -6,6 +6,7 @@
 
 class MenuList;
 struct AppSettings;
+class Platform;
 
 // Per-button controller input mapping, laid out like the reference: one row
 // per Virtual Boy button, showing its icon and two side-by-side binding
@@ -31,5 +32,6 @@ private:
     std::shared_ptr<MenuList> m_list; // kept for GetActiveColumn() at press time
     std::vector<std::shared_ptr<MenuList::Entry>> m_rowEntries; // one per button
     AppSettings *m_settings = nullptr;
+    Platform *m_platform = nullptr;
     ButtonMappingProfile m_mappingProfile = ButtonMappingProfile::Vr;
 };

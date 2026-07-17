@@ -5,6 +5,7 @@
 
 class MenuList;
 struct AppSettings;
+class Platform;
 
 // Adjust Screen: screen placement and view mode - position (Yaw/Pitch/Roll/
 // Distance/Scale + Reset Values), Follow Head, 3D Screen, Screen: Flat/Curved,
@@ -64,4 +65,5 @@ private:
     std::shared_ptr<MenuList::Entry> m_curvedScreenEntry;
     std::shared_ptr<MenuList::Entry> m_ipdEntry;
     AppSettings *m_settings = nullptr;
+    Platform *m_platform = nullptr;
 };
