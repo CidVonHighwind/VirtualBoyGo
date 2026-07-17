@@ -48,7 +48,7 @@ namespace VBButtonBit
 // is OpenXrApp's job, not this class's.
 class Emulator
 {
-   public:
+public:
     // Screens are shown at this fixed integer upscale (pixel-perfect,
     // nearest-neighbor - see UiRenderer::LoadImage) everywhere the emulator
     // screen is displayed, so PC2D and the headset builds look consistent.
@@ -164,7 +164,7 @@ class Emulator
     // on every ROM switch).
     void Shutdown();
 
-   private:
+private:
     // <m_romBaseName>.<ext><suffix>; suffix empty for uiSlot==0, else uiSlot.
     // Bare filename - used directly on Android, joined with m_romStateDir
     // elsewhere (see StateFilePath).

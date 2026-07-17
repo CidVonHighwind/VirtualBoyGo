@@ -18,131 +18,131 @@
 
 namespace
 {
-// libretro's C API has no per-instance context pointer on its callbacks, so
-// there's nowhere to stash a `this` - this whole block is necessarily
-// global/singleton state, same as the core itself only supports one loaded
-// game at a time. Fine here since the app only ever has one Emulator.
-constexpr uint32_t kFbWidth = 384 * 2 + 256;  // matches libretro.cpp's FB_WIDTH
-constexpr uint32_t kFbHeight = 224 * 2;       // matches libretro.cpp's FB_HEIGHT
+    // libretro's C API has no per-instance context pointer on its callbacks, so
+    // there's nowhere to stash a `this` - this whole block is necessarily
+    // global/singleton state, same as the core itself only supports one loaded
+    // game at a time. Fine here since the app only ever has one Emulator.
+    constexpr uint32_t kFbWidth = 384 * 2 + 256; // matches libretro.cpp's FB_WIDTH
+    constexpr uint32_t kFbHeight = 224 * 2;      // matches libretro.cpp's FB_HEIGHT
 
-// Set by the video_cb callback each retro_run() call. The pointer is always
-// the core's own persistent surf.pixels buffer (allocated once in
-// retro_load_game, kFbWidth*kFbHeight*4 bytes) - never null once a ROM is
-// loaded, so it's safe to memcpy the whole fixed-size buffer every time
-// regardless of what the current DisplayRect sub-region actually is.
-const void *g_pendingFrame = nullptr;
-unsigned g_pendingWidth = 0;
-unsigned g_pendingHeight = 0;
-bool g_frameReady = false;
+    // Set by the video_cb callback each retro_run() call. The pointer is always
+    // the core's own persistent surf.pixels buffer (allocated once in
+    // retro_load_game, kFbWidth*kFbHeight*4 bytes) - never null once a ROM is
+    // loaded, so it's safe to memcpy the whole fixed-size buffer every time
+    // regardless of what the current DisplayRect sub-region actually is.
+    const void *g_pendingFrame = nullptr;
+    unsigned g_pendingWidth = 0;
+    unsigned g_pendingHeight = 0;
+    bool g_frameReady = false;
 
-// Set by Emulator::SetGameplayInput each app frame, read back by
-// RetroInputState - see VBButtonBit in Emulator.h for what each bit means.
-uint32_t g_joypadBitmask = 0;
+    // Set by Emulator::SetGameplayInput each app frame, read back by
+    // RetroInputState - see VBButtonBit in Emulator.h for what each bit means.
+    uint32_t g_joypadBitmask = 0;
 
-// Set by Emulator::Initialize to &m_audioOutput - same "necessarily global"
-// reasoning as the rest of this block; RetroAudioSampleBatch forwards the
-// core's samples through it. Null (and RetroAudioSampleBatch a no-op) until
-// then, and whenever AudioOutput::Initialize() itself failed (e.g. no
-// audio device on this machine) - PushSamples nonetheless already no-ops
-// when uninitialized, but the null check here also covers Emulator not
-// having called Initialize() at all yet.
-AudioOutput *g_audioOutput = nullptr;
+    // Set by Emulator::Initialize to &m_audioOutput - same "necessarily global"
+    // reasoning as the rest of this block; RetroAudioSampleBatch forwards the
+    // core's samples through it. Null (and RetroAudioSampleBatch a no-op) until
+    // then, and whenever AudioOutput::Initialize() itself failed (e.g. no
+    // audio device on this machine) - PushSamples nonetheless already no-ops
+    // when uninitialized, but the null check here also covers Emulator not
+    // having called Initialize() at all yet.
+    AudioOutput *g_audioOutput = nullptr;
 
-// The core has at least one call site (SettingChanged's "3D mode changed"
-// log line) that calls log_cb unconditionally with no null check, unlike
-// every other log_cb use in libretro.cpp - so GET_LOG_INTERFACE can't just
-// return false like the rest of the environment calls this pass doesn't
-// otherwise care about. Without this, that log line dereferences a null
-// function pointer the moment the core changes 3D mode during
-// retro_load_game, crashing (found via a real access violation there).
-void RetroLogPrintf(retro_log_level, const char *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    std::vfprintf(stderr, fmt, args);
-    va_end(args);
-}
-
-bool RetroEnvironment(unsigned cmd, void *data)
-{
-    switch (cmd)
+    // The core has at least one call site (SettingChanged's "3D mode changed"
+    // log line) that calls log_cb unconditionally with no null check, unlike
+    // every other log_cb use in libretro.cpp - so GET_LOG_INTERFACE can't just
+    // return false like the rest of the environment calls this pass doesn't
+    // otherwise care about. Without this, that log line dereferences a null
+    // function pointer the moment the core changes 3D mode during
+    // retro_load_game, crashing (found via a real access violation there).
+    void RetroLogPrintf(retro_log_level, const char *fmt, ...)
     {
-    case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
-    {
-        auto *cb = static_cast<retro_log_callback *>(data);
-        if (!cb)
-            return false;
-        cb->log = RetroLogPrintf;
-        return true;
+        va_list args;
+        va_start(args, fmt);
+        std::vfprintf(stderr, fmt, args);
+        va_end(args);
     }
-    case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
+
+    bool RetroEnvironment(unsigned cmd, void *data)
     {
-        // Only XRGB8888 is supported here - UiRenderer's streaming texture
-        // is created as VK_FORMAT_B8G8R8A8_UNORM, which is exactly this
-        // format's in-memory byte order (Rshift16/Gshift8/Bshift0/Ashift24
-        // on little-endian == bytes B,G,R,A) - no CPU-side conversion.
-        const auto *fmt = static_cast<const retro_pixel_format *>(data);
-        return fmt && *fmt == RETRO_PIXEL_FORMAT_XRGB8888;
-    }
-    case RETRO_ENVIRONMENT_GET_VARIABLE:
-    {
-        auto *var = static_cast<retro_variable *>(data);
-        if (!var || !var->key)
-            return false;
-        // Force side-by-side stereo - see Emulator.h's class comment. Every
-        // other variable this core asks about just falls back to its own
-        // built-in default (returning false here is safe - libretro.cpp
-        // guards every other GET_VARIABLE call with `&& var.value`).
-        if (std::strcmp(var->key, "vb_3dmode") == 0)
+        switch (cmd)
         {
-            var->value = "side-by-side";
+        case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
+        {
+            auto *cb = static_cast<retro_log_callback *>(data);
+            if (!cb)
+                return false;
+            cb->log = RetroLogPrintf;
             return true;
         }
-        return false;
+        case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
+        {
+            // Only XRGB8888 is supported here - UiRenderer's streaming texture
+            // is created as VK_FORMAT_B8G8R8A8_UNORM, which is exactly this
+            // format's in-memory byte order (Rshift16/Gshift8/Bshift0/Ashift24
+            // on little-endian == bytes B,G,R,A) - no CPU-side conversion.
+            const auto *fmt = static_cast<const retro_pixel_format *>(data);
+            return fmt && *fmt == RETRO_PIXEL_FORMAT_XRGB8888;
+        }
+        case RETRO_ENVIRONMENT_GET_VARIABLE:
+        {
+            auto *var = static_cast<retro_variable *>(data);
+            if (!var || !var->key)
+                return false;
+            // Force side-by-side stereo - see Emulator.h's class comment. Every
+            // other variable this core asks about just falls back to its own
+            // built-in default (returning false here is safe - libretro.cpp
+            // guards every other GET_VARIABLE call with `&& var.value`).
+            if (std::strcmp(var->key, "vb_3dmode") == 0)
+            {
+                var->value = "side-by-side";
+                return true;
+            }
+            return false;
+        }
+        // Silently accept/ignore anything else this core probes for (performance
+        // interface, input descriptors, geometry updates, overscan, variable-
+        // update polling, ...) - none of it is needed for video-only playback
+        // this pass.
+        default:
+            return false;
+        }
     }
-    // Silently accept/ignore anything else this core probes for (performance
-    // interface, input descriptors, geometry updates, overscan, variable-
-    // update polling, ...) - none of it is needed for video-only playback
-    // this pass.
-    default:
-        return false;
+
+    void RetroVideoRefresh(const void *data, unsigned width, unsigned height, size_t /*pitch*/)
+    {
+        if (!data)
+            return; // core is signalling "same as last frame" (e.g. hardware-render path) - not used by this core
+
+        g_pendingFrame = data;
+        g_pendingWidth = width;
+        g_pendingHeight = height;
+        g_frameReady = true;
     }
-}
 
-void RetroVideoRefresh(const void *data, unsigned width, unsigned height, size_t /*pitch*/)
-{
-    if (!data)
-        return; // core is signalling "same as last frame" (e.g. hardware-render path) - not used by this core
+    // The core only ever calls the batch variant below (see libretro.cpp's
+    // audio_batch_cb usage) - this one's wired up solely because
+    // retro_set_audio_sample still requires a non-null callback.
+    void RetroAudioSampleNoop(int16_t, int16_t) {}
 
-    g_pendingFrame = data;
-    g_pendingWidth = width;
-    g_pendingHeight = height;
-    g_frameReady = true;
-}
+    size_t RetroAudioSampleBatch(const int16_t *data, size_t frames)
+    {
+        if (g_audioOutput)
+            g_audioOutput->PushSamples(data, frames);
+        return frames;
+    }
 
-// The core only ever calls the batch variant below (see libretro.cpp's
-// audio_batch_cb usage) - this one's wired up solely because
-// retro_set_audio_sample still requires a non-null callback.
-void RetroAudioSampleNoop(int16_t, int16_t) {}
+    // No-op: g_joypadBitmask is refreshed once per app frame by
+    // Emulator::SetGameplayInput (called before RunFrame's retro_run() calls),
+    // not by polling a device here.
+    void RetroInputPollNoop() {}
 
-size_t RetroAudioSampleBatch(const int16_t *data, size_t frames)
-{
-    if (g_audioOutput)
-        g_audioOutput->PushSamples(data, frames);
-    return frames;
-}
-
-// No-op: g_joypadBitmask is refreshed once per app frame by
-// Emulator::SetGameplayInput (called before RunFrame's retro_run() calls),
-// not by polling a device here.
-void RetroInputPollNoop() {}
-
-int16_t RetroInputState(unsigned port, unsigned device, unsigned /*index*/, unsigned id)
-{
-    if (port != 0 || device != RETRO_DEVICE_JOYPAD || id > 31)
-        return 0;
-    return (g_joypadBitmask & (1u << id)) ? 1 : 0;
-}
+    int16_t RetroInputState(unsigned port, unsigned device, unsigned /*index*/, unsigned id)
+    {
+        if (port != 0 || device != RETRO_DEVICE_JOYPAD || id > 31)
+            return 0;
+        return (g_joypadBitmask & (1u << id)) ? 1 : 0;
+    }
 } // namespace
 
 void Emulator::Initialize(UiRenderer &ui)
@@ -207,7 +207,7 @@ bool Emulator::LoadRom(const std::string &romPath, const std::string &displayNam
     m_romLoaded = retro_load_game(&info);
     m_frameAccumulator = 0.0f;
     std::fprintf(stderr, "[Emulator] LoadRom(\"%s\"): %zu bytes read, retro_load_game -> %s\n", romPath.c_str(),
-                romBytes.size(), m_romLoaded ? "success" : "FAILED");
+                 romBytes.size(), m_romLoaded ? "success" : "FAILED");
 
     if (m_romLoaded)
     {

@@ -84,7 +84,8 @@ public:
 
     void SubmitRawCaptureInput(const ButtonMapper::MappedButton &button)
     {
-        if (RawCaptureHook) RawCaptureHook(button);
+        if (RawCaptureHook)
+            RawCaptureHook(button);
     }
 
     void Init();
@@ -247,7 +248,7 @@ public:
         // secondary bindings.
         bool twoColumn = false;
         std::string textSecondary;
-        bool centered = false; // centers the icon+label group within the row
+        bool centered = false;         // centers the icon+label group within the row
         bool tintIconOnSelect = false; // per-entry override when the list disables tint
         bool reserveIconSpace = false; // align text with icon rows without drawing an icon
 

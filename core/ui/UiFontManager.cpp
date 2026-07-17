@@ -376,4 +376,3 @@ float UiFontManager::GetFontPStart(UiFontHandle handle) const
 {
     return handle.IsValid() ? m_fonts[handle.id]->pStart : 0.0f;
 }
-

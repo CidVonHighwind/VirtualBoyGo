@@ -9,22 +9,28 @@
 
 #include <cmath>
 
-struct Mat4 {
-    float m[16]{};  // column-major: m[col * 4 + row]
+struct Mat4
+{
+    float m[16]{}; // column-major: m[col * 4 + row]
 
-    static Mat4 Identity() {
+    static Mat4 Identity()
+    {
         Mat4 r;
         r.m[0] = r.m[5] = r.m[10] = r.m[15] = 1.0f;
         return r;
     }
 };
 
-inline Mat4 Mat4Multiply(const Mat4& a, const Mat4& b) {
+inline Mat4 Mat4Multiply(const Mat4 &a, const Mat4 &b)
+{
     Mat4 r;
-    for (int col = 0; col < 4; ++col) {
-        for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 4; ++col)
+    {
+        for (int row = 0; row < 4; ++row)
+        {
             float sum = 0.0f;
-            for (int k = 0; k < 4; ++k) {
+            for (int k = 0; k < 4; ++k)
+            {
                 sum += a.m[k * 4 + row] * b.m[col * 4 + k];
             }
             r.m[col * 4 + row] = sum;
@@ -34,7 +40,8 @@ inline Mat4 Mat4Multiply(const Mat4& a, const Mat4& b) {
 }
 
 // Vulkan clip space (NDC depth [0,1], Y-down) projection from an OpenXR FOV.
-inline Mat4 Mat4ProjectionVulkan(const XrFovf& fov, float nearZ, float farZ) {
+inline Mat4 Mat4ProjectionVulkan(const XrFovf &fov, float nearZ, float farZ)
+{
     const float tanLeft = tanf(fov.angleLeft);
     const float tanRight = tanf(fov.angleRight);
     const float tanUp = tanf(fov.angleUp);
@@ -54,7 +61,8 @@ inline Mat4 Mat4ProjectionVulkan(const XrFovf& fov, float nearZ, float farZ) {
     return r;
 }
 
-inline Mat4 Mat4FromQuatTranslation(const XrQuaternionf& q, const XrVector3f& t) {
+inline Mat4 Mat4FromQuatTranslation(const XrQuaternionf &q, const XrVector3f &t)
+{
     Mat4 r = Mat4::Identity();
     const float x = q.x, y = q.y, z = q.z, w = q.w;
     r.m[0] = 1 - 2 * (y * y + z * z);
@@ -73,7 +81,8 @@ inline Mat4 Mat4FromQuatTranslation(const XrQuaternionf& q, const XrVector3f& t)
 }
 
 // Inverse of a rigid (rotation + translation, no scale) transform.
-inline Mat4 Mat4InvertRigid(const Mat4& src) {
+inline Mat4 Mat4InvertRigid(const Mat4 &src)
+{
     Mat4 r = Mat4::Identity();
     r.m[0] = src.m[0];
     r.m[1] = src.m[4];
@@ -91,7 +100,8 @@ inline Mat4 Mat4InvertRigid(const Mat4& src) {
     return r;
 }
 
-inline Mat4 Mat4Scale(const XrVector3f& s) {
+inline Mat4 Mat4Scale(const XrVector3f &s)
+{
     Mat4 r = Mat4::Identity();
     r.m[0] = s.x;
     r.m[5] = s.y;

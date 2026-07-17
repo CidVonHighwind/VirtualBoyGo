@@ -41,7 +41,6 @@ namespace
     // slerp(current, goal, speed*dt)-per-frame smoothing there.
     constexpr float kFollowHeadSmoothSpeed = 1.0f;
 
-
     void CheckXr(XrResult result, const char *what)
     {
         if (XR_FAILED(result))
@@ -91,7 +90,10 @@ namespace
         float dot = a.x * bx + a.y * by + a.z * bz + a.w * bw;
         if (dot < 0.0f)
         {
-            bx = -bx; by = -by; bz = -bz; bw = -bw;
+            bx = -bx;
+            by = -by;
+            bz = -bz;
+            bw = -bw;
             dot = -dot;
         }
         dot = std::clamp(dot, -1.0f, 1.0f);
@@ -317,9 +319,9 @@ void OpenXrApp::CreateSwapchains()
     // instead of one shared/cropped one. Falls back to the menu's own size
     // if no screen is loaded.
     const int32_t screenWidth = m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenWidth() * Emulator::kScale)
-                                                        : static_cast<int32_t>(kMenuWidth * kMenuScale);
+                                                       : static_cast<int32_t>(kMenuWidth * kMenuScale);
     const int32_t screenHeight = m_emulator.HasScreen() ? static_cast<int32_t>(m_emulator.GetScreenHeight() * Emulator::kScale)
-                                                         : static_cast<int32_t>(kMenuHeight * kMenuScale);
+                                                        : static_cast<int32_t>(kMenuHeight * kMenuScale);
     const int32_t eyeWidth = m_emulator.HasScreen() ? screenWidth / 2 : screenWidth;
     for (Swapchain *sc : {&m_screenSwapchainLeft, &m_screenSwapchainRight})
     {

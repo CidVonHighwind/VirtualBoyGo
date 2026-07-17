@@ -54,7 +54,7 @@ public:
     // Per-font GPU resources + character map + on-demand baking state.
     struct Font
     {
-        int fontSize = 0;      // physical FreeType pixel height
+        int fontSize = 0; // physical FreeType pixel height
         float renderScale = 1.0f;
         // Baseline offset from top of glyph cell, i.e. the font's ascender
         // (from FT_Face metrics). Set once in LoadFont/RebakeFont and never

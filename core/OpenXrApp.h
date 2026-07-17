@@ -17,21 +17,23 @@
 // self-contained (no multi-backend abstraction like hello_xr's
 // IGraphicsPlugin/IPlatformPlugin) since this project only ever targets
 // Vulkan, on Android (Quest/Frame/Android VR) and PC.
-class OpenXrApp {
-   public:
-    struct InitInfo {
+class OpenXrApp
+{
+public:
+    struct InitInfo
+    {
         // Android only: pointer to an XrInstanceCreateInfoAndroidKHR to chain
         // onto XrInstanceCreateInfo::next. Left null on PC.
-        const void* instanceCreateNext = nullptr;
+        const void *instanceCreateNext = nullptr;
         // Android only: XR_KHR_android_create_instance must be enabled.
         bool isAndroid = false;
     };
 
-    void Initialize(const InitInfo& info);
+    void Initialize(const InitInfo &info);
     void Shutdown();
 
     // Pumps the XR event queue and updates internal session-state tracking.
-    void PollEvents(bool& exitRenderLoop, bool& requestRestart);
+    void PollEvents(bool &exitRenderLoop, bool &requestRestart);
 
     bool IsSessionRunning() const { return m_sessionRunning; }
 
@@ -56,8 +58,8 @@ class OpenXrApp {
     // open/close the menu with a gamepad at all.
     void SetGamepadMenuButtonPressed(bool pressed) { m_gamepadMenuButtonPressed = pressed; }
 
-   private:
-    void CreateInstance(const InitInfo& info);
+private:
+    void CreateInstance(const InitInfo &info);
     void InitializeSystem();
     void InitializeSession();
     void CreateSwapchains();
@@ -70,7 +72,7 @@ class OpenXrApp {
     // finest there - see the definition's doc comment). No-op without
     // XR_FB_display_refresh_rate (e.g. SteamVR).
     void RequestMaxDisplayRefreshRate();
-    void HandleSessionStateChanged(const XrEventDataSessionStateChanged& event, bool& exitRenderLoop, bool& requestRestart);
+    void HandleSessionStateChanged(const XrEventDataSessionStateChanged &event, bool &exitRenderLoop, bool &requestRestart);
     // Polls the device battery level into m_appMenu's header indicator, at
     // most once a second (AndroidRomAccess::GetBatteryPercent is a JNI call
     // - see its doc comment). No-op off Android, matching how the indicator
@@ -92,15 +94,16 @@ class OpenXrApp {
     // m_settings.curvedScreen (falling back to the quad if
     // m_cylinderExtAvailable is false) and reports which one via
     // outUsedCylinder so RenderFrame submits the right layer type.
-    bool RenderScreenLayer(XrCompositionLayerQuad& leftQuadLayer, XrCompositionLayerQuad& rightQuadLayer,
-                           XrCompositionLayerCylinderKHR& leftCylinderLayer, XrCompositionLayerCylinderKHR& rightCylinderLayer,
-                           bool& outUsedCylinder);
+    bool RenderScreenLayer(XrCompositionLayerQuad &leftQuadLayer, XrCompositionLayerQuad &rightQuadLayer,
+                           XrCompositionLayerCylinderKHR &leftCylinderLayer, XrCompositionLayerCylinderKHR &rightCylinderLayer,
+                           bool &outUsedCylinder);
     // Renders the menu into its own dedicated quad swapchain, positioned a
     // little closer to the viewer than the screen layer so it visibly
     // floats in front of it instead of sitting flush on the same plane.
-    bool RenderMenuLayer(XrCompositionLayerQuad& quadLayer);
+    bool RenderMenuLayer(XrCompositionLayerQuad &quadLayer);
 
-    struct Swapchain {
+    struct Swapchain
+    {
         XrSwapchain handle{XR_NULL_HANDLE};
         int32_t width{0};
         int32_t height{0};

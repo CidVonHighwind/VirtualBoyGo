@@ -7,19 +7,23 @@
 #include <stdexcept>
 #include <string>
 
-namespace {
+namespace
+{
 
-void CheckXr(XrResult result, const char* what) {
-    if (XR_FAILED(result)) {
-        throw std::runtime_error(std::string("OpenXR call failed: ") + what + " (" + std::to_string(result) + ")");
+    void CheckXr(XrResult result, const char *what)
+    {
+        if (XR_FAILED(result))
+        {
+            throw std::runtime_error(std::string("OpenXR call failed: ") + what + " (" + std::to_string(result) + ")");
+        }
     }
-}
 
-constexpr float kThumbstickDeadzone = 0.5f;
+    constexpr float kThumbstickDeadzone = 0.5f;
 
-}  // namespace
+} // namespace
 
-void XrInput::Initialize(XrInstance instance, XrSession session) {
+void XrInput::Initialize(XrInstance instance, XrSession session)
+{
     m_instance = instance;
 
     CheckXr(xrStringToPath(instance, "/user/hand/left", &m_leftHandPath), "xrStringToPath (left)");
@@ -31,12 +35,14 @@ void XrInput::Initialize(XrInstance instance, XrSession session) {
     std::strncpy(actionSetInfo.localizedActionSetName, "Menu Input", XR_MAX_LOCALIZED_ACTION_SET_NAME_SIZE - 1);
     CheckXr(xrCreateActionSet(instance, &actionSetInfo, &m_actionSet), "xrCreateActionSet");
 
-    auto createAction = [&](const char* name, const char* localizedName, XrActionType type, bool bothHands) -> XrAction {
+    auto createAction = [&](const char *name, const char *localizedName, XrActionType type, bool bothHands) -> XrAction
+    {
         XrActionCreateInfo info{XR_TYPE_ACTION_CREATE_INFO};
         std::strncpy(info.actionName, name, XR_MAX_ACTION_NAME_SIZE - 1);
         std::strncpy(info.localizedActionName, localizedName, XR_MAX_LOCALIZED_ACTION_NAME_SIZE - 1);
         info.actionType = type;
-        if (bothHands) {
+        if (bothHands)
+        {
             info.countSubactionPaths = 2;
             info.subactionPaths = subactionPaths;
         }
@@ -53,7 +59,8 @@ void XrInput::Initialize(XrInstance instance, XrSession session) {
     m_triggerAction = createAction("trigger", "Trigger", XR_ACTION_TYPE_FLOAT_INPUT, true);
     m_menuClickAction = createAction("menu_click", "Menu Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
 
-    auto path = [&](const char* p) {
+    auto path = [&](const char *p)
+    {
         XrPath result;
         CheckXr(xrStringToPath(instance, p, &result), "xrStringToPath");
         return result;
@@ -92,14 +99,17 @@ void XrInput::Initialize(XrInstance instance, XrSession session) {
     CheckXr(xrAttachSessionActionSets(session, &attachInfo), "xrAttachSessionActionSets");
 }
 
-void XrInput::Shutdown() {
-    if (m_actionSet != XR_NULL_HANDLE) {
+void XrInput::Shutdown()
+{
+    if (m_actionSet != XR_NULL_HANDLE)
+    {
         xrDestroyActionSet(m_actionSet);
         m_actionSet = XR_NULL_HANDLE;
     }
 }
 
-void XrInput::Sync(XrSession session) {
+void XrInput::Sync(XrSession session)
+{
     m_buttonStates[ButtonMapper::DeviceGamepad] = 0;
     m_buttonStates[ButtonMapper::DeviceLeftTouch] = 0;
     m_buttonStates[ButtonMapper::DeviceRightTouch] = 0;
@@ -110,11 +120,13 @@ void XrInput::Sync(XrSession session) {
     syncInfo.activeActionSets = &activeActionSet;
     // Not fatal if this fails (e.g. session not focused yet) - just means
     // button states won't update this frame.
-    if (XR_FAILED(xrSyncActions(session, &syncInfo))) {
+    if (XR_FAILED(xrSyncActions(session, &syncInfo)))
+    {
         return;
     }
 
-    struct HandInfo {
+    struct HandInfo
+    {
         XrPath path;
         int deviceSlot;
     };
@@ -125,18 +137,24 @@ void XrInput::Sync(XrSession session) {
 
     m_rightThumbstick = {0.0f, 0.0f};
     m_leftThumbstick = {0.0f, 0.0f};
-    for (const HandInfo& hand : hands) {
+    for (const HandInfo &hand : hands)
+    {
         XrActionStateGetInfo stickGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         stickGetInfo.action = m_thumbstickAction;
         stickGetInfo.subactionPath = hand.path;
 
         XrActionStateVector2f stickState{XR_TYPE_ACTION_STATE_VECTOR2F};
-        if (XR_SUCCEEDED(xrGetActionStateVector2f(session, &stickGetInfo, &stickState)) && stickState.isActive) {
-            uint32_t& bits = m_buttonStates[hand.deviceSlot];
-            if (stickState.currentState.y > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Up];
-            if (stickState.currentState.y < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Down];
-            if (stickState.currentState.x < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Left];
-            if (stickState.currentState.x > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Right];
+        if (XR_SUCCEEDED(xrGetActionStateVector2f(session, &stickGetInfo, &stickState)) && stickState.isActive)
+        {
+            uint32_t &bits = m_buttonStates[hand.deviceSlot];
+            if (stickState.currentState.y > kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Up];
+            if (stickState.currentState.y < -kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Down];
+            if (stickState.currentState.x < -kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Left];
+            if (stickState.currentState.x > kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Right];
             // Also set hand-specific Left/RightStick bits (distinct from the
             // generic Up/Down/Left/Right above, which both hands share for
             // menu navigation) - these are what AppSettings::vbButtons'
@@ -148,17 +166,24 @@ void XrInput::Sync(XrSession session) {
             const uint32_t downBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickDown : ButtonMapper::EmuButton_RightStickDown;
             const uint32_t leftBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickLeft : ButtonMapper::EmuButton_RightStickLeft;
             const uint32_t rightBit = isLeftHand ? ButtonMapper::EmuButton_LeftStickRight : ButtonMapper::EmuButton_RightStickRight;
-            if (stickState.currentState.y > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[upBit];
-            if (stickState.currentState.y < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[downBit];
-            if (stickState.currentState.x < -kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[leftBit];
-            if (stickState.currentState.x > kThumbstickDeadzone) bits |= ButtonMapper::ButtonMapping[rightBit];
-            if (hand.deviceSlot == ButtonMapper::DeviceRightTouch) m_rightThumbstick = stickState.currentState;
-            else m_leftThumbstick = stickState.currentState;
+            if (stickState.currentState.y > kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[upBit];
+            if (stickState.currentState.y < -kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[downBit];
+            if (stickState.currentState.x < -kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[leftBit];
+            if (stickState.currentState.x > kThumbstickDeadzone)
+                bits |= ButtonMapper::ButtonMapping[rightBit];
+            if (hand.deviceSlot == ButtonMapper::DeviceRightTouch)
+                m_rightThumbstick = stickState.currentState;
+            else
+                m_leftThumbstick = stickState.currentState;
         }
     }
 
     constexpr float kTriggerThreshold = 0.5f;
-    auto readTrigger = [&](XrPath handPath) {
+    auto readTrigger = [&](XrPath handPath)
+    {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         getInfo.action = m_triggerAction;
         getInfo.subactionPath = handPath;
@@ -171,16 +196,20 @@ void XrInput::Sync(XrSession session) {
     // Also feed buttonStates (see the thumbstick block above's doc comment) -
     // AppSettings::vbButtons' default L/R bindings point at this bit on the
     // matching hand's device slot.
-    if (m_leftTriggerPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
-    if (m_rightTriggerPressed) m_buttonStates[ButtonMapper::DeviceRightTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
+    if (m_leftTriggerPressed)
+        m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
+    if (m_rightTriggerPressed)
+        m_buttonStates[ButtonMapper::DeviceRightTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Trigger];
 
-    auto readClick = [&](XrAction action, uint32_t emuButton) {
+    auto readClick = [&](XrAction action, uint32_t emuButton)
+    {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         getInfo.action = action;
         getInfo.subactionPath = XR_NULL_PATH;
 
         XrActionStateBoolean state{XR_TYPE_ACTION_STATE_BOOLEAN};
-        if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &getInfo, &state)) && state.isActive && state.currentState) {
+        if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &getInfo, &state)) && state.isActive && state.currentState)
+        {
             m_buttonStates[ButtonMapper::DeviceRightTouch] |= ButtonMapper::ButtonMapping[emuButton];
             return true;
         }
@@ -192,7 +221,8 @@ void XrInput::Sync(XrSession session) {
 
     // X/Y have no menu-navigation meaning (unlike A/B), so these don't touch
     // m_buttonStates - just the raw gameplay-mapping state.
-    auto readRawBool = [&](XrAction action) {
+    auto readRawBool = [&](XrAction action)
+    {
         XrActionStateGetInfo getInfo{XR_TYPE_ACTION_STATE_GET_INFO};
         getInfo.action = action;
         getInfo.subactionPath = XR_NULL_PATH;
@@ -203,20 +233,24 @@ void XrInput::Sync(XrSession session) {
     m_yPressed = readRawBool(m_yClickAction);
     // Also feed buttonStates (see the thumbstick block above's doc comment) -
     // AppSettings::vbButtons' default Select/Start bindings point at these.
-    if (m_xPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_X];
-    if (m_yPressed) m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Y];
+    if (m_xPressed)
+        m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_X];
+    if (m_yPressed)
+        m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Y];
 
     m_menuButtonPressed = false;
     XrActionStateGetInfo menuGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
     menuGetInfo.action = m_menuClickAction;
     menuGetInfo.subactionPath = XR_NULL_PATH;
     XrActionStateBoolean menuState{XR_TYPE_ACTION_STATE_BOOLEAN};
-    if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &menuGetInfo, &menuState)) && menuState.isActive) {
+    if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &menuGetInfo, &menuState)) && menuState.isActive)
+    {
         m_menuButtonPressed = menuState.currentState;
     }
 }
 
-void XrInput::GetButtonStates(uint32_t buttonStates[3]) const {
+void XrInput::GetButtonStates(uint32_t buttonStates[3]) const
+{
     buttonStates[0] = m_buttonStates[0];
     buttonStates[1] = m_buttonStates[1];
     buttonStates[2] = m_buttonStates[2];

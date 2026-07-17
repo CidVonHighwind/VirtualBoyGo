@@ -9,7 +9,8 @@
 #include <cstdio>
 #include <thread>
 
-int main() {
+int main()
+{
     // Unbuffered stdout/stderr so logs show up immediately even when
     // redirected to a file (buffered-until-exit output made earlier
     // debugging in this session confusing).
@@ -20,44 +21,55 @@ int main() {
     // stdin) instead of treating it as an immediate quit request - learned
     // the hard way debugging hello_xr earlier this session.
     static bool quitRequested = false;
-    std::thread exitPollingThread([] {
+    std::thread exitPollingThread([]
+                                  {
         std::printf("Press Enter to quit...\n");
         int ch = std::getchar();
         if (ch != EOF) {
             quitRequested = true;
-        }
-    });
+        } });
     exitPollingThread.detach();
 
     std::printf("VirtualBoyGo PC starting...\n");
 
     OpenXrApp app;
-    try {
+    try
+    {
         OpenXrApp::InitInfo info;
         app.Initialize(info);
         std::printf("VirtualBoyGo PC initialized OK\n");
-    } catch (const std::exception& ex) {
+    }
+    catch (const std::exception &ex)
+    {
         std::fprintf(stderr, "VirtualBoyGo: init failed: %s\n", ex.what());
         return 1;
     }
 
     bool requestRestart = false;
     int exitCode = 0;
-    while (!quitRequested) {
-        try {
+    while (!quitRequested)
+    {
+        try
+        {
             bool exitRenderLoop = false;
             app.PollEvents(exitRenderLoop, requestRestart);
-            if (exitRenderLoop) {
+            if (exitRenderLoop)
+            {
                 std::printf("VirtualBoyGo PC: exitRenderLoop requested\n");
                 break;
             }
 
-            if (app.IsSessionRunning()) {
+            if (app.IsSessionRunning())
+            {
                 app.RenderFrame();
-            } else {
+            }
+            else
+            {
                 std::this_thread::sleep_for(std::chrono::milliseconds(250));
             }
-        } catch (const std::exception& ex) {
+        }
+        catch (const std::exception &ex)
+        {
             std::fprintf(stderr, "VirtualBoyGo: render loop failed: %s\n", ex.what());
             exitCode = 1;
             break;

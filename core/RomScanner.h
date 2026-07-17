@@ -5,8 +5,8 @@
 
 struct RomEntry
 {
-    std::string name;      // file name without extension, for display (e.g. "Golf (U) [!]")
-    std::string fullPath;  // for loading the ROM later - a filesystem path, or a content:// URI on Android (see below)
+    std::string name;     // file name without extension, for display (e.g. "Golf (U) [!]")
+    std::string fullPath; // for loading the ROM later - a filesystem path, or a content:// URI on Android (see below)
 };
 
 // Scans for .vb ROMs, sorted case-insensitively. Empty vector if there's

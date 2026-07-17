@@ -9,30 +9,37 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace {
+namespace
+{
 
-void CheckVk(VkResult result, const char* what) {
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error(std::string("Vulkan call failed: ") + what + " (" + std::to_string(result) + ")");
+    void CheckVk(VkResult result, const char *what)
+    {
+        if (result != VK_SUCCESS)
+        {
+            throw std::runtime_error(std::string("Vulkan call failed: ") + what + " (" + std::to_string(result) + ")");
+        }
     }
-}
 
-void CheckXr(XrResult result, const char* what) {
-    if (XR_FAILED(result)) {
-        throw std::runtime_error(std::string("OpenXR call failed: ") + what + " (" + std::to_string(result) + ")");
+    void CheckXr(XrResult result, const char *what)
+    {
+        if (XR_FAILED(result))
+        {
+            throw std::runtime_error(std::string("OpenXR call failed: ") + what + " (" + std::to_string(result) + ")");
+        }
     }
-}
 
-template <typename PfnT>
-PfnT GetXrFn(XrInstance instance, const char* name) {
-    PfnT pfn = nullptr;
-    CheckXr(xrGetInstanceProcAddr(instance, name, reinterpret_cast<PFN_xrVoidFunction*>(&pfn)), name);
-    return pfn;
-}
+    template <typename PfnT>
+    PfnT GetXrFn(XrInstance instance, const char *name)
+    {
+        PfnT pfn = nullptr;
+        CheckXr(xrGetInstanceProcAddr(instance, name, reinterpret_cast<PFN_xrVoidFunction *>(&pfn)), name);
+        return pfn;
+    }
 
-}  // namespace
+} // namespace
 
-void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) {
+void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId)
+{
     CheckVk(volkInitialize(), "volkInitialize");
 
     auto pfnGetReqs2 =
@@ -79,18 +86,19 @@ void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) 
         VkPhysicalDeviceProperties props{};
         vkGetPhysicalDeviceProperties(m_physicalDevice, &props);
         std::fprintf(stderr, "[VulkanRenderer] OpenXR selected GPU: \"%s\" (vendorID=0x%04x, deviceID=0x%04x)\n",
-                    props.deviceName, props.vendorID, props.deviceID);
+                     props.deviceName, props.vendorID, props.deviceID);
 
         uint32_t allDeviceCount = 0;
         vkEnumeratePhysicalDevices(m_instance, &allDeviceCount, nullptr);
         std::vector<VkPhysicalDevice> allDevices(allDeviceCount);
         vkEnumeratePhysicalDevices(m_instance, &allDeviceCount, allDevices.data());
         std::fprintf(stderr, "[VulkanRenderer] All available GPUs (%u):\n", allDeviceCount);
-        for (VkPhysicalDevice dev : allDevices) {
+        for (VkPhysicalDevice dev : allDevices)
+        {
             VkPhysicalDeviceProperties p{};
             vkGetPhysicalDeviceProperties(dev, &p);
             std::fprintf(stderr, "  - \"%s\" (vendorID=0x%04x, deviceID=0x%04x)%s\n", p.deviceName, p.vendorID,
-                        p.deviceID, dev == m_physicalDevice ? "  <-- selected" : "");
+                         p.deviceID, dev == m_physicalDevice ? "  <-- selected" : "");
         }
     }
 
@@ -98,8 +106,10 @@ void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) 
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, nullptr);
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(m_physicalDevice, &queueFamilyCount, queueFamilies.data());
-    for (uint32_t i = 0; i < queueFamilyCount; ++i) {
-        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+    for (uint32_t i = 0; i < queueFamilyCount; ++i)
+    {
+        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        {
             m_queueFamilyIndex = i;
             break;
         }
@@ -129,7 +139,8 @@ void VulkanRenderer::CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId) 
     FinishDeviceSetup();
 }
 
-VkInstance VulkanRenderer::CreateInstanceStandalone(const std::vector<const char*>& instanceExtensions) {
+VkInstance VulkanRenderer::CreateInstanceStandalone(const std::vector<const char *> &instanceExtensions)
+{
     CheckVk(volkInitialize(), "volkInitialize");
 
     VkApplicationInfo appInfo{VK_STRUCTURE_TYPE_APPLICATION_INFO};
@@ -149,32 +160,39 @@ VkInstance VulkanRenderer::CreateInstanceStandalone(const std::vector<const char
     return m_instance;
 }
 
-void VulkanRenderer::CreateDeviceForSurface(VkSurfaceKHR surface) {
+void VulkanRenderer::CreateDeviceForSurface(VkSurfaceKHR surface)
+{
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
-    if (devices.empty()) {
+    if (devices.empty())
+    {
         throw std::runtime_error("VulkanRenderer: no Vulkan physical devices found");
     }
 
-    for (VkPhysicalDevice candidate : devices) {
+    for (VkPhysicalDevice candidate : devices)
+    {
         uint32_t queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(candidate, &queueFamilyCount, nullptr);
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(candidate, &queueFamilyCount, queueFamilies.data());
-        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
+        for (uint32_t i = 0; i < queueFamilyCount; ++i)
+        {
             VkBool32 presentSupport = VK_FALSE;
             vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface, &presentSupport);
-            if ((queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && presentSupport) {
+            if ((queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && presentSupport)
+            {
                 m_physicalDevice = candidate;
                 m_queueFamilyIndex = i;
                 break;
             }
         }
-        if (m_physicalDevice != VK_NULL_HANDLE) break;
+        if (m_physicalDevice != VK_NULL_HANDLE)
+            break;
     }
-    if (m_physicalDevice == VK_NULL_HANDLE) {
+    if (m_physicalDevice == VK_NULL_HANDLE)
+    {
         throw std::runtime_error("VulkanRenderer: no Vulkan device with graphics+present support for this surface");
     }
 
@@ -184,7 +202,7 @@ void VulkanRenderer::CreateDeviceForSurface(VkSurfaceKHR surface) {
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.pQueuePriorities = &queuePriority;
 
-    const char* deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const char *deviceExtensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     VkDeviceCreateInfo deviceCreateInfo{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     deviceCreateInfo.queueCreateInfoCount = 1;
     deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
@@ -196,7 +214,8 @@ void VulkanRenderer::CreateDeviceForSurface(VkSurfaceKHR surface) {
     FinishDeviceSetup();
 }
 
-void VulkanRenderer::FinishDeviceSetup() {
+void VulkanRenderer::FinishDeviceSetup()
+{
     vkGetDeviceQueue(m_device, m_queueFamilyIndex, 0, &m_queue);
 
     VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
@@ -211,18 +230,23 @@ void VulkanRenderer::FinishDeviceSetup() {
     CheckVk(vkAllocateCommandBuffers(m_device, &cmdAllocInfo, &m_commandBuffer), "vkAllocateCommandBuffers");
 }
 
-void VulkanRenderer::Shutdown() {
-    if (m_device == VK_NULL_HANDLE) return;
+void VulkanRenderer::Shutdown()
+{
+    if (m_device == VK_NULL_HANDLE)
+        return;
     vkDeviceWaitIdle(m_device);
 
-    for (auto& [image, target] : m_renderTargets) {
+    for (auto &[image, target] : m_renderTargets)
+    {
         vkDestroyFramebuffer(m_device, target.framebuffer, nullptr);
         vkDestroyImageView(m_device, target.view, nullptr);
     }
     m_renderTargets.clear();
 
-    if (m_renderPass != VK_NULL_HANDLE) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-    if (m_commandPool != VK_NULL_HANDLE) vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+    if (m_renderPass != VK_NULL_HANDLE)
+        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+    if (m_commandPool != VK_NULL_HANDLE)
+        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
 
     vkDestroyDevice(m_device, nullptr);
     vkDestroyInstance(m_instance, nullptr);
@@ -230,7 +254,8 @@ void VulkanRenderer::Shutdown() {
     m_instance = VK_NULL_HANDLE;
 }
 
-XrGraphicsBindingVulkan2KHR VulkanRenderer::GetGraphicsBinding() const {
+XrGraphicsBindingVulkan2KHR VulkanRenderer::GetGraphicsBinding() const
+{
     XrGraphicsBindingVulkan2KHR binding{XR_TYPE_GRAPHICS_BINDING_VULKAN2_KHR};
     binding.instance = m_instance;
     binding.physicalDevice = m_physicalDevice;
@@ -240,28 +265,36 @@ XrGraphicsBindingVulkan2KHR VulkanRenderer::GetGraphicsBinding() const {
     return binding;
 }
 
-int64_t VulkanRenderer::SelectSwapchainFormat(const std::vector<int64_t>& runtimeFormats) const {
+int64_t VulkanRenderer::SelectSwapchainFormat(const std::vector<int64_t> &runtimeFormats) const
+{
     static const std::vector<int64_t> preferred = {
         VK_FORMAT_B8G8R8A8_SRGB,
         VK_FORMAT_R8G8B8A8_SRGB,
         VK_FORMAT_B8G8R8A8_UNORM,
         VK_FORMAT_R8G8B8A8_UNORM,
     };
-    for (int64_t want : preferred) {
-        for (int64_t have : runtimeFormats) {
-            if (want == have) return have;
+    for (int64_t want : preferred)
+    {
+        for (int64_t have : runtimeFormats)
+        {
+            if (want == have)
+                return have;
         }
     }
     return runtimeFormats.empty() ? VK_FORMAT_B8G8R8A8_UNORM : runtimeFormats[0];
 }
 
-VkRenderPass VulkanRenderer::GetOrCreateRenderPass(VkFormat colorFormat) {
-    if (m_renderPass != VK_NULL_HANDLE && m_renderPassFormat == colorFormat) return m_renderPass;
-    if (m_renderPass != VK_NULL_HANDLE) {
+VkRenderPass VulkanRenderer::GetOrCreateRenderPass(VkFormat colorFormat)
+{
+    if (m_renderPass != VK_NULL_HANDLE && m_renderPassFormat == colorFormat)
+        return m_renderPass;
+    if (m_renderPass != VK_NULL_HANDLE)
+    {
         // Format changed (shouldn't normally happen) - drop everything keyed off it.
         vkDeviceWaitIdle(m_device);
         vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-        for (auto& [image, target] : m_renderTargets) {
+        for (auto &[image, target] : m_renderTargets)
+        {
             vkDestroyFramebuffer(m_device, target.framebuffer, nullptr);
             vkDestroyImageView(m_device, target.view, nullptr);
         }
@@ -295,10 +328,12 @@ VkRenderPass VulkanRenderer::GetOrCreateRenderPass(VkFormat colorFormat) {
     return m_renderPass;
 }
 
-VulkanRenderer::RenderTarget& VulkanRenderer::GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width,
-                                                                      uint32_t height) {
+VulkanRenderer::RenderTarget &VulkanRenderer::GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width,
+                                                                      uint32_t height)
+{
     auto it = m_renderTargets.find(image);
-    if (it != m_renderTargets.end()) return it->second;
+    if (it != m_renderTargets.end())
+        return it->second;
 
     RenderTarget target;
 
@@ -322,10 +357,11 @@ VulkanRenderer::RenderTarget& VulkanRenderer::GetOrCreateRenderTarget(VkImage im
     return inserted->second;
 }
 
-void VulkanRenderer::RenderEye(VkImage image, int64_t swapchainFormat, uint32_t width, uint32_t height) {
+void VulkanRenderer::RenderEye(VkImage image, int64_t swapchainFormat, uint32_t width, uint32_t height)
+{
     const VkFormat format = static_cast<VkFormat>(swapchainFormat);
     GetOrCreateRenderPass(format);
-    RenderTarget& target = GetOrCreateRenderTarget(image, format, width, height);
+    RenderTarget &target = GetOrCreateRenderTarget(image, format, width, height);
 
     vkResetCommandBuffer(m_commandBuffer, 0);
     VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -354,8 +390,10 @@ void VulkanRenderer::RenderEye(VkImage image, int64_t swapchainFormat, uint32_t 
     CheckVk(vkQueueWaitIdle(m_queue), "vkQueueWaitIdle (eye render)");
 }
 
-void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels) {
-    if (mipLevels <= 1) return;
+void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels)
+{
+    if (mipLevels <= 1)
+        return;
 
     vkResetCommandBuffer(m_commandBuffer, 0);
     VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -365,7 +403,8 @@ void VulkanRenderer::GenerateMipmaps(VkImage image, uint32_t width, uint32_t hei
     int32_t mipWidth = static_cast<int32_t>(width);
     int32_t mipHeight = static_cast<int32_t>(height);
 
-    for (uint32_t level = 1; level < mipLevels; ++level) {
+    for (uint32_t level = 1; level < mipLevels; ++level)
+    {
         VkImageMemoryBarrier toSrc{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         // Mip 0 arrives in COLOR_ATTACHMENT_OPTIMAL (whatever rendered it -
         // e.g. UiRenderer::EndFrame - leaves it there); every mip after that

@@ -12,8 +12,9 @@
 // Emulator.h's VBButtonBit) - two different semantics from the same Quest
 // Touch controller profile, so this class exposes both rather than picking
 // one. The DeviceGamepad slot (menu-nav bitmask) is left unused for now.
-class XrInput {
-   public:
+class XrInput
+{
+public:
     void Initialize(XrInstance instance, XrSession session);
     void Shutdown();
 
@@ -49,7 +50,7 @@ class XrInput {
     bool IsLeftTriggerPressed() const { return m_leftTriggerPressed; }
     bool IsRightTriggerPressed() const { return m_rightTriggerPressed; }
 
-   private:
+private:
     XrInstance m_instance{XR_NULL_HANDLE};
     XrActionSet m_actionSet{XR_NULL_HANDLE};
     XrAction m_thumbstickAction{XR_NULL_HANDLE};

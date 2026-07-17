@@ -44,9 +44,9 @@ private:
     static constexpr size_t kSampleRate = 44100;
     static constexpr size_t kRingFrames = kSampleRate / 2; // 0.5s of buffering
 
-    ma_device *m_device = nullptr; // heap-allocated - see class comment
-    std::vector<int16_t> m_ringBuffer;      // interleaved stereo, kRingFrames * 2 int16_t
-    std::atomic<size_t> m_writeFrame{0};    // ever-increasing frame counters (not wrapped) - see .cpp
+    ma_device *m_device = nullptr;       // heap-allocated - see class comment
+    std::vector<int16_t> m_ringBuffer;   // interleaved stereo, kRingFrames * 2 int16_t
+    std::atomic<size_t> m_writeFrame{0}; // ever-increasing frame counters (not wrapped) - see .cpp
     std::atomic<size_t> m_readFrame{0};
     bool m_initialized = false;
 };

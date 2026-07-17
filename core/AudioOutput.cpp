@@ -97,7 +97,7 @@ void AudioOutput::PushSamples(const int16_t *interleaved, size_t frames)
     const size_t writeFrame = m_writeFrame.load(std::memory_order_relaxed);
     const size_t readFrame = m_readFrame.load(std::memory_order_acquire);
     const size_t used = writeFrame - readFrame;
-    const size_t freeFrames = kRingFrames - used; // "free" collides with a CRT debug macro on MSVC
+    const size_t freeFrames = kRingFrames - used;              // "free" collides with a CRT debug macro on MSVC
     const size_t framesToWrite = std::min(frames, freeFrames); // drop the rest rather than block or overwrite unread data
 
     for (size_t i = 0; i < framesToWrite; ++i)

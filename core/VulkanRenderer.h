@@ -20,15 +20,16 @@
 // class is left owning just device/instance setup plus RenderEye, which
 // clears the main projection-layer eye buffers to black (all real content
 // lives in UiRenderer-drawn composition-layer quads instead).
-class VulkanRenderer {
-   public:
+class VulkanRenderer
+{
+public:
     void CreateDevice(XrInstance xrInstance, XrSystemId xrSystemId);
 
     // Windowed (no OpenXR) device creation, for the 2D desktop debug build.
     // VulkanRenderer stays windowing-library-agnostic: the caller creates
     // the actual window/surface (e.g. via GLFW) and passes the surface in
     // just to pick a physical device/queue that can present to it.
-    VkInstance CreateInstanceStandalone(const std::vector<const char*>& instanceExtensions);
+    VkInstance CreateInstanceStandalone(const std::vector<const char *> &instanceExtensions);
     void CreateDeviceForSurface(VkSurfaceKHR surface);
 
     void Shutdown();
@@ -46,7 +47,7 @@ class VulkanRenderer {
     VkCommandPool GetCommandPool() const { return m_commandPool; }
     VkCommandBuffer GetCommandBuffer() const { return m_commandBuffer; }
 
-    int64_t SelectSwapchainFormat(const std::vector<int64_t>& runtimeFormats) const;
+    int64_t SelectSwapchainFormat(const std::vector<int64_t> &runtimeFormats) const;
 
     // Clears a main projection-layer eye buffer to black. Real content
     // (menu, emulator screen) is rendered separately by UiRenderer into its
@@ -67,14 +68,15 @@ class VulkanRenderer {
     // re-enabling.
     void GenerateMipmaps(VkImage image, uint32_t width, uint32_t height, uint32_t mipLevels);
 
-   private:
-    struct RenderTarget {
+private:
+    struct RenderTarget
+    {
         VkImageView view{VK_NULL_HANDLE};
         VkFramebuffer framebuffer{VK_NULL_HANDLE};
     };
 
     void FinishDeviceSetup();
-    RenderTarget& GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width, uint32_t height);
+    RenderTarget &GetOrCreateRenderTarget(VkImage image, VkFormat format, uint32_t width, uint32_t height);
     VkRenderPass GetOrCreateRenderPass(VkFormat colorFormat);
     uint32_t FindMemoryType(uint32_t typeBits, VkMemoryPropertyFlags properties) const;
 

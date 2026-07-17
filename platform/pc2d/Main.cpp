@@ -81,14 +81,22 @@ namespace
             button(GLFW_GAMEPAD_BUTTON_DPAD_LEFT, EmuButton_Left);
             button(GLFW_GAMEPAD_BUTTON_DPAD_RIGHT, EmuButton_Right);
             constexpr float deadzone = 0.5f;
-            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] < -deadzone) bits |= ButtonMapping[EmuButton_LeftStickLeft];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] >  deadzone) bits |= ButtonMapping[EmuButton_LeftStickRight];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] < -deadzone) bits |= ButtonMapping[EmuButton_LeftStickUp];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] >  deadzone) bits |= ButtonMapping[EmuButton_LeftStickDown];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] < -deadzone) bits |= ButtonMapping[EmuButton_RightStickLeft];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] >  deadzone) bits |= ButtonMapping[EmuButton_RightStickRight];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] < -deadzone) bits |= ButtonMapping[EmuButton_RightStickUp];
-            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] >  deadzone) bits |= ButtonMapping[EmuButton_RightStickDown];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] < -deadzone)
+                bits |= ButtonMapping[EmuButton_LeftStickLeft];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_X] > deadzone)
+                bits |= ButtonMapping[EmuButton_LeftStickRight];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] < -deadzone)
+                bits |= ButtonMapping[EmuButton_LeftStickUp];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y] > deadzone)
+                bits |= ButtonMapping[EmuButton_LeftStickDown];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] < -deadzone)
+                bits |= ButtonMapping[EmuButton_RightStickLeft];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_X] > deadzone)
+                bits |= ButtonMapping[EmuButton_RightStickRight];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] < -deadzone)
+                bits |= ButtonMapping[EmuButton_RightStickUp];
+            if (pad.axes[GLFW_GAMEPAD_AXIS_RIGHT_Y] > deadzone)
+                bits |= ButtonMapping[EmuButton_RightStickDown];
         }
     }
 
