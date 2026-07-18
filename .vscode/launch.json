@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug VirtualBoyGoPC2D (Desktop, flat window)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-pc/Debug/VirtualBoyGoPC2D.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-pc/Debug",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "CMake: build VirtualBoyGoPC2D (Debug)"
+        },
+        {
+            "name": "Debug VirtualBoyGoPC (Headset via OpenXR)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-pc/Debug/VirtualBoyGoPC.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build-pc/Debug",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "CMake: build VirtualBoyGoPC (Debug)"
+        }
+    ]
+}

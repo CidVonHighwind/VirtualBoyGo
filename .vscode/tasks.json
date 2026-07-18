@@ -1,0 +1,33 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: configure (PC)",
+            "type": "process",
+            "command": "cmake",
+            "args": ["-B", "build-pc", "-G", "Visual Studio 18 2026", "-A", "x64", "-DCMAKE_POLICY_VERSION_MINIMUM=3.10"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: build VirtualBoyGoPC2D (Debug)",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--build", "build-pc", "--config", "Debug", "--target", "VirtualBoyGoPC2D"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": ["CMake: configure (PC)"],
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$msCompile"]
+        },
+        {
+            "label": "CMake: build VirtualBoyGoPC (Debug)",
+            "type": "process",
+            "command": "cmake",
+            "args": ["--build", "build-pc", "--config", "Debug", "--target", "VirtualBoyGoPC"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": ["CMake: configure (PC)"],
+            "group": "build",
+            "problemMatcher": ["$msCompile"]
+        }
+    ]
+}

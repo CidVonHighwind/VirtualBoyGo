@@ -1,0 +1,86 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.nintendont.virtualboygo"
+    ndkVersion "23.2.8568313"
+
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.nintendont.virtualboygo"
+        minSdk 29
+        targetSdk 34
+        versionCode 7
+        versionName "0.1.0"
+
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared"
+                // VBGO_RELEASE_BUILD is deliberately independent of the
+                // debug/release build type (see CMakeLists.txt) - assembleRelease
+                // is normally still just a fast local build for on-device
+                // testing (dev version string). Only pass -Pofficial=true when
+                // actually cutting a numbered release.
+                if (project.hasProperty("official")) {
+                    arguments "-DVBGO_RELEASE_BUILD=ON"
+                }
+                cppFlags "-std=c++17"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "../../CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile "AndroidManifest.xml"
+            assets.srcDirs = ["../../assets"]
+        }
+    }
+
+    // Release keystore lives outside the repo - set keystore.dir in
+    // android/local.properties (gitignored). keystore.txt: line 1 = store
+    // password, line 2 = key password. Absent = unsigned debug builds still work.
+    def localProps = new Properties()
+    def localPropsFile = rootProject.file("local.properties")
+    if (localPropsFile.exists()) {
+        localPropsFile.withInputStream { localProps.load(it) }
+    }
+    def keystoreDir = localProps.getProperty("keystore.dir")
+    def keystoreConfigured = keystoreDir != null && new File(keystoreDir, "keystore.txt").exists()
+    if (keystoreConfigured) {
+        def keystoreProps = new File(keystoreDir, "keystore.txt").readLines()
+        signingConfigs {
+            release {
+                storeFile new File(keystoreDir, "android.keystore")
+                storePassword keystoreProps[0].trim()
+                keyAlias "key0"
+                keyPassword keystoreProps[1].trim()
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystoreConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
