@@ -1,23 +1,25 @@
-# VirtualBoyGo (Rework branch)
+# VirtualBoyGo
 
-This branch is a from-scratch rework of VirtualBoyGo targeting **OpenXR +
-Vulkan** instead of the legacy, Quest-only Oculus VrApi/SampleFramework stack
-used on `master`. The goal is a single app, sharing one Vulkan rendering
-codebase, that runs on Quest, Frame, and other Android VR headsets, plus a PC
-build (streamed to the headset via Virtual Desktop/SteamVR/Link) for fast
-desktop debugging.
+VirtualBoyGo is a Virtual Boy emulator for VR headsets, built on **OpenXR +
+Vulkan** as a single app sharing one Vulkan rendering codebase. This is a
+from-scratch rework of the original VirtualBoyGo.
 
-## Current status
+Currently supported: **Quest** (Android), **Desktop VR** (PC, streamed to a
+headset via Virtual Desktop/SteamVR/Link), and **Desktop 2D** (PC, no headset
+needed, for fast local iteration). Other Android VR headsets (Frame, etc.)
+are planned for the future.
 
-Confirmed working on both platforms, live on a Quest 3: OpenXR instance/
-session/swapchain lifecycle (`core/OpenXrApp`), a Vulkan device via
-`XR_KHR_vulkan_enable2` (`core/VulkanRenderer`), and quad/cylinder
-composition layers (`core/ui/UiRenderer`, `core/ui/AppMenu`) for the menu and
-emulator screen - the main eye buffers stay plain black.
+|   |   |
+|---|---|
+| ![](images/0.png) | ![](images/1.png) |
+| ![](images/2.png) | ![](images/3.png) |
 
-A third build target, `VirtualBoyGoPC2D`, renders into a plain GLFW window
-instead of an OpenXR session - no headset or runtime needed, for fast local
-iteration.
+## Features
+
+- In-VR menu for ROM selection, settings, and button mapping
+- Save states (multiple slots, with preview thumbnails)
+- Adjustable screen placement/size in the VR view
+- Configurable VB screen color palette, including a custom R/G/B tint
 
 ## Project layout
 
@@ -42,19 +44,6 @@ shaders/                     GLSL sources (compiled to SPIR-V at PC build time)
 assets/                      shared between PC and Android (Gradle assets dir)
 tools/ShaderCompiler.cpp     glslang-based GLSL -> SPIR-V compiler, PC-only build tool
 android/                     Gradle wrapper project (externalNativeBuild -> root CMakeLists.txt)
-External/OpenXR-SDK-Source/  local, git-ignored reference clone (not a submodule, not
-                             built by the root CMakeLists.txt) - see "Reference material" below
-```
-
-## Reference material (not version-controlled)
-
-`External/OpenXR-SDK-Source/` is a git-ignored local clone of
-[KhronosGroup/OpenXR-SDK-Source](https://github.com/KhronosGroup/OpenXR-SDK-Source)
-kept from the exploration phase - not required to build, not fetched by
-cloning this repo. Recreate it if you want it back:
-
-```
-git clone https://github.com/KhronosGroup/OpenXR-SDK-Source.git External/OpenXR-SDK-Source
 ```
 
 ## Building - PC
