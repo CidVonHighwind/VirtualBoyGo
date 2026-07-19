@@ -40,21 +40,22 @@ android {
         }
     }
 
+    // assets/runtime/ holds exactly what AndroidPlatform::LoadAssetBytes
+    // reads at runtime (fonts + icon atlases). Everything else dev-only that
+    // lives under assets/ (icons.svg, the per-size icons_NN/ source PNGs
+    // feeding tools/pack_icon_atlas.py, cartridge.png, icons/README.md,
+    // PlaceRomsHere.txt) stays outside this directory and is never
+    // bundled. AGP's asset merging
+    // doesn't honor include/exclude filters on a sourceSet (only whole
+    // srcDirs), so this split-by-directory is the actual allow-list: add a
+    // new runtime asset by putting it under assets/runtime/, and it's
+    // packaged; anything else silently isn't, so a missing LoadAssetBytes
+    // call surfaces as an asset load failure telling you to move it there.
     sourceSets {
         main {
             manifest.srcFile "AndroidManifest.xml"
-            assets.srcDirs = ["../../assets"]
+            assets.srcDirs = ["../../assets/runtime"]
         }
-    }
-
-    // assets/ also holds dev-only material that's never loaded at runtime
-    // (icons.svg + the per-size icons_NN/ source PNGs feeding
-    // tools/pack_icon_atlas.py, cartridge.png which nothing references,
-    // icons/README.md) - excluded here rather than bundled into every APK.
-    // Keeps the default AAPT ignore list (see AAPT's own ignoreAssetsPattern
-    // default), just with these appended.
-    androidResources {
-        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!icons.svg:!README.md:!cartridge.png:!icons_10:!icons_20:!icons_30:!icons_40:!icons_50:!icons_60"
     }
 
     // Release keystore lives outside the repo - set keystore.dir in

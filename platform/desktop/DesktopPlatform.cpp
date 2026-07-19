@@ -142,7 +142,6 @@ std::vector<uint8_t> DesktopPlatform::LoadAssetBytes(const std::string &name)
         {"icons/icons_atlas_40.png", L"ICON_ATLAS_40"},
         {"icons/icons_atlas_50.png", L"ICON_ATLAS_50"},
         {"icons/icons_atlas_60.png", L"ICON_ATLAS_60"},
-        {"game_image.png", L"GAME_IMAGE"},
     };
 
     for (const Entry &entry : kEmbedded)

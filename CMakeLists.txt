@@ -130,7 +130,7 @@ if(NOT ANDROID)
 endif()
 
 # --------------------------------------------------------------------------
-# Desktop asset embedding: bundles fonts/icons/game_image.png directly into
+# Desktop asset embedding: bundles fonts/icons directly into
 # the executable as Win32 RCDATA resources (DesktopPlatform::LoadAssetBytes
 # loads them via FindResource/LoadResource/LockResource) instead of needing
 # loose files next to it. rc.exe packs the raw bytes as-is - unlike a
@@ -307,7 +307,7 @@ else()
         endif()
     endif()
 
-    # Fonts/icons/game_image.png are embedded into the binary as Win32
+    # Fonts/icons are embedded into the binary as Win32
     # resources (see DesktopAssets.rc.in above) - only the ROMs folder needs
     # to exist next to the exe.
     add_custom_command(
@@ -348,7 +348,7 @@ else()
         target_sources(VirtualBoyGoPC2D PRIVATE ${CMAKE_BINARY_DIR}/generated/DesktopAssets.rc)
     endif()
 
-    # Fonts/icons/game_image.png are embedded into the binary as Win32
+    # Fonts/icons are embedded into the binary as Win32
     # resources (see DesktopAssets.rc.in above) - only the ROMs folder needs
     # to exist next to the exe.
     add_custom_command(

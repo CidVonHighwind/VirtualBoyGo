@@ -1,17 +1,16 @@
-// Embeds fonts/icons/game_image.png directly into the executable as raw
+// Embeds fonts/icons directly into the executable as raw
 // RCDATA resources - rc.exe packs the bytes as-is, unlike a generated C
 // array (which would bloat compile time parsing megabytes of decimal
 // literals for no benefit). Loaded at runtime via FindResource/LoadResource/
 // LockResource in DesktopPlatform::LoadAssetBytes. Configured from
 // DesktopAssets.rc.in (see CMakeLists.txt) so the paths below are absolute,
 // independent of whatever working directory rc.exe runs from.
-FONT_VIRTUALLOGO    RCDATA "@VBGO_ASSETS_DIR@/fonts/VirtualLogo.ttf"
-FONT_ROBOTO_REGULAR RCDATA "@VBGO_ASSETS_DIR@/fonts/Roboto-Regular.ttf"
-FONT_ROBOTO_BOLD    RCDATA "@VBGO_ASSETS_DIR@/fonts/Roboto-Bold.ttf"
-ICON_ATLAS_10       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_10.png"
-ICON_ATLAS_20       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_20.png"
-ICON_ATLAS_30       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_30.png"
-ICON_ATLAS_40       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_40.png"
-ICON_ATLAS_50       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_50.png"
-ICON_ATLAS_60       RCDATA "@VBGO_ASSETS_DIR@/icons/icons_atlas_60.png"
-GAME_IMAGE          RCDATA "@VBGO_ASSETS_DIR@/game_image.png"
+FONT_VIRTUALLOGO    RCDATA "@VBGO_ASSETS_DIR@/runtime/fonts/VirtualLogo.ttf"
+FONT_ROBOTO_REGULAR RCDATA "@VBGO_ASSETS_DIR@/runtime/fonts/Roboto-Regular.ttf"
+FONT_ROBOTO_BOLD    RCDATA "@VBGO_ASSETS_DIR@/runtime/fonts/Roboto-Bold.ttf"
+ICON_ATLAS_10       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_10.png"
+ICON_ATLAS_20       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_20.png"
+ICON_ATLAS_30       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_30.png"
+ICON_ATLAS_40       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_40.png"
+ICON_ATLAS_50       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_50.png"
+ICON_ATLAS_60       RCDATA "@VBGO_ASSETS_DIR@/runtime/icons/icons_atlas_60.png"

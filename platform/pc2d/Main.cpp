@@ -15,11 +15,6 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-// Only need stbi_info_from_memory here, to size the window to the game
-// image before a Vulkan device/surface exist (STB_IMAGE_IMPLEMENTATION is
-// defined once in VulkanRenderer.cpp, same vbgo_app link unit).
-#include "stb_image.h"
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -170,33 +165,13 @@ int main()
 {
     DesktopPlatform platform;
 
-    // Peek the game image's dimensions up front (pure file IO, no Vulkan
-    // device needed yet) so its native resolution can size the window
-    // before glfwCreateWindow - the window must exist before the Vulkan
-    // instance/surface/device can be created, and Emulator::Initialize
-    // (which actually uploads the texture) needs that device. Emulator
-    // re-reads/re-decodes the same file itself once the device exists.
-    const std::vector<uint8_t> gameImageBytes = platform.LoadAssetBytes("game_image.png");
-    int gameImageNativeWidth = 0, gameImageNativeHeight = 0;
-    if (!gameImageBytes.empty())
-    {
-        int comp = 0;
-        stbi_info_from_memory(gameImageBytes.data(), static_cast<int>(gameImageBytes.size()), &gameImageNativeWidth,
-                              &gameImageNativeHeight, &comp);
-    }
-    else
-    {
-        std::fprintf(stderr, "VirtualBoyGo 2D: game_image.png not found next to the exe\n");
-    }
     // Window is sized to exactly fit the upscaled game screen; the menu is
     // a smaller fixed-size (kMenuWidth*kMenuScale x kMenuHeight*kMenuScale
     // physical pixels - kMenuWidth/kMenuHeight alone are logical units, see
     // AppMenuLayout.h) panel composited (rounded corners and all) at a
     // centered offset within it, not the window's full size.
-    const int windowWidth = gameImageNativeWidth > 0 ? gameImageNativeWidth * Emulator::kScale
-                                                     : static_cast<int>(kMenuWidth * kMenuScale);
-    const int windowHeight = gameImageNativeHeight > 0 ? gameImageNativeHeight * Emulator::kScale
-                                                       : static_cast<int>(kMenuHeight * kMenuScale);
+    const int windowWidth = static_cast<int>(Emulator::kPreviewWidth * Emulator::kScale);
+    const int windowHeight = static_cast<int>(Emulator::kPreviewHeight * Emulator::kScale);
 
     if (!glfwInit())
     {

@@ -63,6 +63,7 @@ ICONS = [
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SRC = REPO_ROOT / "assets" / "icons"
+ATLAS_OUT_DIR = REPO_ROOT / "assets" / "runtime" / "icons"
 ATLAS_SIZES = (10, 20, 30, 40, 50, 60)
 ATLAS_COLUMNS = 8
 HEADER_OUT = REPO_ROOT / "core" / "ui" / "generated_icons" / "UiIconAtlas.h"
@@ -100,7 +101,8 @@ def main():
             if size == ATLAS_SIZES[0]:
                 rects_px[name] = (x, y, img.width, img.height)
 
-        atlas_out = src_dir / f"icons_atlas_{size}.png"
+        ATLAS_OUT_DIR.mkdir(parents=True, exist_ok=True)
+        atlas_out = ATLAS_OUT_DIR / f"icons_atlas_{size}.png"
         atlas.save(atlas_out)
         print(f"Wrote {atlas_out} ({atlas_width}x{atlas_height}, {len(ICONS)} icons)")
 
