@@ -126,6 +126,26 @@ if(NOT ANDROID)
     add_custom_target(vbgo_shaders DEPENDS ${UI_VERT_HEADER} ${UI_SOLID_FRAG_HEADER}
                                             ${UI_TEXT_FRAG_HEADER} ${UI_IMAGE_FRAG_HEADER} ${UI_IMAGE_ROUNDED_FRAG_HEADER}
                                             ${SCREEN_PATTERN_FRAG_HEADER})
+
+endif()
+
+# --------------------------------------------------------------------------
+# Desktop asset embedding: bundles fonts/icons/game_image.png directly into
+# the executable as Win32 RCDATA resources (DesktopPlatform::LoadAssetBytes
+# loads them via FindResource/LoadResource/LockResource) instead of needing
+# loose files next to it. rc.exe packs the raw bytes as-is - unlike a
+# generated C array, this doesn't bloat compile time parsing megabytes of
+# decimal literals for asset-sized (as opposed to shader-sized) data. Only
+# meaningful on Windows; Android already bundles assets via the APK's own
+# assets/ + AAssetManager.
+# --------------------------------------------------------------------------
+if(WIN32 AND NOT ANDROID)
+    set(VBGO_ASSETS_DIR "${CMAKE_SOURCE_DIR}/assets")
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/platform/desktop/DesktopAssets.rc.in
+        ${CMAKE_BINARY_DIR}/generated/DesktopAssets.rc
+        @ONLY
+    )
 endif()
 
 # --------------------------------------------------------------------------
@@ -260,6 +280,13 @@ else()
         platform/pc/Main.cpp
     )
     target_link_libraries(VirtualBoyGoPC PRIVATE vbgo_app)
+    if(WIN32)
+        # Resources must be a source of the executable itself, not the
+        # vbgo_app static lib - the linker only pulls .lib members that are
+        # referenced by symbol, and a compiled .rc resource has none, so it
+        # would silently never make it into the final .exe otherwise.
+        target_sources(VirtualBoyGoPC PRIVATE ${CMAKE_BINARY_DIR}/generated/DesktopAssets.rc)
+    endif()
 
     # MSVC's incremental linker has been observed to silently keep a stale
     # .exe (identical byte-for-byte) across rebuilds when only an upstream
@@ -280,17 +307,14 @@ else()
         endif()
     endif()
 
-    # DesktopPlatform::LoadAssetBytes() reads relative to the working
-    # directory, which is the exe's own folder for how we've been
-    # running/testing it.
+    # Fonts/icons/game_image.png are embedded into the binary as Win32
+    # resources (see DesktopAssets.rc.in above) - only the ROMs folder needs
+    # to exist next to the exe.
     add_custom_command(
         TARGET VirtualBoyGoPC POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:VirtualBoyGoPC>/roms"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC>
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/fonts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/assets/icons" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/icons"
+                "${CMAKE_SOURCE_DIR}/assets/PlaceRomsHere.txt" "$<TARGET_FILE_DIR:VirtualBoyGoPC>/roms"
     )
 
     # --------------------------------------------------------------------
@@ -318,14 +342,19 @@ else()
     if(MSVC)
         target_link_options(VirtualBoyGoPC2D PRIVATE "/INCREMENTAL:NO")
     endif()
+    if(WIN32)
+        # See VirtualBoyGoPC's identical target_sources call above for why
+        # this can't just live on the shared vbgo_app static lib instead.
+        target_sources(VirtualBoyGoPC2D PRIVATE ${CMAKE_BINARY_DIR}/generated/DesktopAssets.rc)
+    endif()
 
+    # Fonts/icons/game_image.png are embedded into the binary as Win32
+    # resources (see DesktopAssets.rc.in above) - only the ROMs folder needs
+    # to exist next to the exe.
     add_custom_command(
         TARGET VirtualBoyGoPC2D POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/roms"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_SOURCE_DIR}/assets/game_image.png" $<TARGET_FILE_DIR:VirtualBoyGoPC2D>
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/assets/fonts" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/fonts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/assets/icons" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/icons"
+                "${CMAKE_SOURCE_DIR}/assets/PlaceRomsHere.txt" "$<TARGET_FILE_DIR:VirtualBoyGoPC2D>/roms"
     )
 endif()

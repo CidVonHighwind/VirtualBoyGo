@@ -1,0 +1,5 @@
+Put your .vb ROM files in this folder.
+
+Cart save data (.srm) is written here alongside them. A "States" subfolder
+is created automatically for save states, save-state previews, and
+settings.dat.

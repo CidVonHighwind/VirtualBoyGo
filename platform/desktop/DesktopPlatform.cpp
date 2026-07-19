@@ -1,5 +1,15 @@
 #include "desktop/DesktopPlatform.h"
 
+#if defined(_WIN32)
+// Pulls in <windows.h> - without this, its min/max macros mangle every
+// std::min/std::max call in this file (see AudioOutput.cpp's identical fix
+// for the same issue with miniaudio's WASAPI backend).
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -16,23 +26,24 @@ namespace
     }
 
 #if defined(_DEBUG)
-    // This repo's checked-in sample-ROM / writable-data folder (<repo>/sd/VB),
-    // for zero-setup local testing. Derived from this file's own path (three
-    // parents up from <repo>/platform/desktop/DesktopPlatform.cpp) so it
-    // follows the checkout instead of a hardcoded absolute path.
-    std::string DebugSdVbDir()
+    // This repo's checked-in sample-ROM / writable-data folder
+    // (<repo>/sd/roms), for zero-setup local testing. Derived from this
+    // file's own path (three parents up from
+    // <repo>/platform/desktop/DesktopPlatform.cpp) so it follows the
+    // checkout instead of a hardcoded absolute path.
+    std::string DebugSdRomsDir()
     {
         const std::filesystem::path repoRoot = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path();
-        return (repoRoot / "sd" / "VB").string();
+        return (repoRoot / "sd" / "roms").string();
     }
 #endif
 
     std::string RomDirectory()
     {
 #if defined(_DEBUG)
-        return DebugSdVbDir(); // repo's checked-in sample ROMs
+        return DebugSdRomsDir(); // repo's checked-in sample ROMs
 #else
-        return "VB"; // relative to the exe's folder, like LoadAssetBytes
+        return "roms"; // relative to the exe's folder, like LoadAssetBytes
 #endif
     }
 
@@ -110,12 +121,62 @@ bool DesktopPlatform::RomsFileExists(const std::string &fileName, bool inStatesD
     return std::filesystem::exists(RomsPath(fileName, inStatesDir), ec) && !ec;
 }
 
+#if defined(_WIN32)
 std::vector<uint8_t> DesktopPlatform::LoadAssetBytes(const std::string &name)
 {
-    // Relative to the working directory - the exe's own folder for how this
-    // app is packaged/run.
+    // Embedded into the .exe as RCDATA resources (see
+    // platform/desktop/DesktopAssets.rc.in / CMakeLists.txt) rather than
+    // read from loose files next to it.
+    struct Entry
+    {
+        const char *name;
+        LPCWSTR resourceId;
+    };
+    static const Entry kEmbedded[] = {
+        {"fonts/VirtualLogo.ttf", L"FONT_VIRTUALLOGO"},
+        {"fonts/Roboto-Regular.ttf", L"FONT_ROBOTO_REGULAR"},
+        {"fonts/Roboto-Bold.ttf", L"FONT_ROBOTO_BOLD"},
+        {"icons/icons_atlas_10.png", L"ICON_ATLAS_10"},
+        {"icons/icons_atlas_20.png", L"ICON_ATLAS_20"},
+        {"icons/icons_atlas_30.png", L"ICON_ATLAS_30"},
+        {"icons/icons_atlas_40.png", L"ICON_ATLAS_40"},
+        {"icons/icons_atlas_50.png", L"ICON_ATLAS_50"},
+        {"icons/icons_atlas_60.png", L"ICON_ATLAS_60"},
+        {"game_image.png", L"GAME_IMAGE"},
+    };
+
+    for (const Entry &entry : kEmbedded)
+    {
+        if (name != entry.name)
+            continue;
+
+        const HMODULE module = GetModuleHandleW(nullptr);
+        // MAKEINTRESOURCEW(10), not RT_RCDATA - that macro expands via the
+        // ambient UNICODE define, which isn't set for this target, so it
+        // resolves to the ANSI (LPSTR) form and won't compile against the
+        // wide FindResourceW below.
+        const HRSRC resInfo = FindResourceW(module, entry.resourceId, MAKEINTRESOURCEW(10));
+        if (!resInfo)
+            return {};
+        const HGLOBAL resHandle = LoadResource(module, resInfo);
+        if (!resHandle)
+            return {};
+        const auto *data = static_cast<const uint8_t *>(LockResource(resHandle));
+        const DWORD size = SizeofResource(module, resInfo);
+        if (!data || size == 0)
+            return {};
+        return std::vector<uint8_t>(data, data + size);
+    }
+    return {};
+}
+#else
+std::vector<uint8_t> DesktopPlatform::LoadAssetBytes(const std::string &name)
+{
+    // Non-Windows desktop fallback - relative to the working directory, the
+    // exe's own folder for how this app is packaged/run.
     std::ifstream in(name, std::ios::binary);
     if (!in)
         return {};
     return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 }
+#endif
