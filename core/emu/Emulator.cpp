@@ -71,9 +71,16 @@ namespace
         case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
         {
             // Only XRGB8888 is supported here - UiRenderer's streaming texture
-            // is created as VK_FORMAT_B8G8R8A8_UNORM, which is exactly this
+            // is created as VK_FORMAT_B8G8R8A8_SRGB, which is exactly this
             // format's in-memory byte order (Rshift16/Gshift8/Bshift0/Ashift24
-            // on little-endian == bytes B,G,R,A) - no CPU-side conversion.
+            // on little-endian == bytes B,G,R,A) - no CPU-side conversion. The
+            // _SRGB (not _UNORM) tag matters too: the core's output is
+            // gamma-encoded (see CaptureScreenshotGrayscale's linearize step),
+            // and ui_image.frag/screen_pattern.frag assume their source
+            // texture auto-linearizes on sample, matching every other _SRGB
+            // image in this renderer - a _UNORM tag here would read those
+            // bytes as already-linear, and the sRGB swapchain would then
+            // gamma-encode them a second time on write.
             const auto *fmt = static_cast<const retro_pixel_format *>(data);
             return fmt && *fmt == RETRO_PIXEL_FORMAT_XRGB8888;
         }
@@ -161,7 +168,7 @@ void Emulator::Initialize(UiRenderer &ui, Platform &platform)
     // - big enough for any 3D mode the core supports, even though we only
     // ever force side-by-side. DrawScreen UV-crops to whatever the current
     // frame's actual valid region is.
-    m_screenTexture = ui.CreateStreamingImage(kFbWidth, kFbHeight, VK_FORMAT_B8G8R8A8_UNORM);
+    m_screenTexture = ui.CreateStreamingImage(kFbWidth, kFbHeight, VK_FORMAT_B8G8R8A8_SRGB);
     m_frameBufferRgba.resize(static_cast<size_t>(kFbWidth) * kFbHeight * 4);
 }
 

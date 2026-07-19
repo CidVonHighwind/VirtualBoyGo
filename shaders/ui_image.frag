@@ -23,6 +23,13 @@ vec4 SamplePixelPerfectAA(sampler2D tex, vec2 uv) {
     return texture(tex, uvTexSpace / texSize);
 }
 
+// sRGB EOTF for vColor's manual decode below - the exact piecewise curve
+// (linear below 0.04045) matters for near-black colors, e.g. kScreenPatterns'
+// darkest stops.
+vec3 SrgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
 void main() {
     // The sampled pixel itself needs no manual gamma decode here (unlike
     // ui_solid.frag/ui_text.frag): the source image is uploaded as an _SRGB
@@ -42,5 +49,5 @@ void main() {
     // an _SRGB view, so it needs the same manual pre-decode those do -
     // otherwise an identical gamma-space color (e.g. SelectionColor) ends
     // up visually different when applied here vs. via DrawText/DrawQuad.
-    outColor.rgb *= pow(vColor.rgb, vec3(2.2));
+    outColor.rgb *= SrgbToLinear(vColor.rgb);
 }

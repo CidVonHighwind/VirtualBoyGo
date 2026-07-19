@@ -151,7 +151,11 @@ MenuImage::MenuImage(UiRenderer &ui, UiFontHandle font, uint32_t textureWidth, u
 {
     PosX = posX;
     PosY = posY;
-    m_texture = ui.CreateStreamingImage(textureWidth, textureHeight, VK_FORMAT_B8G8R8A8_UNORM);
+    // _SRGB, not _UNORM - SetImage's bytes (Emulator::LoadStatePreview) are
+    // gamma-encoded, and ui_image.frag/screen_pattern.frag expect their
+    // source to auto-linearize on sample - see Emulator.cpp's
+    // RETRO_ENVIRONMENT_SET_PIXEL_FORMAT comment for the full reasoning.
+    m_texture = ui.CreateStreamingImage(textureWidth, textureHeight, VK_FORMAT_B8G8R8A8_SRGB);
     m_ui->EnsureGlyphsForText(m_font, kMenuImageEmptyText);
 }
 

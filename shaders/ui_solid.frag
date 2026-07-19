@@ -15,6 +15,12 @@ float RoundedBoxSDF(vec2 centeredPx, vec2 halfSizePx, float radiusPx) {
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - radiusPx;
 }
 
+// sRGB EOTF - the exact piecewise curve (linear below 0.04045) matters for
+// near-black authored colors. See ui_image.frag's doc comment.
+vec3 SrgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+
 void main() {
     float shapeAlpha;
     if (vCornerRadiusPx <= 0.0) {
@@ -37,5 +43,5 @@ void main() {
     // cancel out and the stored value matches what was authored (otherwise
     // colors wash out/fade - the same double-gamma issue the composition
     // layer's test image had on the sampling side).
-    outColor = vec4(pow(vColor.rgb, vec3(2.2)), vColor.a * shapeAlpha);
+    outColor = vec4(SrgbToLinear(vColor.rgb), vColor.a * shapeAlpha);
 }

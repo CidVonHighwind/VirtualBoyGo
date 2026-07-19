@@ -39,12 +39,24 @@ vec3 Stop(int i) {
     return vec3(pc.patternColors[i * 3], pc.patternColors[i * 3 + 1], pc.patternColors[i * 3 + 2]);
 }
 
+// Identical to ui_image.frag's SrgbToLinear - see its doc comment.
+vec3 SrgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+vec3 LinearToSrgb(vec3 c) {
+    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
 void main() {
     vec4 texColor = SamplePixelPerfectAA(uImage, vUV);
+    // uImage is _SRGB so texColor is auto-linearized on sample. The gradient
+    // thresholds below are tuned against the core's raw 0-255 output value,
+    // so re-encode before computing luma to match that calibration.
+    vec3 reencoded = LinearToSrgb(texColor.rgb);
     // Emulator::DrawScreen only routes here for the (grayscale) VB screen
     // texture, so any channel is the luminance; dot() is the standard
     // formula and stays correct even if that ever changes.
-    float luma = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float luma = dot(reencoded, vec3(0.2126, 0.7152, 0.0722));
 
     // 5 stops -> 4 gradient segments, darkest (stop 0) at luma 0.0 up to
     // brightest (stop 4) at luma 1.0. Beetle VB already hands the frontend a
@@ -67,5 +79,5 @@ void main() {
     // preview during a page transition) - see ui_image.frag's vColor.a
     // comment. Emulator::DrawScreen always passes alpha=1, so this is a
     // no-op there.
-    outColor = vec4(pow(patternColor, vec3(2.2)), texColor.a * pc.color.a);
+    outColor = vec4(SrgbToLinear(patternColor), texColor.a * pc.color.a);
 }
