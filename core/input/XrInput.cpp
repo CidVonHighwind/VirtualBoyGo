@@ -58,6 +58,7 @@ void XrInput::Initialize(XrInstance instance, XrSession session)
     m_yClickAction = createAction("y_click", "Y Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
     m_triggerAction = createAction("trigger", "Trigger", XR_ACTION_TYPE_FLOAT_INPUT, true);
     m_menuClickAction = createAction("menu_click", "Menu Button", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
+    m_thumbstickClickAction = createAction("thumbstick_click", "Left Stick Click", XR_ACTION_TYPE_BOOLEAN_INPUT, false);
 
     auto path = [&](const char *p)
     {
@@ -79,8 +80,12 @@ void XrInput::Initialize(XrInstance instance, XrSession session)
         {m_triggerAction, path("/user/hand/left/input/trigger/value")},
         {m_triggerAction, path("/user/hand/right/input/trigger/value")},
         // Left controller's dedicated menu button - Touch controllers only
-        // have this on the left hand.
+        // have this on the left hand. Runtimes remapping this profile onto
+        // other controllers may route it elsewhere (SteamVR exposes it as
+        // left X+Y on PSVR2 Sense, since it keeps the physical button), so
+        // left stick click doubles as a menu toggle.
         {m_menuClickAction, path("/user/hand/left/input/menu/click")},
+        {m_thumbstickClickAction, path("/user/hand/left/input/thumbstick/click")},
     };
 
     XrPath profilePath;
@@ -238,15 +243,10 @@ void XrInput::Sync(XrSession session)
     if (m_yPressed)
         m_buttonStates[ButtonMapper::DeviceLeftTouch] |= ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_Y];
 
-    m_menuButtonPressed = false;
-    XrActionStateGetInfo menuGetInfo{XR_TYPE_ACTION_STATE_GET_INFO};
-    menuGetInfo.action = m_menuClickAction;
-    menuGetInfo.subactionPath = XR_NULL_PATH;
-    XrActionStateBoolean menuState{XR_TYPE_ACTION_STATE_BOOLEAN};
-    if (XR_SUCCEEDED(xrGetActionStateBoolean(session, &menuGetInfo, &menuState)) && menuState.isActive)
-    {
-        m_menuButtonPressed = menuState.currentState;
-    }
+    // Left stick click is a second, always-available way in - runtimes are
+    // free to keep the physical menu button for themselves (SteamVR does),
+    // which would otherwise leave no way to open the menu at all.
+    m_menuButtonPressed = readRawBool(m_menuClickAction) || readRawBool(m_thumbstickClickAction);
 }
 
 void XrInput::GetButtonStates(uint32_t buttonStates[3]) const

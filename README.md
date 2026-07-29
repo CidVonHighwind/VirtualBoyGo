@@ -21,6 +21,18 @@ are planned for the future.
 - Adjustable screen placement/size in the VR view
 - Configurable VB screen color palette, including a custom R/G/B tint
 
+## Opening the menu
+
+| Device | Button |
+|---|---|
+| VR controllers | **Left stick click**, or the left controller's **Menu** button |
+| Gamepad (Quest) | **Left stick click**, or the **Xbox/Guide** button |
+| Desktop 2D build | **Tab** |
+
+Left stick click always works. The physical menu button depends on the
+runtime - SteamVR, for instance, keeps it for its own dashboard and never
+passes it to the app.
+
 ## Project layout
 
 ```

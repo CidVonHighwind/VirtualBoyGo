@@ -23,7 +23,8 @@ public:
 
     void GetButtonStates(uint32_t buttonStates[3]) const;
 
-    // Left controller's dedicated menu ("hamburger") button - separate from
+    // Left controller's dedicated menu ("hamburger") button, or left stick
+    // click as a runtime-independent alternative - separate from
     // buttonStates (the menu-navigation/emulator button set) since this is
     // an app-level "show the menu" gesture, not something any MenuPage
     // reacts to. Instantaneous state (not edge-detected) - callers wanting a
@@ -60,6 +61,7 @@ private:
     XrAction m_yClickAction{XR_NULL_HANDLE};
     XrAction m_triggerAction{XR_NULL_HANDLE};
     XrAction m_menuClickAction{XR_NULL_HANDLE};
+    XrAction m_thumbstickClickAction{XR_NULL_HANDLE};
     XrPath m_leftHandPath{XR_NULL_PATH};
     XrPath m_rightHandPath{XR_NULL_PATH};
 

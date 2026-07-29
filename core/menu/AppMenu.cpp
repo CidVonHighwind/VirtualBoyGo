@@ -27,6 +27,8 @@ namespace
     constexpr float kHeaderRightMargin = 7.5f;
     constexpr float kTimeRowCenterY = kHeaderHeight / 2.0f - 5.5f;
     constexpr float kBatteryRowCenterY = kHeaderHeight / 2.0f + 5.5f;
+    // Gap under the clock when it sits alone (no battery row below it).
+    constexpr float kHeaderBottomMargin = 3.0f;
 
     constexpr float kBatteryBlockWidth = 5.0f;
     constexpr float kBatteryBlockHeight = 8.0f;
@@ -204,9 +206,10 @@ void AppMenu::StartTransition(MenuPage *target, int dir)
 
 void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], float deltaSeconds)
 {
+    // Per-bit, not all-or-nothing: releasing one of two suppressed buttons
+    // must free it up again even while the other is still held.
     for (int device = 0; device < 3; ++device)
-        if ((buttonStates[device] & m_suppressedSelectButtons[device]) == 0)
-            m_suppressedSelectButtons[device] = 0;
+        m_suppressedMenuButtons[device] &= buttonStates[device];
 
     // Animate the open/close fade regardless of m_open, so Hide() eases the
     // panel out instead of popping it away the instant gameplay input
@@ -250,16 +253,19 @@ void AppMenu::Update(uint32_t buttonStates[3], uint32_t lastButtonStates[3], flo
         m_currentPage->Update(buttonStates, lastButtonStates, deltaSeconds);
     if (wasOpen && !m_open)
     {
-        const uint32_t selectMask = ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_A];
-        m_suppressedSelectButtons[ButtonMapper::DeviceGamepad] = buttonStates[ButtonMapper::DeviceGamepad] & selectMask;
-        m_suppressedSelectButtons[ButtonMapper::DeviceRightTouch] = buttonStates[ButtonMapper::DeviceRightTouch] & selectMask;
+        // Both the press that picked a menu entry (A) and the one that
+        // backed out of the menu (B) are still held as gameplay resumes.
+        const uint32_t closeMask = ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_A] |
+                                   ButtonMapper::ButtonMapping[ButtonMapper::EmuButton_B];
+        m_suppressedMenuButtons[ButtonMapper::DeviceGamepad] = buttonStates[ButtonMapper::DeviceGamepad] & closeMask;
+        m_suppressedMenuButtons[ButtonMapper::DeviceRightTouch] = buttonStates[ButtonMapper::DeviceRightTouch] & closeMask;
     }
 }
 
 void AppMenu::ApplyGameplayInputSuppression(uint32_t buttonStates[3]) const
 {
     for (int device = 0; device < 3; ++device)
-        buttonStates[device] &= ~m_suppressedSelectButtons[device];
+        buttonStates[device] &= ~m_suppressedMenuButtons[device];
 }
 
 void AppMenu::SubmitRawMappingInput(const ButtonMapper::MappedButton &button)
@@ -322,18 +328,24 @@ void AppMenu::RenderContent(UiRenderer &ui)
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX + 0.5f, headerTextY + 0.5f, 1.0f, kHeaderTextBackColor);
     ui.DrawText(m_titleFont, "VirtualBoyGo", headerTextX, headerTextY, 1.0f, kHeaderTextColor);
 
+    const bool showBattery = m_batteryPercent >= 0 && m_batteryPercent <= 100;
+
     // Clock - always shown, needs no platform hook (std::time works
-    // everywhere, unlike battery level).
+    // everywhere, unlike battery level). Without a battery row under it it
+    // sits at the bottom of the header instead of on its own row.
     {
         const std::string timeText = CurrentTimeString();
         const float timeWidth = ui.GetTextWidth(m_resources.smallFont, timeText);
-        const float timeTextY = kTimeRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
-                                ui.GetFontPStart(m_resources.smallFont);
+        const float timeTextY = showBattery
+                                    ? kTimeRowCenterY - ui.GetFontPHeight(m_resources.smallFont) / 2.0f -
+                                          ui.GetFontPStart(m_resources.smallFont)
+                                    : kHeaderHeight - kHeaderBottomMargin - ui.GetFontPHeight(m_resources.smallFont) -
+                                          ui.GetFontPStart(m_resources.smallFont);
         ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth + 0.5f, timeTextY + 0.5f, 1.0f, kHeaderTextBackColor);
         ui.DrawText(m_resources.smallFont, timeText, kMenuWidth - kHeaderRightMargin - timeWidth, timeTextY, 1.0f, kMenuTextColor);
     }
 
-    if (m_batteryPercent >= 0 && m_batteryPercent <= 100)
+    if (showBattery)
     {
         const float blockX = kMenuWidth - kHeaderRightMargin - kBatteryBlockWidth;
         const float blockY = kBatteryRowCenterY - kBatteryBlockHeight / 2.0f;

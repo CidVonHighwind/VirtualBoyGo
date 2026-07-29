@@ -55,9 +55,9 @@ public:
     // hides it entirely, so callers opt in explicitly instead of the
     // indicator silently showing a stale/fake reading. OpenXrApp polls the
     // real device battery via Platform::GetBatteryPercent (see
-    // OpenXrApp::UpdateBatteryPercent); it stays hidden on desktop OpenXR
-    // builds (e.g. SteamVR) with no battery to read. The flat 2D debug
-    // build cycles a fake value through it instead.
+    // OpenXrApp::UpdateBatteryPercent); it stays hidden on both desktop
+    // builds, which have no battery worth reading - the header clock drops
+    // into the freed lower row when it is.
     void SetBatteryPercent(int percent) { m_batteryPercent = percent; }
 
     // Menu open/closed - closing lets the emulator screen show unobstructed
@@ -65,15 +65,20 @@ public:
     // ROM both close it; callers are responsible for wiring some way back
     // in (a controller button, a keyboard key - see OpenXrApp/pc2d Main.cpp)
     // since AppMenu itself only tracks the state, not any particular input.
-    // IsOpen() flips immediately. The select press that closes the menu is
-    // filtered from gameplay until release; other inputs pass immediately.
+    // IsOpen() flips immediately. The select/back press that closes the menu
+    // is filtered from gameplay until release; other inputs pass immediately.
     // IsVisible() stays true until the fade-out animation finishes, so
     // callers doing the render-gating (RenderMenuLayer/pc2d's Main.cpp)
     // should check IsVisible(), not IsOpen(), or the close animation never
     // gets a frame to actually show.
     bool IsOpen() const { return m_open; }
     void ApplyGameplayInputSuppression(uint32_t buttonStates[3]) const;
-    bool SuppressesDesktopSelectKey() const { return m_suppressedSelectButtons[2] != 0; }
+    // For platforms that read raw keys instead of the bitmask (pc2d's
+    // keyboard bindings), which ApplyGameplayInputSuppression can't reach.
+    bool SuppressesDesktopKey(uint32_t emuButton) const
+    {
+        return (m_suppressedMenuButtons[ButtonMapper::DeviceRightTouch] & ButtonMapper::ButtonMapping[emuButton]) != 0;
+    }
     bool IsVisible() const { return m_visibility > 0.0f; }
     void Show() { m_open = true; }
     void Hide() { m_open = false; }
@@ -110,6 +115,6 @@ private:
 
     int m_batteryPercent = -1;
     bool m_open = true;
-    uint32_t m_suppressedSelectButtons[3]{};
+    uint32_t m_suppressedMenuButtons[3]{};
     float m_visibility = 1.0f; // see IsVisible/GetVisibility - starts matching m_open, no animation at boot
 };

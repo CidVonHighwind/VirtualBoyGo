@@ -113,12 +113,19 @@ namespace
         PollDesktopButtonState(window, buttonStates);
         appMenu.ApplyGameplayInputSuppression(buttonStates);
         uint32_t result = TranslateToVBBitmask(buttonStates, settings.vbButtons);
+        // The menu's select/back keys (see PollDesktopButtonState) still read
+        // as pressed on the frame the menu closes - drop them until release,
+        // same as the bitmask suppression above does for the other devices.
+        auto suppressedKey = [&](int key)
+        {
+            return (key == GLFW_KEY_S && appMenu.SuppressesDesktopKey(EmuButton_A)) ||
+                   (key == GLFW_KEY_A && appMenu.SuppressesDesktopKey(EmuButton_B));
+        };
         for (uint32_t vbBit = 0; vbBit < 16; ++vbBit)
             for (const MappedButton &binding : settings.vbButtons[vbBit].Buttons)
                 if (binding.IsSet && binding.InputDevice == DeviceKeyboard &&
                     binding.ButtonIndex >= 0 && binding.ButtonIndex <= GLFW_KEY_LAST &&
-                    glfwGetKey(window, binding.ButtonIndex) == GLFW_PRESS &&
-                    !(appMenu.SuppressesDesktopSelectKey() && binding.ButtonIndex == GLFW_KEY_S))
+                    glfwGetKey(window, binding.ButtonIndex) == GLFW_PRESS && !suppressedKey(binding.ButtonIndex))
                     result |= (1u << vbBit);
         return result;
     }
@@ -292,12 +299,6 @@ int main()
         uint32_t lastButtonStates[3]{};
         auto lastFrameTime = std::chrono::steady_clock::now();
 
-        // No real battery to read on desktop - cycle a fake percentage
-        // through the indicator instead, mostly so the battery block/text
-        // rendering itself gets exercised without a headset. One full
-        // 0-100 sweep every 10 seconds.
-        float batteryCycleSeconds = 0.0f;
-
         // Tab toggles the menu open/closed - not part of buttonStates
         // (that's the menu-navigation/emulator button set, see
         // ButtonMapping.h) since this is an app-level concern AppMenu itself
@@ -366,9 +367,6 @@ int main()
                 emulator.SetGameplayInput(PollGameplayInput(window, settings, appMenu));
                 emulator.RunFrame(deltaSeconds);
             }
-
-            batteryCycleSeconds += deltaSeconds;
-            appMenu.SetBatteryPercent(static_cast<int>(std::fmod(batteryCycleSeconds * 10.0f, 100.0f)));
 
             // The menu renders at the largest integer logical-to-physical
             // scale (see AppMenuLayout.h's kMenuScale) that still fits the
