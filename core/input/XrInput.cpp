@@ -67,36 +67,66 @@ void XrInput::Initialize(XrInstance instance, XrSession session)
         return result;
     };
 
-    XrActionSuggestedBinding bindings[] = {
-        {m_thumbstickAction, path("/user/hand/left/input/thumbstick")},
-        {m_thumbstickAction, path("/user/hand/right/input/thumbstick")},
-        {m_aClickAction, path("/user/hand/right/input/a/click")},
-        {m_bClickAction, path("/user/hand/right/input/b/click")},
-        // Touch's left controller has X/Y where the right has A/B.
-        {m_xClickAction, path("/user/hand/left/input/x/click")},
-        {m_yClickAction, path("/user/hand/left/input/y/click")},
-        // Index trigger, analog - thresholded to a bool in Sync(). No
-        // dedicated /click sub-path for this input on touch_controller.
-        {m_triggerAction, path("/user/hand/left/input/trigger/value")},
-        {m_triggerAction, path("/user/hand/right/input/trigger/value")},
-        // Left controller's dedicated menu button - Touch controllers only
-        // have this on the left hand. Runtimes remapping this profile onto
-        // other controllers may route it elsewhere (SteamVR exposes it as
-        // left X+Y on PSVR2 Sense, since it keeps the physical button), so
-        // left stick click doubles as a menu toggle.
-        {m_menuClickAction, path("/user/hand/left/input/menu/click")},
-        {m_thumbstickClickAction, path("/user/hand/left/input/thumbstick/click")},
+    XrActionSuggestedBinding picoBindings[] = {
+            {m_thumbstickAction, path("/user/hand/left/input/thumbstick")},
+            {m_thumbstickAction, path("/user/hand/right/input/thumbstick")},
+            {m_aClickAction, path("/user/hand/right/input/a/click")},
+            {m_bClickAction, path("/user/hand/right/input/b/click")},
+            {m_xClickAction, path("/user/hand/left/input/x/click")},
+            {m_yClickAction, path("/user/hand/left/input/y/click")},
+            {m_triggerAction, path("/user/hand/left/input/trigger/value")},
+            {m_triggerAction, path("/user/hand/right/input/trigger/value")},
+            {m_menuClickAction, path("/user/hand/left/input/back/click")},
+            {m_thumbstickClickAction, path("/user/hand/left/input/thumbstick/click")},
     };
 
-    XrPath profilePath;
-    CheckXr(xrStringToPath(instance, "/interaction_profiles/oculus/touch_controller", &profilePath),
-            "xrStringToPath (profile)");
+    XrActionSuggestedBinding touchBindings[] = {
+            {m_thumbstickAction, path("/user/hand/left/input/thumbstick")},
+            {m_thumbstickAction, path("/user/hand/right/input/thumbstick")},
+            {m_aClickAction, path("/user/hand/right/input/a/click")},
+            {m_bClickAction, path("/user/hand/right/input/b/click")},
+            // Touch's left controller has X/Y where the right has A/B.
+            {m_xClickAction, path("/user/hand/left/input/x/click")},
+            {m_yClickAction, path("/user/hand/left/input/y/click")},
+            // Index trigger, analog - thresholded to a bool in Sync(). No
+            // dedicated /click sub-path for this input on touch_controller.
+            {m_triggerAction, path("/user/hand/left/input/trigger/value")},
+            {m_triggerAction, path("/user/hand/right/input/trigger/value")},
+            // Left controller's dedicated menu button - Touch controllers only
+            // have this on the left hand. Runtimes remapping this profile onto
+            // other controllers may route it elsewhere (SteamVR exposes it as
+            // left X+Y on PSVR2 Sense, since it keeps the physical button), so
+            // left stick click doubles as a menu toggle.
+            {m_menuClickAction, path("/user/hand/left/input/menu/click")},
+            {m_thumbstickClickAction, path("/user/hand/left/input/thumbstick/click")},
+    };
 
-    XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
-    suggestedBindings.interactionProfile = profilePath;
-    suggestedBindings.suggestedBindings = bindings;
-    suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(std::size(bindings));
-    CheckXr(xrSuggestInteractionProfileBindings(instance, &suggestedBindings), "xrSuggestInteractionProfileBindings");
+    XrResult result;
+
+    {
+        XrPath profilePath;
+        CheckXr(xrStringToPath(instance, "/interaction_profiles/pico/neo3_controller", &profilePath),
+                "xrStringToPath (profile)");
+
+        XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+        suggestedBindings.interactionProfile = profilePath;
+        suggestedBindings.suggestedBindings = picoBindings;
+        suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(std::size(picoBindings));
+        result = xrSuggestInteractionProfileBindings(instance, &suggestedBindings);
+    }
+
+    if (result != XR_SUCCESS)
+    {
+        XrPath profilePath;
+        CheckXr(xrStringToPath(instance, "/interaction_profiles/oculus/touch_controller", &profilePath),
+                "xrStringToPath (profile)");
+
+        XrInteractionProfileSuggestedBinding suggestedBindings{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+        suggestedBindings.interactionProfile = profilePath;
+        suggestedBindings.suggestedBindings = touchBindings;
+        suggestedBindings.countSuggestedBindings = static_cast<uint32_t>(std::size(touchBindings));
+        CheckXr(xrSuggestInteractionProfileBindings(instance, &suggestedBindings), "xrSuggestInteractionProfileBindings");
+    }
 
     XrSessionActionSetsAttachInfo attachInfo{XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
     attachInfo.countActionSets = 1;
@@ -136,8 +166,8 @@ void XrInput::Sync(XrSession session)
         int deviceSlot;
     };
     const HandInfo hands[] = {
-        {m_leftHandPath, ButtonMapper::DeviceLeftTouch},
-        {m_rightHandPath, ButtonMapper::DeviceRightTouch},
+            {m_leftHandPath, ButtonMapper::DeviceLeftTouch},
+            {m_rightHandPath, ButtonMapper::DeviceRightTouch},
     };
 
     m_rightThumbstick = {0.0f, 0.0f};
